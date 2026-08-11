@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: peptrace
+      POSTGRES_USER: peptrace
+      POSTGRES_PASSWORD: peptrace
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U peptrace -d peptrace"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    volumes:
+      - peptrace_postgres:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      target: api-dev
+    command: sh -c "npm run db:push -w @peptrace/api && npm run db:seed -w @peptrace/api && npm run dev:api"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://peptrace:peptrace@postgres:5432/peptrace?schema=public
+      DIRECT_URL: postgresql://peptrace:peptrace@postgres:5432/peptrace?schema=public
+      PORT: 3000
+      CORS_ORIGIN: http://localhost:5173
+      JWT_SECRET: local-docker-development-secret
+      ADMIN_EMAIL: admin@peptrace.com
+      ADMIN_PASSWORD: Admin@123
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/workspace
+      - peptrace_node_modules:/workspace/node_modules
+
+  admin:
+    build:
+      context: .
+      target: admin-dev
+    depends_on:
+      - api
+    environment:
+      VITE_API_BASE_URL: http://localhost:3000/api
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/workspace
+      - peptrace_node_modules:/workspace/node_modules
+
+volumes:
+  peptrace_postgres:
+  peptrace_node_modules:
