@@ -1,0 +1,129 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model ClientTenant {
+  id             String   @id @default(uuid())
+  name           String
+  slug           String   @unique
+  plan           String
+  status         String
+  owner          String
+  seats          Int
+  monthlySpend   Int
+  openItems      Int
+  dataRegion     String
+  lastActivityAt DateTime
+  adminUsers     AdminUser[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model AdminUser {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  displayName  String
+  role         String        @default("owner")
+  tenantId     String?
+  tenant       ClientTenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  lastLoginAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Vendor {
+  id            String          @id @default(uuid())
+  displayName   String
+  slug          String          @unique
+  overallRating Float
+  products      VendorProduct[]
+  tests         LabTest[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model VendorProduct {
+  id                 String   @id @default(uuid())
+  label              String
+  slug               String
+  peptideId          String
+  vendorId           String
+  priceMg            Float
+  rating             Float
+  doseMg             Float
+  purityPercent      Float
+  labelAccuracyDelta Float
+  testsCount         Int
+  peptide            Peptide  @relation(fields: [peptideId], references: [id], onDelete: Cascade)
+  vendor             Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([vendorId, slug])
+}
+
+model Peptide {
+  id        String          @id @default(uuid())
+  label     String
+  slug      String          @unique
+  products  VendorProduct[]
+  tests     LabTest[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model Lab {
+  id           String    @id @default(uuid())
+  displayName  String
+  slug         String    @unique
+  partnerSince DateTime
+  tests        LabTest[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model LabTest {
+  id                String    @id @default(uuid())
+  labId             String
+  vialSizeMg         Int
+  vendorId          String
+  resultsReleasedAt DateTime?
+  testingStatus     String
+  peptideId         String
+  assay             String
+  purityPercent     Float?
+  labelClaimPercent Float?
+  lab               Lab       @relation(fields: [labId], references: [id])
+  peptide           Peptide   @relation(fields: [peptideId], references: [id])
+  vendor            Vendor    @relation(fields: [vendorId], references: [id])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model ApiSurface {
+  id        String   @id @default(uuid())
+  group     String   @unique
+  routes    String[]
+  owner     String
+  readiness String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AccountWorkItem {
+  id        String   @id @default(uuid())
+  account   String
+  kind      String
+  priority  String
+  dueAt     DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
