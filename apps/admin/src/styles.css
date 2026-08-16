@@ -498,7 +498,7 @@
   }
 
   .topbar {
-    @apply sticky top-0 z-10 grid min-h-[68px] grid-cols-[minmax(170px,0.8fr)_minmax(280px,560px)_minmax(max-content,1fr)] items-center gap-4 border-b border-[#dde4e0] bg-white/85 px-7 py-3;
+    @apply sticky top-0 z-20 grid min-h-[68px] grid-cols-[minmax(170px,0.8fr)_minmax(300px,440px)_minmax(max-content,0.8fr)] items-center gap-4 border-b border-[#dde4e0] bg-white/95 px-7 py-3;
   }
 
   .topbar-context {
@@ -513,12 +513,87 @@
     @apply overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold text-[#1f2933];
   }
 
+  .global-search {
+    @apply relative w-full max-w-[440px] justify-self-center;
+  }
+
   .search-control {
-    @apply flex min-h-10 items-center gap-2.5 rounded-md border border-input bg-card px-3 text-[#394540];
+    @apply flex min-h-[42px] items-center gap-2.5 rounded-md border border-[#cfd9d5] bg-white px-3 text-[#394540] shadow-[0_1px_2px_rgba(16,24,22,0.04)] transition-[border-color,box-shadow];
+  }
+
+  .search-control:focus-within,
+  .search-control[data-open="true"] {
+    @apply border-[#7db4aa] shadow-[0_0_0_3px_rgba(14,116,103,0.1)];
   }
 
   .search-control input {
-    @apply min-w-0 border-0 bg-transparent p-0 text-foreground outline-0 placeholder:text-[#78827f] focus-visible:ring-0 focus-visible:ring-offset-0;
+    @apply min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-semibold text-foreground outline-0 placeholder:font-medium placeholder:text-[#78827f] focus-visible:ring-0 focus-visible:ring-offset-0;
+  }
+
+  .search-control input::-webkit-search-cancel-button {
+    @apply hidden;
+  }
+
+  .search-clear {
+    @apply inline-flex h-7 w-7 flex-none items-center justify-center rounded-md border-0 bg-transparent p-0 text-[#66736f] hover:bg-[#edf3f1] hover:text-[#17211e] focus-visible:bg-[#edf3f1] focus-visible:text-[#17211e];
+  }
+
+  .search-popover {
+    @apply absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-md border border-[#d7e0dc] bg-white shadow-[0_18px_45px_rgba(16,31,27,0.16)];
+  }
+
+  .search-popover-header {
+    @apply flex min-h-9 items-center justify-between border-b border-[#e5ebe8] bg-[#f8faf9] px-3;
+  }
+
+  .search-popover-header strong {
+    @apply text-[0.7rem] font-extrabold uppercase text-[#66736f];
+  }
+
+  .search-popover-header span {
+    @apply text-xs font-bold text-[#82908b];
+  }
+
+  .search-results-list {
+    @apply max-h-[390px] overflow-y-auto p-1.5;
+  }
+
+  .search-result {
+    @apply grid min-h-[58px] w-full grid-cols-[34px_minmax(0,1fr)_max-content] items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 py-2 text-left text-[#1d2925];
+  }
+
+  .search-result:hover,
+  .search-result[data-active="true"] {
+    @apply bg-[#edf5f2];
+  }
+
+  .search-result-icon {
+    @apply grid h-[34px] w-[34px] place-items-center rounded-md bg-[#e7f1ee] text-primary;
+  }
+
+  .search-result-copy {
+    @apply grid min-w-0 gap-0.5;
+  }
+
+  .search-result-copy strong,
+  .search-result-copy small {
+    @apply block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
+  }
+
+  .search-result-copy strong {
+    @apply text-sm font-extrabold;
+  }
+
+  .search-result-copy small {
+    @apply text-xs font-medium text-[#71807b];
+  }
+
+  .search-result-category {
+    @apply max-w-[96px] overflow-hidden text-ellipsis whitespace-nowrap text-[0.68rem] font-extrabold uppercase text-[#7a8783];
+  }
+
+  .search-empty {
+    @apply flex min-h-[92px] items-center justify-center gap-2 px-4 text-sm font-bold text-[#71807b];
   }
 
   .topbar-actions,
@@ -969,7 +1044,7 @@
     }
 
     .topbar {
-      @apply grid-cols-1;
+      @apply grid-cols-[minmax(130px,0.7fr)_minmax(240px,1.4fr)_max-content] px-4;
     }
 
     .topbar-actions {
@@ -1060,8 +1135,7 @@
     }
 
     .page-actions,
-    .topbar-actions,
-    .search-control {
+    .topbar-actions {
       @apply w-full;
     }
 
@@ -1076,7 +1150,19 @@
     }
 
     .topbar {
-      @apply static px-4 py-3;
+      @apply static grid-cols-1 px-4 py-3;
+    }
+
+    .global-search {
+      @apply max-w-none justify-self-stretch;
+    }
+
+    .search-result {
+      @apply grid-cols-[34px_minmax(0,1fr)];
+    }
+
+    .search-result-category {
+      @apply hidden;
     }
 
     .page-flow {

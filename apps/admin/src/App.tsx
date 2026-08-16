@@ -4,6 +4,7 @@ import {
   BadgeDollarSign,
   Beaker,
   Bell,
+  Building2,
   CalendarCheck,
   CheckCircle2,
   ChevronDown,
@@ -29,7 +30,8 @@ import {
   Store,
   UserRoundCog,
   UsersRound,
-  Wrench
+  Wrench,
+  X
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import {
@@ -53,6 +55,18 @@ type NavItem = {
   id: AdminSection;
   label: string;
   icon: typeof LayoutDashboard;
+};
+
+type GlobalSearchResult = {
+  category: string;
+  description: string;
+  filterValue: string;
+  icon: typeof LayoutDashboard;
+  id: string;
+  isNavigation: boolean;
+  keywords: string;
+  section: AdminSection;
+  title: string;
 };
 
 const navigationGroups: Array<{ label: string; items: NavItem[] }> = [
@@ -241,10 +255,11 @@ export function App() {
   const [panelData, setPanelData] = useState<AdminPanelData | null>(null);
   const [panelError, setPanelError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [pageFilter, setPageFilter] = useState("");
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const visibleVendors = useMemo(() => {
     const dataVendors = panelData?.vendors ?? [];
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = pageFilter.trim().toLowerCase();
     if (!normalizedQuery) {
       return dataVendors;
     }
@@ -255,7 +270,7 @@ export function App() {
         .toLowerCase()
         .includes(normalizedQuery)
     );
-  }, [panelData, query]);
+  }, [pageFilter, panelData]);
 
   setSessionToken(session);
 
@@ -264,6 +279,8 @@ export function App() {
     setPanelError(null);
     setPanelContext(null);
     setPanelData(null);
+    setPageFilter("");
+    setQuery("");
 
     if (!session) {
       return;
@@ -388,7 +405,11 @@ export function App() {
                       className="nav-item"
                       data-active={activeSection === item.id}
                       key={item.id}
-                      onClick={() => setActiveSection(item.id)}
+                      onClick={() => {
+                        setActiveSection(item.id);
+                        setPageFilter("");
+                        setQuery("");
+                      }}
                       type="button"
                     >
                       <Icon size={17} strokeWidth={2} />
@@ -417,22 +438,22 @@ export function App() {
             <strong>{workspaceName}</strong>
           </div>
 
-          <div className="search-control">
-            <Search size={18} strokeWidth={2} />
-            <input
-              aria-label="Search admin panel"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={
-                panelContext.mode === "superadmin"
-                  ? "Search clients, companies, accounts"
-                  : isPeptraceClient
-                    ? "Search clients, vendors, products"
-                  : `Search ${panelContext.panel.brandName} records`
-              }
-              type="search"
-              value={query}
-            />
-          </div>
+          <GlobalSearch
+            context={panelContext}
+            data={panelData}
+            navigation={navigation}
+            onNavigate={(section, filterValue) => {
+              setActiveSection(section);
+              setPageFilter(filterValue);
+              setQuery(filterValue);
+            }}
+            onQueryChange={(value) => {
+              setPageFilter("");
+              setQuery(value);
+            }}
+            query={query}
+            workspaceName={workspaceName}
+          />
 
           <div className="topbar-actions">
             <Button className="icon-button" variant="outline" size="icon" aria-label="Notifications" title="Notifications" type="button">
@@ -498,12 +519,12 @@ export function App() {
         <PageHeader meta={activeMeta} primaryAction={getPrimaryActionLabel(panelContext, activeSection)} section={activeSection} />
 
         {panelContext.mode === "superadmin" ? (
-          <SuperAdminPanel context={panelContext} query={query} section={activeSection} />
+          <SuperAdminPanel context={panelContext} query={pageFilter} section={activeSection} />
         ) : (
           <ClientAdminPanel
             context={panelContext}
             data={panelData!}
-            query={query}
+            query={pageFilter}
             section={activeSection}
             vendors={visibleVendors}
           />
@@ -549,6 +570,469 @@ function PanelContextState({ error, onSignOut }: { error: string | null; onSignO
       </section>
     </main>
   );
+}
+
+function GlobalSearch({
+  context,
+  data,
+  navigation,
+  onNavigate,
+  onQueryChange,
+  query,
+  workspaceName
+}: {
+  context: AdminPanelContext;
+  data: AdminPanelData | null;
+  navigation: Array<{ label: string; items: NavItem[] }>;
+  onNavigate: (section: AdminSection, filterValue: string) => void;
+  onQueryChange: (value: string) => void;
+  query: string;
+  workspaceName: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeResultIndex, setActiveResultIndex] = useState(0);
+  const searchRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const searchIndex = useMemo(
+    () => buildGlobalSearchIndex(context, data, navigation),
+    [context, data, navigation]
+  );
+  const results = useMemo(() => filterGlobalSearchResults(searchIndex, query), [query, searchIndex]);
+  const activeResult = results[activeResultIndex];
+
+  useEffect(() => {
+    setActiveResultIndex(0);
+  }, [query]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!searchRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isOpen]);
+
+  const selectResult = (result: GlobalSearchResult) => {
+    onNavigate(result.section, result.isNavigation ? "" : result.filterValue);
+    setIsOpen(false);
+    inputRef.current?.blur();
+  };
+
+  return (
+    <div className="global-search" ref={searchRef}>
+      <div className="search-control" data-open={isOpen}>
+        <Search aria-hidden="true" size={18} strokeWidth={2} />
+        <input
+          aria-activedescendant={isOpen && activeResult ? getGlobalSearchResultDomId(activeResult.id) : undefined}
+          aria-autocomplete="list"
+          aria-controls={isOpen ? "global-search-results" : undefined}
+          aria-expanded={isOpen}
+          aria-label={`Search ${workspaceName}`}
+          onChange={(event) => {
+            onQueryChange(event.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              setIsOpen(true);
+              setActiveResultIndex((index) => (results.length > 0 ? (index + 1) % results.length : 0));
+            }
+
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              setIsOpen(true);
+              setActiveResultIndex((index) => (results.length > 0 ? (index - 1 + results.length) % results.length : 0));
+            }
+
+            if (event.key === "Enter" && activeResult) {
+              event.preventDefault();
+              selectResult(activeResult);
+            }
+
+            if (event.key === "Escape") {
+              setIsOpen(false);
+              inputRef.current?.blur();
+            }
+          }}
+          placeholder={`Search ${workspaceName}`}
+          ref={inputRef}
+          role="combobox"
+          type="search"
+          value={query}
+        />
+        {query && (
+          <button
+            aria-label="Clear search"
+            className="search-clear"
+            onClick={() => {
+              onQueryChange("");
+              setIsOpen(true);
+              inputRef.current?.focus();
+            }}
+            title="Clear search"
+            type="button"
+          >
+            <X size={15} strokeWidth={2} />
+          </button>
+        )}
+      </div>
+
+      {isOpen && (
+        <div className="search-popover" id="global-search-results">
+          <div className="search-popover-header">
+            <strong>{query.trim() ? "Results" : "Workspace"}</strong>
+            <span>{results.length}</span>
+          </div>
+
+          <div className="search-results-list" role={results.length > 0 ? "listbox" : undefined}>
+            {results.map((result, index) => {
+              const Icon = result.icon;
+              return (
+                <button
+                  aria-selected={index === activeResultIndex}
+                  className="search-result"
+                  data-active={index === activeResultIndex}
+                  id={getGlobalSearchResultDomId(result.id)}
+                  key={result.id}
+                  onClick={() => selectResult(result)}
+                  onPointerMove={() => setActiveResultIndex(index)}
+                  role="option"
+                  type="button"
+                >
+                  <span className="search-result-icon" aria-hidden="true">
+                    <Icon size={17} strokeWidth={2} />
+                  </span>
+                  <span className="search-result-copy">
+                    <strong>{result.title}</strong>
+                    <small>{result.description}</small>
+                  </span>
+                  <span className="search-result-category">{result.category}</span>
+                </button>
+              );
+            })}
+
+            {results.length === 0 && (
+              <div className="search-empty" role="status">
+                <Search size={18} strokeWidth={2} />
+                <span>No matches in {workspaceName}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function buildGlobalSearchIndex(
+  context: AdminPanelContext,
+  data: AdminPanelData | null,
+  navigation: Array<{ label: string; items: NavItem[] }>
+): GlobalSearchResult[] {
+  const results: GlobalSearchResult[] = [];
+  const addResult = (
+    result: Omit<GlobalSearchResult, "filterValue" | "keywords"> & {
+      filterValue?: string;
+      keywords?: string;
+    }
+  ) => {
+    results.push({
+      ...result,
+      filterValue: result.filterValue ?? result.title,
+      keywords: [result.title, result.description, result.category, result.keywords ?? ""].join(" ").toLowerCase()
+    });
+  };
+
+  navigation.forEach((group) => {
+    group.items.forEach((item) => {
+      const meta = getPanelSectionMeta(context, item.id);
+      addResult({
+        category: group.label,
+        description: meta.description,
+        icon: item.icon,
+        id: `nav-${item.id}`,
+        isNavigation: true,
+        keywords: `${meta.title} ${meta.breadcrumb}`,
+        section: item.id,
+        title: item.label
+      });
+    });
+  });
+
+  if (context.mode === "superadmin") {
+    context.platform.clients.forEach((company) => {
+      addResult({
+        category: "Clients",
+        description: `${company.panel.productName} | ${company.plan} | ${company.dataRegion}`,
+        icon: Building2,
+        id: `company-${company.id}`,
+        isNavigation: false,
+        keywords: `${company.slug} ${company.status} ${company.owner} ${company.panel.industry}`,
+        section: "clients",
+        title: company.name
+      });
+
+      company.adminUsers.forEach((account) => {
+        addResult({
+          category: company.name,
+          description: `${account.email} | ${formatRole(account.role)}`,
+          icon: UserRoundCog,
+          id: `account-${account.id}`,
+          isNavigation: false,
+          keywords: `${company.name} ${company.slug}`,
+          section: "testing",
+          title: account.displayName
+        });
+      });
+    });
+
+    context.platform.internalAccounts.forEach((account) => {
+      addResult({
+        category: "EsteemedEngineering",
+        description: `${account.email} | ${formatRole(account.role)}`,
+        icon: ShieldCheck,
+        id: `internal-account-${account.id}`,
+        isNavigation: false,
+        section: "testing",
+        title: account.displayName
+      });
+    });
+  } else {
+    context.company.adminUsers.forEach((account) => {
+      addResult({
+        category: "Team",
+        description: `${account.email} | ${formatRole(account.role)}`,
+        icon: UserRoundCog,
+        id: `account-${account.id}`,
+        isNavigation: false,
+        section: "clients",
+        title: account.displayName
+      });
+    });
+
+    context.panel.metrics.forEach((metric, index) => {
+      addResult({
+        category: "Overview",
+        description: `${metric.value} | ${metric.change}`,
+        icon: getMetricIcon(metric),
+        id: `metric-${index}-${metric.label}`,
+        isNavigation: false,
+        section: "overview",
+        title: metric.label
+      });
+    });
+
+    context.panel.primaryRecords.forEach((record, index) => {
+      addResult({
+        category: getPanelSectionMeta(context, getClientRecordSection(context, record)).title,
+        description: `${record.detail} | ${record.value} | ${record.status}`,
+        icon: Home,
+        id: `record-${index}-${record.label}`,
+        isNavigation: false,
+        section: getClientRecordSection(context, record),
+        title: record.label
+      });
+    });
+
+    context.panel.workItems.forEach((item, index) => {
+      const section = getClientWorkItemSection(context, item.label, item.detail);
+      addResult({
+        category: getPanelSectionMeta(context, section).title,
+        description: `${item.detail} | ${item.priority} priority`,
+        icon: Activity,
+        id: `work-${index}-${item.label}`,
+        isNavigation: false,
+        section,
+        title: item.label
+      });
+    });
+  }
+
+  if (context.mode === "client" && data) {
+    data.clients.forEach((client) => {
+      addResult({
+        category: "Clients",
+        description: `${client.plan} | ${client.status} | ${client.dataRegion}`,
+        icon: Building2,
+        id: `client-${client.id}`,
+        isNavigation: false,
+        keywords: `${client.slug} ${client.owner}`,
+        section: "clients",
+        title: client.name
+      });
+    });
+
+    data.vendors.forEach((vendor) => {
+      addResult({
+        category: "Vendors",
+        description: `${vendor.products.length} products | ${Math.round(vendor.overallRating * 100)}% rating`,
+        icon: Store,
+        id: `vendor-${vendor.id}`,
+        isNavigation: false,
+        keywords: `${vendor.slug} ${vendor.products.map((product) => product.label).join(" ")}`,
+        section: "vendors",
+        title: vendor.displayName
+      });
+    });
+
+    data.peptides.forEach((peptide) => {
+      addResult({
+        category: "Peptides",
+        description: `${peptide.tests.length} linked tests`,
+        icon: FlaskConical,
+        id: `peptide-${peptide.id}`,
+        isNavigation: false,
+        keywords: peptide.slug,
+        section: "peptides",
+        title: peptide.label
+      });
+    });
+
+    data.labs.forEach((lab) => {
+      addResult({
+        category: "Labs",
+        description: `${lab.tests.length} tests | Partner since ${formatDate(lab.partnerSince)}`,
+        icon: Beaker,
+        id: `lab-${lab.id}`,
+        isNavigation: false,
+        keywords: lab.slug,
+        section: "labs",
+        title: lab.displayName
+      });
+    });
+
+    data.tests.forEach((test) => {
+      const peptide = data.peptides.find((item) => item.id === test.peptideId);
+      const vendor = data.vendors.find((item) => item.id === test.vendorId);
+      const lab = data.labs.find((item) => item.id === test.labId);
+      addResult({
+        category: "Testing",
+        description: `${vendor?.displayName ?? "Vendor"} | ${lab?.displayName ?? "Lab"} | ${statusLabels[test.testingStatus]}`,
+        filterValue: peptide?.label ?? test.assay,
+        icon: Microscope,
+        id: `test-${test.id}`,
+        isNavigation: false,
+        keywords: `${test.assay} ${test.testingStatus} ${test.purityPercent ?? ""}`,
+        section: "testing",
+        title: `${peptide?.label ?? "Test"} ${test.assay}`
+      });
+    });
+
+    data.apiSurfaces.forEach((surface, index) => {
+      addResult({
+        category: "Access",
+        description: `${surface.owner} | ${surface.readiness}`,
+        icon: KeyRound,
+        id: `api-${index}-${surface.group}`,
+        isNavigation: false,
+        keywords: surface.routes.join(" "),
+        section: "access",
+        title: surface.group
+      });
+    });
+  }
+
+  return results;
+}
+
+function filterGlobalSearchResults(results: GlobalSearchResult[], query: string): GlobalSearchResult[] {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) {
+    return results.filter((result) => result.isNavigation).slice(0, 8);
+  }
+
+  return results
+    .filter((result) => terms.every((term) => result.keywords.includes(term)))
+    .sort((left, right) => {
+      const leftStartsWith = left.title.toLowerCase().startsWith(terms[0] ?? "") ? 0 : 1;
+      const rightStartsWith = right.title.toLowerCase().startsWith(terms[0] ?? "") ? 0 : 1;
+      return leftStartsWith - rightStartsWith || left.title.localeCompare(right.title);
+    })
+    .slice(0, 10);
+}
+
+function getGlobalSearchResultDomId(value: string): string {
+  return `global-search-result-${value.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
+function getClientRecordSection(
+  context: Extract<AdminPanelContext, { mode: "client" }>,
+  record: Extract<AdminPanelContext, { mode: "client" }>["panel"]["primaryRecords"][number]
+): AdminSection {
+  const value = [record.label, record.detail, record.status, record.value].join(" ").toLowerCase();
+
+  if (isShamstayClientContext(context)) {
+    if (/maintenance|repair|fix|blocked|vendor visit/.test(value)) {
+      return "labs";
+    }
+    if (/reservation|booking|guest|check-in|check-out|stay/.test(value)) {
+      return "testing";
+    }
+    return "vendors";
+  }
+
+  if (isShamRealEstateHubClientContext(context)) {
+    if (/offer|pipeline|negotiation|valuation|closing|deal/.test(value)) {
+      return "labs";
+    }
+    if (/lead|buyer|tenant|inquiry|follow-up/.test(value)) {
+      return "testing";
+    }
+    return "vendors";
+  }
+
+  return "overview";
+}
+
+function getClientWorkItemSection(
+  context: Extract<AdminPanelContext, { mode: "client" }>,
+  label: string,
+  detail: string
+): AdminSection {
+  const value = `${label} ${detail}`.toLowerCase();
+
+  if (isShamstayClientContext(context)) {
+    if (/maintenance|repair|fix/.test(value)) {
+      return "labs";
+    }
+    if (/turnover|clean|linen|inspection/.test(value)) {
+      return "peptides";
+    }
+    return "testing";
+  }
+
+  if (isShamRealEstateHubClientContext(context)) {
+    if (/viewing|tour|appointment/.test(value)) {
+      return "peptides";
+    }
+    if (/listing|seller|portal/.test(value)) {
+      return "vendors";
+    }
+    if (/lead|buyer|tenant|inquiry/.test(value)) {
+      return "testing";
+    }
+    return "labs";
+  }
+
+  if (/api|billing|access|security/.test(value)) {
+    return "access";
+  }
+  if (/vendor/.test(value)) {
+    return "vendors";
+  }
+  if (/lab|test|review/.test(value)) {
+    return "testing";
+  }
+  return "overview";
 }
 
 function getWorkspaceInitials(value: string): string {
