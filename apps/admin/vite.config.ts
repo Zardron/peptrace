@@ -2,6 +2,9 @@ import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+const superAdminProxyTarget = process.env.SUPERADMIN_API_PROXY_TARGET ?? "http://127.0.0.1:3000";
+const clientApiProxyTarget = process.env.CLIENT_API_PROXY_TARGET ?? "http://127.0.0.1:3001";
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -15,7 +18,8 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5173,
     proxy: {
-      "/api": "http://127.0.0.1:3000"
+      "/api": superAdminProxyTarget,
+      "/client-api": clientApiProxyTarget
     }
   },
   preview: {
