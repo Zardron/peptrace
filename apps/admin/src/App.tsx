@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ClipboardCheck,
+  Database,
   Download,
   Eye,
   EyeOff,
@@ -55,6 +56,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import esteemedEngineeringLogoUrl from "./assets/esteemedengineering-logo-a3.png";
+import { SystemConfiguration } from "./SystemConfiguration";
 
 type AdminSection =
   | "overview"
@@ -69,6 +71,7 @@ type AdminSection =
   | "labs"
   | "users"
   | "secrets"
+  | "system"
   | "access";
 
 type NavItem = {
@@ -203,6 +206,11 @@ const sectionMeta: Record<AdminSection, { breadcrumb: string; title: string; des
     breadcrumb: "Platform / Secret Locker",
     title: "Secret Locker",
     description: "Manage tenant-isolated secret metadata, encrypted versions, and access state."
+  },
+  system: {
+    breadcrumb: "Platform / System Configuration",
+    title: "System configuration",
+    description: "Assign and verify encrypted database connections for each client company."
   },
   access: {
     breadcrumb: "EsteemedEngineering / Access",
@@ -1667,6 +1675,7 @@ function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: st
         label: "Platform governance",
         items: [
           { id: "secrets", label: "Secret Locker", icon: Vault },
+          { id: "system", label: "System Configuration", icon: Database },
           { id: "access", label: "Access", icon: KeyRound }
         ]
       }
@@ -1777,6 +1786,11 @@ function getPanelSectionMeta(
         breadcrumb: "EsteemedEngineering / Secret Locker",
         title: "Secret Locker governance",
         description: "Cross-company secret metadata and version health without access to encrypted values."
+      },
+      system: {
+        breadcrumb: "EsteemedEngineering / System Configuration",
+        title: "Client database connections",
+        description: "Configure shared or dedicated database assignments with encrypted credentials and live health tests."
       },
       onboarding: {
         breadcrumb: "EsteemedEngineering / Onboarding",
@@ -2069,6 +2083,10 @@ function SuperAdminPanel({
 
   if (section === "secrets") {
     return <SuperAdminSecretLocker context={context} query={query} />;
+  }
+
+  if (section === "system") {
+    return <SystemConfiguration api={superAdminApiClient} />;
   }
 
   if (section === "onboarding") {
@@ -3725,7 +3743,7 @@ function PageHeader({
         <h1 id="page-title">{meta.title}</h1>
         <span>{meta.description}</span>
       </div>
-      <div className="page-actions">
+      {section !== "system" && <div className="page-actions">
         <Button className="secondary-button" type="button" variant="outline">
           <Download size={17} strokeWidth={2} />
           <span>Export</span>
@@ -3738,7 +3756,7 @@ function PageHeader({
           )}
           <span>{primaryAction ?? "Create report"}</span>
         </Button>
-      </div>
+      </div>}
     </section>
   );
 }
