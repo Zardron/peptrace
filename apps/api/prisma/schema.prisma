@@ -10,24 +10,56 @@ datasource db {
 }
 
 model ClientTenant {
-  id              String           @id @default(uuid())
-  name            String
-  slug            String           @unique
-  plan            String
-  status          String
-  owner           String
-  seats           Int
-  monthlySpend    Int
-  openItems       Int
-  dataRegion      String
-  lastActivityAt  DateTime
-  adminUsers      AdminUser[]
-  secrets         Secret[]
-  secretGrants    SecretAccessGrant[]
-  secretAuditEvents SecretAuditEvent[]
-  whiteLabelPanel WhiteLabelPanel?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id                 String                    @id @default(uuid())
+  name               String
+  slug               String                    @unique
+  plan               String
+  status             String
+  owner              String
+  seats              Int
+  monthlySpend       Int
+  openItems          Int
+  dataRegion         String
+  lastActivityAt     DateTime
+  adminUsers         AdminUser[]
+  secrets            Secret[]
+  secretGrants       SecretAccessGrant[]
+  secretAuditEvents  SecretAuditEvent[]
+  databaseConnection ClientDatabaseConnection?
+  whiteLabelPanel    WhiteLabelPanel?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+}
+
+model ClientDatabaseConnection {
+  id                 String       @id @default(uuid())
+  tenantId           String       @unique
+  tenant             ClientTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider           String
+  displayName        String
+  host               String
+  port               Int
+  databaseName       String
+  username           String?
+  passwordCiphertext Bytes?
+  passwordIv         Bytes?
+  passwordAuthTag    Bytes?
+  passwordKeyId      String?
+  sslMode            String       @default("REQUIRE")
+  connectionMode     String       @default("STANDARD")
+  schemaName         String?
+  authSource         String?
+  replicaSet         String?
+  useSrv             Boolean      @default(false)
+  status             String       @default("NOT_TESTED")
+  lastTestedAt       DateTime?
+  lastTestMessage    String?
+  updatedById        String
+  updatedByEmail     String
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@index([provider, status])
 }
 
 model WhiteLabelPanel {
@@ -49,18 +81,18 @@ model WhiteLabelPanel {
 }
 
 model AdminUser {
-  id           String        @id @default(uuid())
-  email        String        @unique
+  id           String              @id @default(uuid())
+  email        String              @unique
   passwordHash String
   displayName  String
-  role         String        @default("owner")
-  isActive     Boolean       @default(true)
+  role         String              @default("owner")
+  isActive     Boolean             @default(true)
   tenantId     String?
-  tenant       ClientTenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  tenant       ClientTenant?       @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   secretGrants SecretAccessGrant[]
   lastLoginAt  DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 }
 
 model Secret {
@@ -83,20 +115,20 @@ model Secret {
 }
 
 model SecretVersion {
-  id              String             @id @default(uuid())
-  secretId        String
-  secret          Secret             @relation(fields: [secretId], references: [id], onDelete: Cascade)
-  version         Int
-  state           String             @default("ENABLED")
-  encryptedValue  Bytes?
-  encryptionIv    Bytes?
+  id                String             @id @default(uuid())
+  secretId          String
+  secret            Secret             @relation(fields: [secretId], references: [id], onDelete: Cascade)
+  version           Int
+  state             String             @default("ENABLED")
+  encryptedValue    Bytes?
+  encryptionIv      Bytes?
   authenticationTag Bytes?
-  checksum        String?
-  encryptionKeyId String
-  createdById     String
-  createdAt       DateTime           @default(now())
-  destroyedAt     DateTime?
-  auditEvents     SecretAuditEvent[]
+  checksum          String?
+  encryptionKeyId   String
+  createdById       String
+  createdAt         DateTime           @default(now())
+  destroyedAt       DateTime?
+  auditEvents       SecretAuditEvent[]
 
   @@unique([secretId, version])
   @@index([secretId, state])

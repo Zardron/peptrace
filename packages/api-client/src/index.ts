@@ -222,6 +222,81 @@ export interface PlatformSecretLockerSummary {
   totalVersions: number;
 }
 
+export type ClientDatabaseProvider = "POSTGRESQL" | "SUPABASE" | "MYSQL" | "MONGODB";
+export type ClientDatabaseSslMode = "DISABLE" | "REQUIRE" | "VERIFY_CA" | "VERIFY_FULL";
+export type ClientDatabaseConnectionMode = "STANDARD" | "DIRECT" | "SESSION_POOLER" | "TRANSACTION_POOLER";
+export type ClientDatabaseConnectionStatus = "NOT_TESTED" | "CONNECTED" | "FAILED";
+
+export interface ClientDatabaseConnection {
+  id: string;
+  tenantId: string;
+  provider: ClientDatabaseProvider;
+  displayName: string;
+  host: string;
+  port: number;
+  databaseName: string;
+  username: string | null;
+  hasPassword: boolean;
+  sslMode: ClientDatabaseSslMode;
+  connectionMode: ClientDatabaseConnectionMode;
+  schemaName: string | null;
+  authSource: string | null;
+  replicaSet: string | null;
+  useSrv: boolean;
+  status: ClientDatabaseConnectionStatus;
+  lastTestedAt: string | null;
+  lastTestMessage: string | null;
+  updatedByEmail: string;
+  createdAt: string;
+  updatedAt: string;
+  maskedConnectionString: string;
+}
+
+export interface ClientDatabaseAssignment {
+  id: string;
+  name: string;
+  slug: string;
+  dataRegion: string;
+  mode: "SHARED" | "DEDICATED";
+  connection: ClientDatabaseConnection | null;
+}
+
+export interface ClientDatabaseConnectionList {
+  recommendedProvider: ClientDatabaseProvider;
+  clients: ClientDatabaseAssignment[];
+}
+
+export interface DatabaseProviderCatalog {
+  recommendation: {
+    provider: ClientDatabaseProvider;
+    summary: string;
+  };
+  providers: Array<{
+    id: ClientDatabaseProvider;
+    name: string;
+    defaultPort: number;
+    requiredFields: string[];
+    optionalFields: string[];
+    notes: string;
+  }>;
+}
+
+export interface UpsertClientDatabaseConnectionRequest {
+  provider: ClientDatabaseProvider;
+  displayName: string;
+  host: string;
+  port: number;
+  databaseName: string;
+  username?: string;
+  password?: string;
+  sslMode: ClientDatabaseSslMode;
+  connectionMode: ClientDatabaseConnectionMode;
+  schemaName?: string;
+  authSource?: string;
+  replicaSet?: string;
+  useSrv?: boolean;
+}
+
 export type AdminPanelContext =
   | {
       mode: "client";
@@ -354,6 +429,34 @@ export class PeptraceApiClient {
 
   getAdminPanelData(): Promise<AdminPanelData> {
     return this.request<AdminPanelData>("/admin-panel/data");
+  }
+
+  listClientDatabaseConnections(): Promise<ClientDatabaseConnectionList> {
+    return this.request<ClientDatabaseConnectionList>("/system/database-connections");
+  }
+
+  getDatabaseProviderCatalog(): Promise<DatabaseProviderCatalog> {
+    return this.request<DatabaseProviderCatalog>("/system/database-providers");
+  }
+
+  upsertClientDatabaseConnection(
+    tenantId: string,
+    body: UpsertClientDatabaseConnectionRequest
+  ): Promise<ClientDatabaseConnection> {
+    return this.request<ClientDatabaseConnection>(`/system/database-connections/${tenantId}`, {
+      body,
+      method: "PUT"
+    });
+  }
+
+  testClientDatabaseConnection(
+    tenantId: string
+  ): Promise<{ success: boolean; connection: ClientDatabaseConnection }> {
+    return this.request(`/system/database-connections/${tenantId}/test`, { method: "POST" });
+  }
+
+  useSharedClientDatabase(tenantId: string): Promise<{ tenantId: string; mode: "SHARED"; connection: null }> {
+    return this.request(`/system/database-connections/${tenantId}`, { method: "DELETE" });
   }
 
   listClientUsers(query?: {

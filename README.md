@@ -141,5 +141,16 @@ DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co
 Do not commit the real Supabase password. Keep it in `.env`, your deployment
 secret store, or Docker/hosting environment variables.
 
+## Client Database Assignments
+
+EsteemedEngineering superadmins can open **System Configuration** to assign a
+shared platform database or an encrypted dedicated PostgreSQL, Supabase,
+MySQL, or MongoDB connection to each client. Apply the control-plane migration
+before using this screen and configure a production
+`DATABASE_CONNECTION_ENCRYPTION_KEY`.
+
+Provider fields, security controls, and the repository-adapter rollout are
+documented in [docs/client-database-connections.md](docs/client-database-connections.md).
+
 The admin app reads shared types from `@peptrace/domain`, so backend services
 can reuse the same contracts as they come online.

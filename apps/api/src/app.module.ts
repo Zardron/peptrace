@@ -8,6 +8,7 @@ import { AdminPanelModule } from "./modules/admin-panel/admin-panel.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { CatalogModule } from "./modules/catalog/catalog.module";
 import { ClientsModule } from "./modules/clients/clients.module";
+import { DatabaseConnectionsModule } from "./modules/database-connections/database-connections.module";
 import { HealthModule } from "./modules/health/health.module";
 import { PlatformModule } from "./modules/platform/platform.module";
 import { PrismaModule } from "./modules/prisma/prisma.module";
@@ -42,6 +43,7 @@ import { TestingModule } from "./modules/testing/testing.module";
     AuthModule,
     AdminPanelModule,
     ClientsModule,
+    DatabaseConnectionsModule,
     CatalogModule,
     TestingModule,
     PlatformModule
