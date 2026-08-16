@@ -8,14 +8,17 @@ import {
   CalendarCheck,
   CheckCircle2,
   ChevronDown,
+  ClipboardCheck,
   Download,
   Eye,
   EyeOff,
   Filter,
   FlaskConical,
   Home,
+  History,
   KeyRound,
   LayoutDashboard,
+  LifeBuoy,
   LoaderCircle,
   LockKeyhole,
   LogOut,
@@ -49,7 +52,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import esteemedEngineeringLogoUrl from "./assets/esteemedengineering-logo-a3.png";
 
-type AdminSection = "overview" | "clients" | "vendors" | "peptides" | "testing" | "labs" | "access";
+type AdminSection =
+  | "overview"
+  | "clients"
+  | "onboarding"
+  | "provisioning"
+  | "support"
+  | "activity"
+  | "vendors"
+  | "peptides"
+  | "testing"
+  | "labs"
+  | "access";
 
 type NavItem = {
   id: AdminSection;
@@ -67,6 +81,17 @@ type GlobalSearchResult = {
   keywords: string;
   section: AdminSection;
   title: string;
+};
+
+type NotificationItem = {
+  detail: string;
+  filterValue: string;
+  icon: typeof LayoutDashboard;
+  id: string;
+  meta: string;
+  section: AdminSection;
+  title: string;
+  tone: "info" | "success" | "warning";
 };
 
 const navigationGroups: Array<{ label: string; items: NavItem[] }> = [
@@ -101,7 +126,7 @@ const sectionMeta: Record<AdminSection, { breadcrumb: string; title: string; des
   clients: {
     breadcrumb: "Operations / Clients",
     title: "Client workspaces",
-    description: "Monitor plans, owners, open items, regions, and tenant health before onboarding scales."
+    description: "Monitor owners, access, open items, regions, and tenant health before onboarding scales."
   },
   vendors: {
     breadcrumb: "Catalog / Vendors",
@@ -125,8 +150,28 @@ const sectionMeta: Record<AdminSection, { breadcrumb: string; title: string; des
   },
   access: {
     breadcrumb: "EsteemedEngineering / Access",
-    title: "Security and billing controls",
-    description: "Manage secure access, billing policy, and API permissions."
+    title: "Security and access controls",
+    description: "Manage secure access, company permissions, and API permissions."
+  },
+  onboarding: {
+    breadcrumb: "Operations / Onboarding",
+    title: "Client onboarding",
+    description: "Track workspace setup, owner activation, configuration, and handoff readiness."
+  },
+  provisioning: {
+    breadcrumb: "Operations / Provisioning",
+    title: "Client access provisioning",
+    description: "Review workspace access, enabled accounts, company ownership, and handoff readiness."
+  },
+  support: {
+    breadcrumb: "Operations / Support",
+    title: "Client support queue",
+    description: "Prioritize client workspaces by open workload, health, and recent activity."
+  },
+  activity: {
+    breadcrumb: "Operations / Activity",
+    title: "Platform activity",
+    description: "Review client workspace activity and administrator sign-in history."
   }
 };
 
@@ -236,13 +281,21 @@ const formatUserName = (email: string): string => {
 const formatRole = (role: string): string => `${role.charAt(0).toUpperCase()}${role.slice(1)}`;
 
 const getAccountInitials = (session: AdminSession): string => {
-  const source = session.user.displayName ?? session.user.tenantName ?? session.user.email;
-  const initials = source
+  if (isSuperAdminSession(session)) {
+    return "EE";
+  }
+
+  const source = session.user.tenantName ?? session.user.displayName ?? session.user.email;
+  const parts = source
     .split(/[^a-zA-Z0-9]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("");
+    .filter(Boolean);
+
+  if (parts.length === 1) {
+    const capitalLetters = source.match(/[A-Z]/g)?.join("").slice(0, 2);
+    return capitalLetters && capitalLetters.length > 1 ? capitalLetters : source.slice(0, 2).toUpperCase();
+  }
+
+  const initials = parts.slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("");
 
   return initials || "PT";
 };
@@ -251,12 +304,15 @@ export function App() {
   const [session, setSession] = useState<AdminSession | null>(() => readStoredSession());
   const [activeSection, setActiveSection] = useState<AdminSection>("overview");
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
   const [panelContext, setPanelContext] = useState<AdminPanelContext | null>(null);
   const [panelData, setPanelData] = useState<AdminPanelData | null>(null);
   const [panelError, setPanelError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [pageFilter, setPageFilter] = useState("");
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const notificationMenuRef = useRef<HTMLDivElement | null>(null);
+  const notificationItems = useMemo(() => (panelContext ? buildNotificationItems(panelContext, panelData) : []), [panelContext, panelData]);
   const visibleVendors = useMemo(() => {
     const dataVendors = panelData?.vendors ?? [];
     const normalizedQuery = pageFilter.trim().toLowerCase();
@@ -335,6 +391,23 @@ export function App() {
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [isAccountMenuOpen]);
 
+  useEffect(() => {
+    if (!isNotificationMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (notificationMenuRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setIsNotificationMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [isNotificationMenuOpen]);
+
   if (!session) {
     return (
       <LoginScreen
@@ -351,6 +424,7 @@ export function App() {
     clearStoredSession();
     setSessionToken(null);
     setIsAccountMenuOpen(false);
+    setIsNotificationMenuOpen(false);
     setPanelContext(null);
     setPanelData(null);
     setSession(null);
@@ -371,14 +445,22 @@ export function App() {
   const roleLabel = formatRole(session.user.role);
   const workspaceName = panelContext.mode === "client" ? panelContext.company.name : "EsteemedEngineering";
   const workspaceInitials = isPeptraceClient ? "PT" : getWorkspaceInitials(workspaceName);
-  const workspaceSubline = panelContext.mode === "client" ? `${panelContext.company.plan} plan` : "Admin console";
+  const workspaceSubline = panelContext.mode === "client" ? `${panelContext.company.accessStatus} company access` : "Admin console";
   const navigation = getPanelNavigationGroups(panelContext);
   const isEsteemedEngineeringWorkspace = workspaceName === "EsteemedEngineering";
+  const notificationCount = getNotificationCount(notificationItems);
+
+  const selectNotification = (item: NotificationItem) => {
+    setActiveSection(item.section);
+    setPageFilter(item.filterValue);
+    setQuery(item.filterValue);
+    setIsNotificationMenuOpen(false);
+  };
 
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Primary">
-        <button className="tenant-switcher" type="button">
+        <div className="tenant-switcher">
           <span className={isEsteemedEngineeringWorkspace ? "tenant-avatar tenant-avatar-logo" : "tenant-avatar"}>
             {isEsteemedEngineeringWorkspace ? (
               <EsteemedEngineeringLogo className="tenant-logo" title="EsteemedEngineering" />
@@ -390,8 +472,7 @@ export function App() {
             <strong>{workspaceName}</strong>
             <small>{workspaceSubline}</small>
           </span>
-          <ChevronDown size={16} strokeWidth={2} />
-        </button>
+        </div>
 
         <nav className="nav-sections">
           {navigation.map((group) => (
@@ -456,9 +537,75 @@ export function App() {
           />
 
           <div className="topbar-actions">
-            <Button className="icon-button" variant="outline" size="icon" aria-label="Notifications" title="Notifications" type="button">
-              <Bell size={18} strokeWidth={2} />
-            </Button>
+            <div
+              className="notification-menu"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setIsNotificationMenuOpen(false);
+                }
+              }}
+              ref={notificationMenuRef}
+            >
+              <Button
+                aria-expanded={isNotificationMenuOpen}
+                aria-haspopup="menu"
+                aria-label={notificationCount > 0 ? `Notifications, ${notificationCount} open alerts` : "Notifications"}
+                className="icon-button notification-button"
+                data-active={isNotificationMenuOpen}
+                onClick={() => {
+                  setIsAccountMenuOpen(false);
+                  setIsNotificationMenuOpen((isOpen) => !isOpen);
+                }}
+                title="Notifications"
+                type="button"
+                variant="outline"
+                size="icon"
+              >
+                <Bell size={18} strokeWidth={2} />
+                {notificationCount > 0 && (
+                  <span className="notification-count" aria-hidden="true">
+                    {notificationCount > 99 ? "99+" : notificationCount}
+                  </span>
+                )}
+              </Button>
+
+              {isNotificationMenuOpen && (
+                <div className="notification-dropdown" role="menu" aria-label="Notifications">
+                  <div className="notification-dropdown-header">
+                    <div>
+                      <strong>Notifications</strong>
+                      <span>{workspaceName}</span>
+                    </div>
+                    <span className="notification-summary">{notificationCount > 0 ? `${notificationCount} open` : "Clear"}</span>
+                  </div>
+
+                  <div className="notification-list">
+                    {notificationItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          className="notification-item"
+                          data-tone={item.tone}
+                          key={item.id}
+                          onClick={() => selectNotification(item)}
+                          role="menuitem"
+                          type="button"
+                        >
+                          <span className="notification-item-icon" aria-hidden="true">
+                            <Icon size={17} strokeWidth={2} />
+                          </span>
+                          <span className="notification-copy">
+                            <strong>{item.title}</strong>
+                            <span>{item.detail}</span>
+                          </span>
+                          <span className="notification-meta">{item.meta}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
             <div
               className="account-menu"
               onKeyDown={(event) => {
@@ -473,7 +620,10 @@ export function App() {
                 aria-haspopup="menu"
                 aria-label="Open account menu"
                 className="account-avatar-button"
-                onClick={() => setIsAccountMenuOpen((isOpen) => !isOpen)}
+                onClick={() => {
+                  setIsNotificationMenuOpen(false);
+                  setIsAccountMenuOpen((isOpen) => !isOpen);
+                }}
                 title={session.user.email}
                 type="button"
               >
@@ -489,7 +639,7 @@ export function App() {
                     <span className="account-avatar account-avatar-large" aria-hidden="true">
                       {accountInitials}
                     </span>
-                    <div>
+                    <div className="account-dropdown-identity">
                       <strong>{accountName || "Admin user"}</strong>
                       <span>{session.user.email}</span>
                     </div>
@@ -733,6 +883,139 @@ function GlobalSearch({
   );
 }
 
+function buildNotificationItems(context: AdminPanelContext, data: AdminPanelData | null): NotificationItem[] {
+  const items: NotificationItem[] = [];
+  const addItem = (item: NotificationItem) => items.push(item);
+
+  if (context.mode === "superadmin") {
+    [...context.platform.clients]
+      .filter((company) => company.openItems > 0)
+      .sort((left, right) => right.openItems - left.openItems || left.name.localeCompare(right.name))
+      .slice(0, 4)
+      .forEach((company) => {
+        addItem({
+          detail: `${company.panel.productName} access is ${company.status.toLowerCase()}.`,
+          filterValue: company.name,
+          icon: company.status === "Healthy" ? Activity : AlertCircle,
+          id: `client-open-items-${company.id}`,
+          meta: `${company.dataRegion} workspace`,
+          section: "support",
+          title: `${company.name} has ${company.openItems} open ${company.openItems === 1 ? "item" : "items"}`,
+          tone: company.status === "Healthy" ? "info" : "warning"
+        });
+      });
+
+    const inactiveAccountCount = [
+      ...context.platform.internalAccounts,
+      ...context.platform.clients.flatMap((company) => company.adminUsers)
+    ].filter((account) => !account.lastLoginAt).length;
+
+    if (inactiveAccountCount > 0) {
+      addItem({
+        detail: "Follow up before the next workspace handoff.",
+        filterValue: "",
+        icon: UserRoundCog,
+        id: "admin-accounts-never-active",
+        meta: "Account directory",
+        section: "testing",
+        title: `${inactiveAccountCount} admin ${inactiveAccountCount === 1 ? "account has" : "accounts have"} never signed in`,
+        tone: "info"
+      });
+    }
+  } else if (data) {
+    [...data.accountWorkItems]
+      .sort((left, right) => priorityOrder[left.priority] - priorityOrder[right.priority] || new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime())
+      .slice(0, 2)
+      .forEach((item) => {
+        addItem({
+          detail: `${item.priority} priority due ${formatDate(item.dueAt)}.`,
+          filterValue: item.account,
+          icon: UserRoundCog,
+          id: `account-work-${item.id}`,
+          meta: item.kind,
+          section: "overview",
+          title: item.account,
+          tone: item.priority === "High" ? "warning" : "info"
+        });
+      });
+
+    const peptideNames = new Map(data.peptides.map((peptide) => [peptide.id, peptide.label]));
+    const vendorNames = new Map(data.vendors.map((vendor) => [vendor.id, vendor.displayName]));
+    const labNames = new Map(data.labs.map((lab) => [lab.id, lab.displayName]));
+
+    data.tests
+      .filter((test) => test.testingStatus !== "COMPLETE")
+      .sort((left, right) => getTestingStatusPriority(left.testingStatus) - getTestingStatusPriority(right.testingStatus))
+      .slice(0, 3)
+      .forEach((test) => {
+        const peptideName = peptideNames.get(test.peptideId) ?? "Peptide test";
+        addItem({
+          detail: `${test.assay} with ${vendorNames.get(test.vendorId) ?? "vendor"} at ${labNames.get(test.labId) ?? "lab"}.`,
+          filterValue: peptideName,
+          icon: test.testingStatus === "FAILED" || test.testingStatus === "RETEST_REQUESTED" ? AlertCircle : Microscope,
+          id: `test-status-${test.id}`,
+          meta: formatTestingStatus(test.testingStatus),
+          section: "testing",
+          title: peptideName,
+          tone: test.testingStatus === "FAILED" || test.testingStatus === "RETEST_REQUESTED" ? "warning" : "info"
+        });
+      });
+  } else {
+    [...context.panel.workItems]
+      .sort((left, right) => priorityOrder[left.priority] - priorityOrder[right.priority] || left.label.localeCompare(right.label))
+      .slice(0, 4)
+      .forEach((item, index) => {
+        addItem({
+          detail: item.detail,
+          filterValue: item.label,
+          icon: item.priority === "High" ? AlertCircle : Activity,
+          id: `panel-work-${index}-${item.label}`,
+          meta: `${item.priority} priority`,
+          section: getClientWorkItemSection(context, item.label, item.detail),
+          title: item.label,
+          tone: item.priority === "High" ? "warning" : "info"
+        });
+      });
+  }
+
+  if (items.length > 0) {
+    return items.slice(0, 5);
+  }
+
+  return [
+    {
+      detail: "No workspace items need attention right now.",
+      filterValue: "",
+      icon: CheckCircle2,
+      id: "notifications-clear",
+      meta: "All caught up",
+      section: "overview",
+      title: "No open alerts",
+      tone: "success"
+    }
+  ];
+}
+
+function getNotificationCount(items: NotificationItem[]): number {
+  return items.filter((item) => item.tone !== "success").length;
+}
+
+function getTestingStatusPriority(status: TestingStatus): number {
+  if (status === "FAILED" || status === "RETEST_REQUESTED") {
+    return 0;
+  }
+
+  if (status === "IN_REVIEW") {
+    return 1;
+  }
+
+  if (status === "PENDING") {
+    return 2;
+  }
+
+  return 3;
+}
+
 function buildGlobalSearchIndex(
   context: AdminPanelContext,
   data: AdminPanelData | null,
@@ -772,7 +1055,7 @@ function buildGlobalSearchIndex(
     context.platform.clients.forEach((company) => {
       addResult({
         category: "Clients",
-        description: `${company.panel.productName} | ${company.plan} | ${company.dataRegion}`,
+        description: `${company.panel.productName} | ${company.accessStatus} access | ${company.dataRegion}`,
         icon: Building2,
         id: `company-${company.id}`,
         isNavigation: false,
@@ -861,7 +1144,7 @@ function buildGlobalSearchIndex(
     data.clients.forEach((client) => {
       addResult({
         category: "Clients",
-        description: `${client.plan} | ${client.status} | ${client.dataRegion}`,
+        description: `${client.accessStatus} access | ${client.status} | ${client.dataRegion}`,
         icon: Building2,
         id: `client-${client.id}`,
         isNavigation: false,
@@ -1023,7 +1306,7 @@ function getClientWorkItemSection(
     return "labs";
   }
 
-  if (/api|billing|access|security/.test(value)) {
+  if (/api|access|security|permission/.test(value)) {
     return "access";
   }
   if (/vendor/.test(value)) {
@@ -1062,13 +1345,25 @@ function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: st
   if (context.mode === "superadmin") {
     return [
       {
-        label: "EsteemedEngineering",
+        label: "Clients",
         items: [
           { id: "overview", label: "Overview", icon: LayoutDashboard },
-          { id: "clients", label: "Clients", icon: UsersRound },
+          { id: "clients", label: "Companies", icon: Building2 },
           { id: "testing", label: "Accounts", icon: UserRoundCog },
-          { id: "access", label: "Access", icon: KeyRound }
+          { id: "onboarding", label: "Onboarding", icon: ClipboardCheck }
         ]
+      },
+      {
+        label: "Operations",
+        items: [
+          { id: "provisioning", label: "Provisioning", icon: ShieldCheck },
+          { id: "support", label: "Support", icon: LifeBuoy },
+          { id: "activity", label: "Activity", icon: History }
+        ]
+      },
+      {
+        label: "Governance",
+        items: [{ id: "access", label: "Access", icon: KeyRound }]
       }
     ];
   }
@@ -1158,12 +1453,32 @@ function getPanelSectionMeta(
       clients: {
         breadcrumb: "EsteemedEngineering / Clients",
         title: "Client companies",
-        description: "Every company, plan, region, health state, and account count."
+        description: "Every company, access state, region, health state, and account count."
       },
       testing: {
         breadcrumb: "EsteemedEngineering / Accounts",
         title: "Account directory",
         description: "All admin accounts grouped under their companies."
+      },
+      onboarding: {
+        breadcrumb: "EsteemedEngineering / Onboarding",
+        title: "Client onboarding",
+        description: "Move each client from workspace setup through owner activation and operational handoff."
+      },
+      provisioning: {
+        breadcrumb: "EsteemedEngineering / Provisioning",
+        title: "Access provisioning",
+        description: "Review granted workspace access, enabled accounts, owners, and handoff readiness."
+      },
+      support: {
+        breadcrumb: "EsteemedEngineering / Support",
+        title: "Client support queue",
+        description: "Prioritize client workload using open items, workspace health, and recent activity."
+      },
+      activity: {
+        breadcrumb: "EsteemedEngineering / Activity",
+        title: "Client activity",
+        description: "Monitor workspace updates and administrator sign-ins across all client companies."
       },
       access: {
         breadcrumb: "EsteemedEngineering / Access",
@@ -1214,7 +1529,7 @@ function getPanelSectionMeta(
       access: {
         breadcrumb: "Shamstay BnB / Settings",
         title: "Workspace settings",
-        description: "Plan, data region, access roles, and white-label workspace controls."
+        description: "Data region, access roles, and white-label workspace controls."
       }
     };
 
@@ -1256,7 +1571,7 @@ function getPanelSectionMeta(
       access: {
         breadcrumb: "Sham Real Estate Hub / Settings",
         title: "Workspace settings",
-        description: "Plan, data region, role access, and white-label brokerage controls."
+        description: "Data region, role access, and white-label brokerage controls."
       }
     };
 
@@ -1282,7 +1597,7 @@ function getPanelSectionMeta(
     access: {
       breadcrumb: `${context.panel.brandName} / Settings`,
       title: "Workspace settings",
-      description: "Plan, data region, and role access settings."
+      description: "Data region and role access settings."
     }
   };
 
@@ -1291,7 +1606,17 @@ function getPanelSectionMeta(
 
 function getPrimaryActionLabel(context: AdminPanelContext, section: AdminSection): string {
   if (context.mode === "superadmin") {
-    return section === "clients" ? "Add client" : section === "testing" ? "Invite admin" : "Create report";
+    const platformActions: Partial<Record<AdminSection, string>> = {
+      clients: "Add client",
+      testing: "Invite admin",
+      onboarding: "Review onboarding",
+      provisioning: "Grant access",
+      support: "Open request",
+      activity: "Export activity",
+      access: "Review access"
+    };
+
+    return platformActions[section] ?? "Create report";
   }
 
   if (isPeptraceClientContext(context)) {
@@ -1332,11 +1657,11 @@ function getPrimaryActionLabel(context: AdminPanelContext, section: AdminSection
 function getMetricIcon(metric: AdminPanelMetric): typeof LayoutDashboard {
   const label = metric.label.toLowerCase();
 
-  if (label.includes("account") || label.includes("agent") || label.includes("client") || label.includes("seat")) {
+  if (label.includes("account") || label.includes("agent") || label.includes("client") || label.includes("user")) {
     return UsersRound;
   }
 
-  if (label.includes("pipeline") || label.includes("spend") || label.includes("revenue") || label.includes("plan")) {
+  if (label.includes("pipeline") || label.includes("value")) {
     return BadgeDollarSign;
   }
 
@@ -1384,6 +1709,22 @@ function SuperAdminPanel({
     return <SuperAdminAccounts context={context} query={query} />;
   }
 
+  if (section === "onboarding") {
+    return <SuperAdminOnboarding context={context} query={query} />;
+  }
+
+  if (section === "provisioning") {
+    return <SuperAdminProvisioning context={context} query={query} />;
+  }
+
+  if (section === "support") {
+    return <SuperAdminSupport context={context} query={query} />;
+  }
+
+  if (section === "activity") {
+    return <SuperAdminActivity context={context} query={query} />;
+  }
+
   if (section === "access") {
     return <SuperAdminAccess context={context} />;
   }
@@ -1407,11 +1748,11 @@ function SuperAdminClients({ context, query }: { context: Extract<AdminPanelCont
     <section className="panel" aria-label="Client company table">
       <PanelTitle actions={<TableActions />} icon={UsersRound} id="superadmin-client-title" title="Client companies" />
       <ResponsiveTable
-        headers={["Company", "Panel", "Plan", "Accounts", "Region", "Open items", "Health"]}
+        headers={["Company", "Panel", "Access", "Accounts", "Region", "Open items", "Health"]}
         rows={clients.map((client) => [
           <CompanyCell company={client} key={client.id} />,
           client.panel.productName,
-          client.plan,
+          client.accessStatus,
           client.adminUsers.length,
           client.dataRegion,
           client.openItems,
@@ -1437,7 +1778,7 @@ function SuperAdminAccounts({ context, query }: { context: Extract<AdminPanelCon
     ...context.platform.clients.map((company) => ({
       id: company.id,
       name: company.name,
-      description: `${company.panel.productName} | ${company.plan} plan | ${company.dataRegion}`,
+      description: `${company.panel.productName} | ${company.dataRegion} access`,
       status: company.status,
       adminUsers: company.adminUsers
     }))
@@ -1501,6 +1842,379 @@ function SuperAdminAccounts({ context, query }: { context: Extract<AdminPanelCon
       )}
     </section>
   );
+}
+
+function SuperAdminOnboarding({
+  context,
+  query
+}: {
+  context: Extract<AdminPanelContext, { mode: "superadmin" }>;
+  query: string;
+}) {
+  const clients = filterCompanies(context.platform.clients, query);
+  const onboardingStates = context.platform.clients.map(getClientOnboardingState);
+  const readyCount = onboardingStates.filter((state) => state.progress === 100).length;
+  const activationPendingCount = onboardingStates.filter((state) => !state.hasActiveAccount).length;
+  const totalOpenItems = context.platform.clients.reduce((total, company) => total + company.openItems, 0);
+
+  return (
+    <section className="page-flow" aria-label="Client onboarding">
+      <div className="metric-grid three-up">
+        <Metric
+          change={`${context.platform.clients.length} client workspaces`}
+          icon={CheckCircle2}
+          label="Ready for handoff"
+          tone="success"
+          value={readyCount.toString()}
+        />
+        <Metric
+          change="No administrator login recorded"
+          icon={UserRoundCog}
+          label="Activation pending"
+          tone={activationPendingCount > 0 ? "warning" : "success"}
+          value={activationPendingCount.toString()}
+        />
+        <Metric
+          change="Across onboarding workspaces"
+          icon={ClipboardCheck}
+          label="Open setup items"
+          tone={totalOpenItems > 0 ? "warning" : "success"}
+          value={totalOpenItems.toString()}
+        />
+      </div>
+
+      <section className="panel" aria-label="Client onboarding table">
+        <PanelTitle
+          actions={<TableActions />}
+          icon={ClipboardCheck}
+          id="superadmin-onboarding-title"
+          subtitle="Workspace, account activation, operational health, and handoff readiness."
+          title="Onboarding tracker"
+        />
+        <ResponsiveTable
+          headers={["Company", "Progress", "Account activation", "Open items", "Next action"]}
+          rows={clients.map((company) => {
+            const state = getClientOnboardingState(company);
+            return [
+              <CompanyCell company={company} key={company.id} />,
+              <div className="onboarding-progress-cell" key={`${company.id}-progress`}>
+                <div
+                  aria-label={`${state.progress}% complete`}
+                  aria-valuemax={100}
+                  aria-valuemin={0}
+                  aria-valuenow={state.progress}
+                  className="onboarding-progress"
+                  role="progressbar"
+                >
+                  <span style={{ width: `${state.progress}%` }} />
+                </div>
+                <strong>{state.progress}%</strong>
+              </div>,
+              <span className="soft-pill" key={`${company.id}-activation`}>
+                {state.activeAccountCount}/{company.adminUsers.length} active
+              </span>,
+              company.openItems,
+              <div className="entity-cell" key={`${company.id}-next-action`}>
+                <strong>{state.nextAction}</strong>
+                <span>{company.status} workspace</span>
+              </div>
+            ];
+          })}
+        />
+      </section>
+    </section>
+  );
+}
+
+function SuperAdminProvisioning({
+  context,
+  query
+}: {
+  context: Extract<AdminPanelContext, { mode: "superadmin" }>;
+  query: string;
+}) {
+  const clients = filterCompanies(context.platform.clients, query);
+  const enabledAccountCount = context.platform.clients.reduce((total, company) => total + company.adminUsers.length, 0);
+  const readyCount = context.platform.clients.map(getClientOnboardingState).filter((state) => state.progress === 100).length;
+
+  return (
+    <section className="page-flow" aria-label="Client access provisioning">
+      <div className="metric-grid three-up">
+        <Metric
+          change="Company panel access"
+          icon={ShieldCheck}
+          label="Access granted"
+          tone="success"
+          value={context.platform.clients.length.toString()}
+        />
+        <Metric
+          change="Provisioned across all companies"
+          icon={UsersRound}
+          label="Enabled accounts"
+          tone="info"
+          value={enabledAccountCount.toString()}
+        />
+        <Metric
+          change="Workspace setup complete"
+          icon={CheckCircle2}
+          label="Ready workspaces"
+          tone="neutral"
+          value={readyCount.toString()}
+        />
+      </div>
+
+      <section className="panel" aria-label="Access provisioning table">
+        <PanelTitle
+          actions={<TableActions />}
+          icon={ShieldCheck}
+          id="superadmin-provisioning-title"
+          subtitle="Company workspace access, enabled accounts, owner, and operating region."
+          title="Client access provisioning"
+        />
+        <ResponsiveTable
+          headers={["Company", "Access", "Enabled accounts", "Region", "Owner", "Health"]}
+          rows={clients.map((company) => [
+            <CompanyCell company={company} key={company.id} />,
+            <span className="soft-pill" key={`${company.id}-access`}>
+              {company.accessStatus}
+            </span>,
+            company.adminUsers.length,
+            company.dataRegion,
+            company.owner,
+            <span className="tenant-badge" data-status={company.status} key={`${company.id}-health`}>
+              {company.status}
+            </span>
+          ])}
+        />
+      </section>
+    </section>
+  );
+}
+
+function SuperAdminSupport({
+  context,
+  query
+}: {
+  context: Extract<AdminPanelContext, { mode: "superadmin" }>;
+  query: string;
+}) {
+  const clients = filterCompanies(context.platform.clients, query).sort(
+    (left, right) =>
+      getClientSupportPriority(right).rank - getClientSupportPriority(left).rank ||
+      right.openItems - left.openItems ||
+      left.name.localeCompare(right.name)
+  );
+  const openItemCount = context.platform.clients.reduce((total, company) => total + company.openItems, 0);
+  const attentionCount = context.platform.clients.filter(
+    (company) => company.status !== "Healthy" || company.openItems > 1
+  ).length;
+  const clearCount = context.platform.clients.filter(
+    (company) => company.status === "Healthy" && company.openItems === 0
+  ).length;
+
+  return (
+    <section className="page-flow" aria-label="Client support">
+      <div className="metric-grid three-up">
+        <Metric
+          change="Database-backed client workload"
+          icon={LifeBuoy}
+          label="Open client items"
+          tone={openItemCount > 0 ? "warning" : "success"}
+          value={openItemCount.toString()}
+        />
+        <Metric
+          change="Health or workload needs review"
+          icon={AlertCircle}
+          label="Needs attention"
+          tone={attentionCount > 0 ? "warning" : "success"}
+          value={attentionCount.toString()}
+        />
+        <Metric
+          change="Healthy with no open items"
+          icon={CheckCircle2}
+          label="Clear workspaces"
+          tone="success"
+          value={clearCount.toString()}
+        />
+      </div>
+
+      <section className="panel" aria-label="Client support queue">
+        <PanelTitle
+          actions={<TableActions />}
+          icon={LifeBuoy}
+          id="superadmin-support-title"
+          subtitle="Sorted by workspace health and open operational workload."
+          title="Client support queue"
+        />
+        <ResponsiveTable
+          headers={["Company", "Priority", "Open items", "Health", "Last activity", "Owner"]}
+          rows={clients.map((company) => {
+            const priority = getClientSupportPriority(company);
+            return [
+              <CompanyCell company={company} key={company.id} />,
+              <span className="priority-pill" data-priority={priority.label} key={`${company.id}-priority`}>
+                {priority.label}
+              </span>,
+              company.openItems,
+              <span className="tenant-badge" data-status={company.status} key={`${company.id}-status`}>
+                {company.status}
+              </span>,
+              formatDate(company.lastActivityAt),
+              company.owner
+            ];
+          })}
+        />
+      </section>
+    </section>
+  );
+}
+
+function SuperAdminActivity({
+  context,
+  query
+}: {
+  context: Extract<AdminPanelContext, { mode: "superadmin" }>;
+  query: string;
+}) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const accountGroups = [
+    { company: "EsteemedEngineering", accounts: context.platform.internalAccounts },
+    ...context.platform.clients.map((company) => ({ company: company.name, accounts: company.adminUsers }))
+  ];
+  const workspaceEvents = context.platform.clients.map((company) => ({
+    company: company.name,
+    date: company.lastActivityAt,
+    detail: `${company.status} | ${company.openItems} open ${company.openItems === 1 ? "item" : "items"}`,
+    id: `workspace-${company.id}`,
+    title: `${company.name} workspace updated`,
+    type: "Workspace"
+  }));
+  const accountEvents = accountGroups.flatMap((group) =>
+    group.accounts.flatMap((account) => {
+      const events = [
+        {
+          company: group.company,
+          date: account.createdAt,
+          detail: `${account.email} | ${formatRole(account.role)}`,
+          id: `account-created-${account.id}`,
+          title: `${account.displayName} provisioned`,
+          type: "Account"
+        }
+      ];
+
+      if (account.lastLoginAt) {
+        events.push({
+          company: group.company,
+          date: account.lastLoginAt,
+          detail: `${account.email} | ${formatRole(account.role)}`,
+          id: `account-login-${account.id}`,
+          title: `${account.displayName} signed in`,
+          type: "Sign-in"
+        });
+      }
+
+      return events;
+    })
+  );
+  const allEvents = [...workspaceEvents, ...accountEvents].sort(
+    (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime()
+  );
+  const events = allEvents.filter((event) =>
+    normalizedQuery
+      ? [event.title, event.detail, event.company, event.type].join(" ").toLowerCase().includes(normalizedQuery)
+      : true
+  );
+  const signInCount = allEvents.filter((event) => event.type === "Sign-in").length;
+
+  return (
+    <section className="page-flow" aria-label="Platform activity">
+      <div className="metric-grid three-up">
+        <Metric
+          change="Workspace, account, and login records"
+          icon={History}
+          label="Recorded events"
+          tone="info"
+          value={allEvents.length.toString()}
+        />
+        <Metric
+          change="Across client and platform admins"
+          icon={UserRoundCog}
+          label="Administrator sign-ins"
+          tone="success"
+          value={signInCount.toString()}
+        />
+        <Metric
+          change="Latest company activity records"
+          icon={Building2}
+          label="Workspace updates"
+          tone="neutral"
+          value={workspaceEvents.length.toString()}
+        />
+      </div>
+
+      <section className="panel" aria-label="Activity table">
+        <PanelTitle
+          actions={<TableActions />}
+          icon={History}
+          id="superadmin-activity-title"
+          subtitle="Company activity and administrator account events from the platform database."
+          title="Activity history"
+        />
+        <ResponsiveTable
+          headers={["Event", "Company", "Type", "Date"]}
+          rows={events.map((event) => [
+            <div className="entity-cell" key={event.id}>
+              <strong>{event.title}</strong>
+              <span>{event.detail}</span>
+            </div>,
+            event.company,
+            <span className="soft-pill" key={`${event.id}-type`}>
+              {event.type}
+            </span>,
+            formatDate(event.date)
+          ])}
+        />
+      </section>
+    </section>
+  );
+}
+
+function getClientOnboardingState(company: AdminPanelCompany) {
+  const activeAccountCount = company.adminUsers.filter((account) => account.lastLoginAt).length;
+  const hasOwner = company.adminUsers.some((account) => account.role.toLowerCase() === "owner");
+  const hasActiveAccount = activeAccountCount > 0;
+  const isOperationallyReady = company.status === "Healthy" && company.openItems <= 1;
+  const completedSteps = [true, company.adminUsers.length > 0, hasOwner, hasActiveAccount, isOperationallyReady].filter(Boolean).length;
+  const progress = completedSteps * 20;
+  const nextAction =
+    company.adminUsers.length === 0
+      ? "Invite an administrator"
+      : !hasOwner
+        ? "Assign a company owner"
+        : !hasActiveAccount
+          ? "Activate the first account"
+          : company.status !== "Healthy"
+            ? "Review workspace health"
+            : company.openItems > 1
+              ? "Resolve setup items"
+              : "Ready for handoff";
+
+  return {
+    activeAccountCount,
+    hasActiveAccount,
+    nextAction,
+    progress
+  };
+}
+
+function getClientSupportPriority(company: AdminPanelCompany): { label: "High" | "Medium" | "Low"; rank: number } {
+  if (company.status === "At risk" || company.openItems >= 3) {
+    return { label: "High", rank: 3 };
+  }
+  if (company.status === "Watch" || company.openItems > 0) {
+    return { label: "Medium", rank: 2 };
+  }
+  return { label: "Low", rank: 1 };
 }
 
 function SuperAdminAccess({ context }: { context: Extract<AdminPanelContext, { mode: "superadmin" }> }) {
@@ -2055,7 +2769,7 @@ function ClientSettings({ context }: { context: Extract<AdminPanelContext, { mod
     <section className="page-flow" aria-label="Workspace settings">
       <div className="metric-grid three-up">
         <Metric icon={ShieldCheck} label="Workspace scope" tone="success" value="Dedicated" change={context.company.name} />
-        <Metric icon={BadgeDollarSign} label="Plan" tone="info" value={context.company.plan} change={formatCurrency(context.company.monthlySpend)} />
+        <Metric icon={UsersRound} label="Company access" tone="info" value={context.company.accessStatus} change={`${context.company.adminUsers.length} enabled accounts`} />
         <Metric icon={KeyRound} label="Admin panel" tone="success" value="Active" change={context.panel.productName} />
       </div>
     </section>
@@ -2126,7 +2840,6 @@ function filterCompanies<T extends AdminPanelCompany>(companies: T[], query: str
     [
       company.name,
       company.slug,
-      company.plan,
       company.status,
       company.adminUsers.map((account) => `${account.displayName} ${account.email} ${account.role}`).join(" ")
     ]
@@ -2457,7 +3170,7 @@ function Overview({ data }: { data: AdminPanelData }) {
           <PanelTitle
             icon={UserRoundCog}
             id="queue-title"
-            subtitle="Prioritized account work across support, billing, and quality."
+            subtitle="Prioritized account work across support, access, and quality."
             title="Account queue"
           />
           <div className="queue-list">
@@ -2487,10 +3200,10 @@ function Overview({ data }: { data: AdminPanelData }) {
           title="Client health"
         />
         <ResponsiveTable
-          headers={["Client", "Plan", "Owner", "Region", "Open items", "Health"]}
+          headers={["Client", "Access", "Owner", "Region", "Open items", "Health"]}
           rows={data.clients.map((client) => [
             <ClientCell client={client} key={client.id} />,
-            client.plan,
+            client.accessStatus,
             client.owner,
             client.dataRegion,
             client.openItems,
@@ -2508,12 +3221,10 @@ function ClientsView({ clients }: { clients: ClientTenant[] }) {
       <section className="panel" aria-label="Client tenant table">
         <PanelTitle actions={<TableActions />} icon={UsersRound} id="clients-table-title" title="Tenant registry" />
         <ResponsiveTable
-          headers={["Client", "Plan", "Seats", "Monthly spend", "Owner", "Last activity", "Health"]}
+          headers={["Client", "Access", "Owner", "Last activity", "Health"]}
           rows={clients.map((client) => [
             <ClientCell client={client} key={client.id} />,
-            client.plan,
-            client.seats,
-            formatCurrency(client.monthlySpend),
+            client.accessStatus,
             client.owner,
             formatDate(client.lastActivityAt),
             <TenantBadge key={client.id} status={client.status} />
@@ -2661,11 +3372,11 @@ function LabsView({ labs: labRows }: { labs: Lab[] }) {
 
 function AccessView({ apiSurfaces }: { apiSurfaces: ApiSurface[] }) {
   return (
-    <section className="page-flow" aria-label="Security and billing controls">
+    <section className="page-flow" aria-label="Security and access controls">
       <div className="metric-grid three-up">
         <Metric icon={ShieldCheck} label="Session policy" tone="success" value="Active" change="Role-based access" />
         <Metric icon={KeyRound} label="Client API keys" tone="info" value="Scoped" change="Tenant permissions" />
-        <Metric icon={BadgeDollarSign} label="Billing controls" tone="warning" value="Review" change="Plan and seat rules" />
+        <Metric icon={UsersRound} label="Company access" tone="success" value="Granted" change="Managed by direct approval" />
       </div>
 
       <section className="panel" aria-label="Access policy table">

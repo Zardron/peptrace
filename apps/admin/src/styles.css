@@ -413,7 +413,7 @@
   }
 
   .tenant-switcher {
-    @apply grid min-h-[58px] grid-cols-[34px_minmax(0,1fr)_16px] items-center gap-2.5 rounded-md border border-[#2d3c39] bg-[#1b2523] p-2.5 text-left text-[#eef5f3];
+    @apply grid min-h-[58px] grid-cols-[34px_minmax(0,1fr)] items-center gap-2.5 rounded-md border border-[#2d3c39] bg-[#1b2523] p-2.5 text-left text-[#eef5f3];
   }
 
   .tenant-avatar {
@@ -442,7 +442,9 @@
   }
 
   .nav-sections {
-    @apply grid gap-5;
+    @apply grid min-h-0 gap-5 overflow-y-auto;
+    scrollbar-width: thin;
+    scrollbar-color: #3a4a46 transparent;
   }
 
   .nav-group {
@@ -630,6 +632,98 @@
     @apply border border-input bg-card px-3 font-bold text-[#2f3a36];
   }
 
+  .notification-menu {
+    @apply relative;
+  }
+
+  .notification-button {
+    @apply relative hover:border-[#9fb0aa] hover:shadow-[0_4px_14px_rgba(31,41,51,0.08)];
+  }
+
+  .notification-button[data-active="true"] {
+    @apply border-[#9fb0aa] shadow-[0_4px_14px_rgba(31,41,51,0.08)];
+  }
+
+  .notification-count {
+    @apply absolute -right-1 -top-1 grid min-h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-white bg-destructive px-1 text-[0.62rem] font-extrabold leading-none text-white;
+  }
+
+  .notification-dropdown {
+    @apply absolute right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-md border border-[#d7e0dc] bg-white shadow-[0_18px_45px_rgba(16,31,27,0.16)];
+    width: min(360px, calc(100vw - 32px));
+  }
+
+  .notification-dropdown-header {
+    @apply flex min-h-[58px] items-center justify-between gap-3 border-b border-[#e5ebe8] bg-[#f8faf9] px-3.5 py-2.5;
+  }
+
+  .notification-dropdown-header div {
+    @apply grid min-w-0 gap-0.5;
+  }
+
+  .notification-dropdown-header strong,
+  .notification-dropdown-header span {
+    @apply block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
+  }
+
+  .notification-dropdown-header strong {
+    @apply text-sm font-extrabold text-[#15201d];
+  }
+
+  .notification-dropdown-header span {
+    @apply text-xs font-bold text-[#66736f];
+  }
+
+  .notification-summary {
+    @apply flex-none rounded-full bg-[#e7f1ee] px-2 py-1 text-[0.68rem] font-extrabold uppercase text-primary;
+  }
+
+  .notification-list {
+    @apply grid max-h-[360px] overflow-y-auto p-1.5;
+  }
+
+  .notification-item {
+    @apply grid min-h-[72px] w-full grid-cols-[34px_minmax(0,1fr)_max-content] items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 py-2 text-left text-[#1d2925];
+  }
+
+  .notification-item:hover,
+  .notification-item:focus-visible {
+    @apply bg-[#edf5f2] outline-none;
+  }
+
+  .notification-item-icon {
+    @apply grid h-[34px] w-[34px] place-items-center rounded-md bg-[#e7f1ee] text-primary;
+  }
+
+  .notification-item[data-tone="warning"] .notification-item-icon {
+    @apply bg-[#fff1c8] text-[#9a5b00];
+  }
+
+  .notification-item[data-tone="success"] .notification-item-icon {
+    @apply bg-[#ddf6ed] text-primary;
+  }
+
+  .notification-copy {
+    @apply grid min-w-0 gap-0.5;
+  }
+
+  .notification-copy strong,
+  .notification-copy span {
+    @apply block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
+  }
+
+  .notification-copy strong {
+    @apply text-sm font-extrabold text-[#15201d];
+  }
+
+  .notification-copy span {
+    @apply text-xs font-medium text-[#71807b];
+  }
+
+  .notification-meta {
+    @apply max-w-[92px] overflow-hidden text-ellipsis whitespace-nowrap text-[0.68rem] font-extrabold uppercase text-[#7a8783];
+  }
+
   .account-menu {
     @apply relative;
   }
@@ -656,24 +750,41 @@
   }
 
   .account-dropdown {
-    @apply absolute right-0 top-[calc(100%+8px)] z-20 grid min-w-[260px] gap-2.5 rounded-md border border-border bg-card p-2.5 shadow-[0_18px_45px_rgba(31,41,51,0.14)];
+    @apply absolute right-0 top-[calc(100%+8px)] z-20 grid min-w-0 gap-2.5 rounded-md border border-border bg-card p-2.5 shadow-[0_18px_45px_rgba(31,41,51,0.14)];
+    max-width: calc(100vw - 24px);
+    width: 340px;
   }
 
   .account-dropdown-profile {
-    @apply flex min-w-0 items-center gap-2.5 px-1 pb-2 pt-1;
+    @apply grid min-w-0 grid-cols-[42px_minmax(0,1fr)] items-start gap-3 px-1 pb-2 pt-1;
   }
 
-  .account-dropdown-profile strong,
-  .account-dropdown-profile span {
-    @apply block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
+  .account-dropdown-identity {
+    @apply min-w-0 flex-1;
   }
 
-  .account-dropdown-profile strong {
-    @apply text-sm font-extrabold text-[#15201d];
+  .account-dropdown-identity strong,
+  .account-dropdown-identity span {
+    @apply block min-w-0;
   }
 
-  .account-dropdown-profile span {
-    @apply mt-px text-xs text-[#66736f];
+  .account-dropdown-identity strong {
+    @apply text-sm font-extrabold leading-5 text-[#15201d];
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal !important;
+  }
+
+  .account-dropdown-identity span {
+    @apply mt-px overflow-hidden text-ellipsis whitespace-nowrap text-xs text-[#66736f];
+  }
+
+  .account-dropdown-profile .account-avatar {
+    @apply mt-px text-white;
+    color: #ffffff !important;
+    line-height: 1;
+    overflow: visible;
+    text-align: center;
   }
 
   .account-details {
@@ -681,7 +792,7 @@
   }
 
   .account-details div {
-    @apply flex min-h-9 items-center justify-between gap-3 border-b border-[#e5ebe8] px-2.5 py-2 last:border-b-0;
+    @apply grid min-h-9 grid-cols-[88px_minmax(0,1fr)] items-center gap-3 border-b border-[#e5ebe8] px-2.5 py-2 last:border-b-0;
   }
 
   .account-details dt,
@@ -694,7 +805,7 @@
   }
 
   .account-details dd {
-    @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-right font-bold text-[#25302c];
+    @apply min-w-0 break-words text-right font-bold leading-4 text-[#25302c];
   }
 
   .account-menu-item {
@@ -876,6 +987,22 @@
 
   .queue-row span {
     @apply text-xs text-[#6d7a76];
+  }
+
+  .onboarding-progress-cell {
+    @apply flex min-w-[150px] items-center gap-2.5;
+  }
+
+  .onboarding-progress-cell > strong {
+    @apply w-9 flex-none text-xs font-extrabold text-[#3f4c47];
+  }
+
+  .onboarding-progress {
+    @apply h-2 min-w-[96px] flex-1 overflow-hidden rounded-full bg-[#e6ece9];
+  }
+
+  .onboarding-progress > span {
+    @apply block h-full rounded-full bg-primary;
   }
 
   .priority-pill,
@@ -1162,6 +1289,14 @@
     }
 
     .search-result-category {
+      @apply hidden;
+    }
+
+    .notification-item {
+      @apply grid-cols-[34px_minmax(0,1fr)];
+    }
+
+    .notification-meta {
       @apply hidden;
     }
 
