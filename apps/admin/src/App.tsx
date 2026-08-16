@@ -47,7 +47,8 @@ import {
   type AdminPanelMetric,
   type AdminSession,
   type ClientUserList,
-  type LockerSecretList
+  type LockerSecretList,
+  type PlatformSecretLockerSummary
 } from "@peptrace/api-client";
 import type { ApiSurface, ClientTenant, Lab, LabTest, Peptide, TestingStatus, Vendor } from "@peptrace/domain";
 import { Button } from "@/components/ui/button";
@@ -1351,7 +1352,7 @@ function buildGlobalSearchIndex(
           id: `account-${account.id}`,
           isNavigation: false,
           keywords: `${company.name} ${company.slug}`,
-          section: "testing",
+          section: "users",
           title: account.displayName
         });
       });
@@ -1364,7 +1365,7 @@ function buildGlobalSearchIndex(
         icon: ShieldCheck,
         id: `internal-account-${account.id}`,
         isNavigation: false,
-        section: "testing",
+        section: "users",
         title: account.displayName
       });
     });
@@ -1620,6 +1621,28 @@ function isShamRealEstateHubClientContext(context: AdminPanelContext): boolean {
   return context.mode === "client" && context.company.slug === "sham-real-estate-hub";
 }
 
+function getPlatformSecretLocker(
+  context: Extract<AdminPanelContext, { mode: "superadmin" }>
+): PlatformSecretLockerSummary {
+  return (
+    context.platform.secretLocker ?? {
+      companies: context.platform.clients.map((company) => ({
+        enabledSecrets: 0,
+        lastUpdatedAt: null,
+        secretCount: 0,
+        secrets: [],
+        tenantId: company.id,
+        tenantName: company.name,
+        tenantSlug: company.slug,
+        versionCount: 0
+      })),
+      enabledSecrets: 0,
+      totalSecrets: 0,
+      totalVersions: 0
+    }
+  );
+}
+
 function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: string; items: NavItem[] }> {
   if (context.mode === "superadmin") {
     return [
@@ -1628,7 +1651,7 @@ function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: st
         items: [
           { id: "overview", label: "Overview", icon: LayoutDashboard },
           { id: "clients", label: "Companies", icon: Building2 },
-          { id: "testing", label: "Accounts", icon: UserRoundCog },
+          { id: "users", label: "User Management", icon: UserRoundCog },
           { id: "onboarding", label: "Onboarding", icon: ClipboardCheck }
         ]
       },
@@ -1642,7 +1665,10 @@ function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: st
       },
       {
         label: "Platform governance",
-        items: [{ id: "access", label: "Access", icon: KeyRound }]
+        items: [
+          { id: "secrets", label: "Secret Locker", icon: Vault },
+          { id: "access", label: "Access", icon: KeyRound }
+        ]
       }
     ];
   }
@@ -1741,6 +1767,16 @@ function getPanelSectionMeta(
         breadcrumb: "EsteemedEngineering / Accounts",
         title: "Account directory",
         description: "All admin accounts grouped under their companies."
+      },
+      users: {
+        breadcrumb: "EsteemedEngineering / User Management",
+        title: "Platform user management",
+        description: "All internal and client users grouped by their database tenant."
+      },
+      secrets: {
+        breadcrumb: "EsteemedEngineering / Secret Locker",
+        title: "Secret Locker governance",
+        description: "Cross-company secret metadata and version health without access to encrypted values."
       },
       onboarding: {
         breadcrumb: "EsteemedEngineering / Onboarding",
@@ -1921,10 +1957,12 @@ function getPrimaryActionLabel(context: AdminPanelContext, section: AdminSection
     const platformActions: Partial<Record<AdminSection, string>> = {
       clients: "Add client",
       testing: "Invite admin",
+      users: "Invite admin",
       onboarding: "Review onboarding",
       provisioning: "Grant access",
       support: "Open request",
       activity: "Export activity",
+      secrets: "Review locker",
       access: "Review access"
     };
 
@@ -2025,8 +2063,12 @@ function SuperAdminPanel({
     );
   }
 
-  if (section === "testing") {
+  if (section === "testing" || section === "users") {
     return <SuperAdminAccounts context={context} query={query} />;
+  }
+
+  if (section === "secrets") {
+    return <SuperAdminSecretLocker context={context} query={query} />;
   }
 
   if (section === "onboarding") {
@@ -2053,9 +2095,20 @@ function SuperAdminPanel({
 }
 
 function SuperAdminOverview({ context, query }: { context: Extract<AdminPanelContext, { mode: "superadmin" }>; query: string }) {
+  const managedUserCount =
+    context.platform.internalAccounts.length +
+    context.platform.clients.reduce((total, company) => total + company.adminUsers.length, 0);
+  const secretLocker = getPlatformSecretLocker(context);
+
   return (
     <section className="page-flow" aria-label="Superadmin overview">
       <MetricGrid metrics={context.platform.metrics} />
+      <div className="scope-strip" aria-label="Platform service inventory">
+        <ScopeItem label="User service" value={`${managedUserCount} managed users`} />
+        <ScopeItem label="Tenant vaults" value={`${secretLocker.companies.length} isolated`} />
+        <ScopeItem label="Stored secrets" value={secretLocker.totalSecrets.toString()} />
+        <ScopeItem label="Encrypted versions" value={secretLocker.totalVersions.toString()} />
+      </div>
       <SuperAdminClients context={context} query={query} />
     </section>
   );
@@ -2158,6 +2211,96 @@ function SuperAdminAccounts({ context, query }: { context: Extract<AdminPanelCon
         <section className="panel account-directory-empty" aria-live="polite">
           <UserRoundCog size={20} strokeWidth={2} />
           <strong>No company accounts match this search.</strong>
+        </section>
+      )}
+    </section>
+  );
+}
+
+function SuperAdminSecretLocker({
+  context,
+  query
+}: {
+  context: Extract<AdminPanelContext, { mode: "superadmin" }>;
+  query: string;
+}) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const summary = getPlatformSecretLocker(context);
+  const companies = summary.companies
+    .map((company) => {
+      const companyMatches = [company.tenantName, company.tenantSlug].join(" ").toLowerCase().includes(normalizedQuery);
+      const secrets =
+        !normalizedQuery || companyMatches
+          ? company.secrets
+          : company.secrets.filter((secret) =>
+              [secret.name, secret.description, secret.resourceName, secret.latestState]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase()
+                .includes(normalizedQuery)
+            );
+      return { ...company, secrets };
+    })
+    .filter((company) => !normalizedQuery || company.secrets.length > 0);
+  const protectedCompanies = summary.companies.filter((company) => company.secretCount > 0).length;
+
+  return (
+    <section className="page-flow" aria-label="Superadmin Secret Locker governance">
+      <div className="metric-grid">
+        <Metric icon={Building2} label="Tenant vaults" tone="info" value={summary.companies.length.toString()} change={`${protectedCompanies} storing secrets`} />
+        <Metric icon={Vault} label="Secret containers" tone="neutral" value={summary.totalSecrets.toString()} change="Metadata visibility only" />
+        <Metric icon={History} label="Encrypted versions" tone="info" value={summary.totalVersions.toString()} change="Payloads remain client-scoped" />
+        <Metric icon={ShieldCheck} label="Enabled secrets" tone="success" value={summary.enabledSecrets.toString()} change="Latest version enabled" />
+      </div>
+
+      {companies.map((company) => (
+        <section className="panel account-company-panel" aria-labelledby={`secret-company-${company.tenantId}`} key={company.tenantId}>
+          <div className="account-company-header">
+            <div className="account-company-identity">
+              <span className="company-monogram" aria-hidden="true">
+                {getWorkspaceInitials(company.tenantName)}
+              </span>
+              <div>
+                <h2 id={`secret-company-${company.tenantId}`}>{company.tenantName}</h2>
+                <p>{company.tenantSlug}</p>
+              </div>
+            </div>
+            <div className="account-company-summary">
+              <span className="soft-pill">Isolated</span>
+              <strong>{company.secretCount} {company.secretCount === 1 ? "secret" : "secrets"}</strong>
+            </div>
+          </div>
+
+          {company.secrets.length > 0 ? (
+            <ResponsiveTable
+              headers={["Secret", "Resource", "Versions", "Latest state", "Updated"]}
+              rows={company.secrets.map((secret) => {
+                const state = secret.latestState ?? "No versions";
+                const status = state === "ENABLED" ? "COMPLETE" : state === "DISABLED" ? "PENDING" : "FAILED";
+                return [
+                  <div className="entity-cell" key={secret.id}>
+                    <strong>{secret.name}</strong>
+                    <span>{secret.description ?? "No description"}</span>
+                  </div>,
+                  secret.resourceName,
+                  secret.versionCount,
+                  <span className="status-badge" data-status={status} key={`${secret.id}-state`}>
+                    {state}
+                  </span>,
+                  formatDate(secret.updatedAt)
+                ];
+              })}
+            />
+          ) : (
+            <div className="service-empty">No secrets have been created for this client.</div>
+          )}
+        </section>
+      ))}
+
+      {companies.length === 0 && (
+        <section className="panel account-directory-empty" aria-live="polite">
+          <Vault size={20} strokeWidth={2} />
+          <strong>No Secret Locker records match this search.</strong>
         </section>
       )}
     </section>

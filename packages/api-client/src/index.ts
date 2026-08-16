@@ -197,6 +197,31 @@ export interface AdminPanelViewer {
   tenant: CurrentAdminUser["tenant"];
 }
 
+export interface PlatformSecretLockerSummary {
+  companies: Array<{
+    enabledSecrets: number;
+    lastUpdatedAt: string | null;
+    secretCount: number;
+    secrets: Array<{
+      description: string | null;
+      id: string;
+      latestState: SecretVersionState | null;
+      latestVersion: number | null;
+      name: string;
+      resourceName: string;
+      updatedAt: string;
+      versionCount: number;
+    }>;
+    tenantId: string;
+    tenantName: string;
+    tenantSlug: string;
+    versionCount: number;
+  }>;
+  enabledSecrets: number;
+  totalSecrets: number;
+  totalVersions: number;
+}
+
 export type AdminPanelContext =
   | {
       mode: "client";
@@ -213,6 +238,7 @@ export type AdminPanelContext =
         metrics: AdminPanelMetric[];
         internalAccounts: AdminPanelAccount[];
         clients: Array<AdminPanelCompany & { panel: Omit<WhiteLabelPanel, "metrics"> }>;
+        secretLocker?: PlatformSecretLockerSummary;
       };
     };
 

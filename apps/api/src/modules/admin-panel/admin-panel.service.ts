@@ -34,6 +34,18 @@ type CompanyAccount = {
   createdAt: Date;
 };
 
+type CompanySecret = {
+  _count: { versions: number };
+  description: string | null;
+  id: string;
+  name: string;
+  updatedAt: Date;
+  versions: Array<{
+    state: string;
+    version: number;
+  }>;
+};
+
 type ClientCompany = {
   id: string;
   name: string;
@@ -47,6 +59,7 @@ type ClientCompany = {
   dataRegion: string;
   lastActivityAt: Date;
   adminUsers: CompanyAccount[];
+  secrets: CompanySecret[];
   whiteLabelPanel: PersistedWhiteLabelPanel | null;
 };
 
@@ -154,6 +167,7 @@ export class AdminPanelService {
           }
         ],
         internalAccounts,
+        secretLocker: this.toSecretLockerSummary(clients),
         clients: clients.map((client) => ({
           ...this.toCompanyPayload(client),
           panel: this.toPanelDefinition(client.whiteLabelPanel)
@@ -215,6 +229,21 @@ export class AdminPanelService {
               role: true,
               lastLoginAt: true,
               createdAt: true
+            }
+          },
+          secrets: {
+            orderBy: { updatedAt: "desc" },
+            select: {
+              _count: { select: { versions: true } },
+              description: true,
+              id: true,
+              name: true,
+              updatedAt: true,
+              versions: {
+                orderBy: { version: "desc" },
+                select: { state: true, version: true },
+                take: 1
+              }
             }
           },
           whiteLabelPanel: true
@@ -292,6 +321,42 @@ export class AdminPanelService {
       operationsDescription: panel.operationsDescription,
       primaryRecords: this.toPanelRecords(panel.primaryRecords),
       workItems: this.toPanelWorkItems(panel.workItems)
+    };
+  }
+
+  private toSecretLockerSummary(clients: ClientCompany[]) {
+    const companies = clients.map((client) => {
+      const secrets = client.secrets.map((secret) => {
+        const latestVersion = secret.versions[0] ?? null;
+        return {
+          description: secret.description,
+          id: secret.id,
+          latestState: latestVersion?.state ?? null,
+          latestVersion: latestVersion?.version ?? null,
+          name: secret.name,
+          resourceName: `tenants/${client.slug}/secrets/${secret.name}`,
+          updatedAt: secret.updatedAt,
+          versionCount: secret._count.versions
+        };
+      });
+
+      return {
+        enabledSecrets: secrets.filter((secret) => secret.latestState === "ENABLED").length,
+        lastUpdatedAt: secrets[0]?.updatedAt ?? null,
+        secretCount: secrets.length,
+        secrets,
+        tenantId: client.id,
+        tenantName: client.name,
+        tenantSlug: client.slug,
+        versionCount: secrets.reduce((total, secret) => total + secret.versionCount, 0)
+      };
+    });
+
+    return {
+      companies,
+      enabledSecrets: companies.reduce((total, company) => total + company.enabledSecrets, 0),
+      totalSecrets: companies.reduce((total, company) => total + company.secretCount, 0),
+      totalVersions: companies.reduce((total, company) => total + company.versionCount, 0)
     };
   }
 
@@ -380,8 +445,9 @@ export class AdminPanelService {
   }
 
   private toCompanyPayload(company: ClientCompany) {
-    const { monthlySpend, plan, seats, whiteLabelPanel, ...client } = company;
+    const { monthlySpend, plan, seats, secrets, whiteLabelPanel, ...client } = company;
     void whiteLabelPanel;
+    void secrets;
 
     return {
       ...client,
