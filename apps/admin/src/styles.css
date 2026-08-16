@@ -1293,6 +1293,12 @@
     @apply min-w-0 rounded-md border border-border bg-white shadow-[0_10px_26px_rgba(31,41,51,0.05)];
   }
 
+  .system-client-panel {
+    @apply sticky overflow-hidden;
+    top: 84px;
+    max-height: calc(100vh - 100px);
+  }
+
   .system-panel-heading,
   .system-editor-header {
     @apply border-b border-[#e5ebe8] px-[18px] py-4;
@@ -1325,7 +1331,10 @@
   }
 
   .system-client-list {
-    @apply grid p-2;
+    @apply grid overflow-y-auto p-2;
+    max-height: calc(100vh - 176px);
+    scrollbar-color: #a9bab4 transparent;
+    scrollbar-width: thin;
   }
 
   .system-client-item {
@@ -1792,6 +1801,16 @@
 
     .system-config-layout {
       @apply grid-cols-1;
+    }
+
+    .system-client-panel {
+      @apply static overflow-visible;
+      max-height: none;
+    }
+
+    .system-client-list {
+      @apply overflow-visible;
+      max-height: none;
     }
 
     .system-client-list {
