@@ -1,4 +1,7 @@
-import { Body, Controller, Get, Post } from "@nestjs/common";
+import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { AuthenticatedAdminUser } from "../auth/auth.types";
+import { CurrentAdminUser } from "../auth/current-admin-user.decorator";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CreateApiKeyDto } from "./platform.dto";
 import { PlatformService } from "./platform.service";
 
@@ -7,13 +10,15 @@ export class PlatformController {
   constructor(private readonly platformService: PlatformService) {}
 
   @Get("account/profile")
-  getAccountProfile() {
-    return this.platformService.getAccountProfile();
+  @UseGuards(JwtAuthGuard)
+  getAccountProfile(@CurrentAdminUser() user: AuthenticatedAdminUser) {
+    return this.platformService.getAccountProfile(user);
   }
 
   @Get("billing")
-  getBilling() {
-    return this.platformService.getBilling();
+  @UseGuards(JwtAuthGuard)
+  getBilling(@CurrentAdminUser() user: AuthenticatedAdminUser) {
+    return this.platformService.getBilling(user);
   }
 
   @Get("api-surfaces")
@@ -22,7 +27,8 @@ export class PlatformController {
   }
 
   @Post("authorization/api-keys")
-  createApiKey(@Body() dto: CreateApiKeyDto) {
-    return this.platformService.createApiKey(dto);
+  @UseGuards(JwtAuthGuard)
+  createApiKey(@Body() dto: CreateApiKeyDto, @CurrentAdminUser() user: AuthenticatedAdminUser) {
+    return this.platformService.createApiKey(dto, user);
   }
 }

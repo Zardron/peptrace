@@ -10,20 +10,39 @@ datasource db {
 }
 
 model ClientTenant {
-  id             String   @id @default(uuid())
-  name           String
-  slug           String   @unique
-  plan           String
-  status         String
-  owner          String
-  seats          Int
-  monthlySpend   Int
-  openItems      Int
-  dataRegion     String
-  lastActivityAt DateTime
-  adminUsers     AdminUser[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String           @id @default(uuid())
+  name            String
+  slug            String           @unique
+  plan            String
+  status          String
+  owner           String
+  seats           Int
+  monthlySpend    Int
+  openItems       Int
+  dataRegion      String
+  lastActivityAt  DateTime
+  adminUsers      AdminUser[]
+  whiteLabelPanel WhiteLabelPanel?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model WhiteLabelPanel {
+  id                    String       @id @default(uuid())
+  clientTenantId        String       @unique
+  clientTenant          ClientTenant @relation(fields: [clientTenantId], references: [id], onDelete: Cascade)
+  brandName             String
+  productName           String
+  industry              String
+  accentColor           String
+  overviewTitle         String
+  overviewDescription   String
+  operationsTitle       String
+  operationsDescription String
+  primaryRecords        Json
+  workItems             Json
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
 }
 
 model AdminUser {
@@ -93,7 +112,7 @@ model Lab {
 model LabTest {
   id                String    @id @default(uuid())
   labId             String
-  vialSizeMg         Int
+  vialSizeMg        Int
   vendorId          String
   resultsReleasedAt DateTime?
   testingStatus     String

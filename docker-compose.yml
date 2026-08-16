@@ -26,13 +26,37 @@ services:
     environment:
       DATABASE_URL: postgresql://peptrace:peptrace@postgres:5432/peptrace?schema=public
       DIRECT_URL: postgresql://peptrace:peptrace@postgres:5432/peptrace?schema=public
+      HOST: 0.0.0.0
       PORT: 3000
       CORS_ORIGIN: http://localhost:5173
       JWT_SECRET: local-docker-development-secret
-      ADMIN_EMAIL: admin@peptrace.com
+      SUPERADMIN_EMAIL: admin@esteemedengineering.com
       ADMIN_PASSWORD: Admin@123
     ports:
       - "3000:3000"
+    volumes:
+      - .:/workspace
+      - peptrace_node_modules:/workspace/node_modules
+
+  client-api:
+    build:
+      context: .
+      target: client-api-dev
+    command: sh -c "npm run dev:client-api"
+    depends_on:
+      api:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://peptrace:peptrace@postgres:5432/peptrace?schema=public
+      DIRECT_URL: postgresql://peptrace:peptrace@postgres:5432/peptrace?schema=public
+      HOST: 0.0.0.0
+      CLIENT_API_PORT: 3001
+      CORS_ORIGIN: http://localhost:5173
+      JWT_SECRET: local-docker-development-secret
+    ports:
+      - "3001:3001"
     volumes:
       - .:/workspace
       - peptrace_node_modules:/workspace/node_modules
@@ -43,8 +67,12 @@ services:
       target: admin-dev
     depends_on:
       - api
+      - client-api
     environment:
-      VITE_API_BASE_URL: http://localhost:3000/api
+      VITE_SUPERADMIN_API_BASE_URL: /api
+      VITE_CLIENT_API_BASE_URL: /client-api
+      SUPERADMIN_API_PROXY_TARGET: http://api:3000
+      CLIENT_API_PROXY_TARGET: http://client-api:3001
     ports:
       - "5173:5173"
     volumes:

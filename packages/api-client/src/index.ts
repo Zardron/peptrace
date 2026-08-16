@@ -1,4 +1,4 @@
-import type { Lab, LabTest, Peptide, Vendor } from "@peptrace/domain";
+import type { AccountWorkItem, ApiSurface, ClientTenant, Lab, LabTest, Peptide, Vendor } from "@peptrace/domain";
 
 export interface LoginRequest {
   email: string;
@@ -11,10 +11,12 @@ export interface AdminSession {
   tokenType: "Bearer";
   user: {
     email: string;
+    displayName: string;
     id: string;
     role: string;
     tenantId: string | null;
     tenantName: string | null;
+    tenantSlug: string | null;
   };
 }
 
@@ -23,12 +25,112 @@ export interface CurrentAdminUser {
   email: string;
   displayName: string;
   role: string;
+  tenantId: string | null;
+  tenantName: string | null;
+  tenantSlug: string | null;
   tenant: {
     id: string;
     name: string;
     plan: string;
     slug: string;
   } | null;
+}
+
+export type AdminPanelTone = "info" | "neutral" | "success" | "warning";
+
+export interface AdminPanelMetric {
+  label: string;
+  value: string;
+  change: string;
+  tone: AdminPanelTone;
+}
+
+export interface AdminPanelAccount {
+  id: string;
+  displayName: string;
+  email: string;
+  role: string;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminPanelCompany {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  status: string;
+  owner: string;
+  seats: number;
+  monthlySpend: number;
+  openItems: number;
+  dataRegion: string;
+  lastActivityAt: string;
+  adminUsers: AdminPanelAccount[];
+}
+
+export interface AdminPanelRecord {
+  label: string;
+  detail: string;
+  status: string;
+  value: string;
+}
+
+export interface AdminPanelWorkItem {
+  label: string;
+  detail: string;
+  priority: "High" | "Medium" | "Low";
+}
+
+export interface WhiteLabelPanel {
+  brandName: string;
+  productName: string;
+  industry: string;
+  accentColor: string;
+  overviewTitle: string;
+  overviewDescription: string;
+  operationsTitle: string;
+  operationsDescription: string;
+  metrics: AdminPanelMetric[];
+  primaryRecords: AdminPanelRecord[];
+  workItems: AdminPanelWorkItem[];
+}
+
+export interface AdminPanelViewer {
+  id: string;
+  displayName: string;
+  email: string;
+  role: string;
+  tenant: CurrentAdminUser["tenant"];
+}
+
+export type AdminPanelContext =
+  | {
+      mode: "client";
+      viewer: AdminPanelViewer;
+      company: AdminPanelCompany;
+      panel: WhiteLabelPanel;
+    }
+  | {
+      mode: "superadmin";
+      viewer: AdminPanelViewer;
+      platform: {
+        title: string;
+        description: string;
+        metrics: AdminPanelMetric[];
+        internalAccounts: AdminPanelAccount[];
+        clients: Array<AdminPanelCompany & { panel: Omit<WhiteLabelPanel, "metrics"> }>;
+      };
+    };
+
+export interface AdminPanelData {
+  accountWorkItems: AccountWorkItem[];
+  apiSurfaces: ApiSurface[];
+  clients: ClientTenant[];
+  labs: Lab[];
+  peptides: Peptide[];
+  tests: LabTest[];
+  vendors: Vendor[];
 }
 
 export interface PeptraceApiClientOptions {
@@ -95,7 +197,10 @@ export class PeptraceApiClient {
       headers.set("Authorization", `Bearer ${this.token}`);
     }
 
-    const response = await this.fetcher(url, {
+    // Browser fetch implementations may reject calls made with the API client as
+    // their receiver. Read it into a local first so it is invoked as a function.
+    const fetcher = this.fetcher;
+    const response = await fetcher(url, {
       ...options,
       headers,
       body
@@ -122,6 +227,14 @@ export class PeptraceApiClient {
 
   getCurrentAdminUser(): Promise<CurrentAdminUser> {
     return this.request<CurrentAdminUser>("/auth/me");
+  }
+
+  getAdminPanelContext(): Promise<AdminPanelContext> {
+    return this.request<AdminPanelContext>("/admin-panel/context");
+  }
+
+  getAdminPanelData(): Promise<AdminPanelData> {
+    return this.request<AdminPanelData>("/admin-panel/data");
   }
 
   getVendor(idOrSlug: string): Promise<Vendor> {

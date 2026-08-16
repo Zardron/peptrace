@@ -76,7 +76,14 @@ export interface ApiSurface {
 export interface AccountWorkItem {
   id: UUID;
   account: string;
-  kind: "API key" | "Billing" | "Vendor onboarding" | "Lab review";
+  kind:
+    | "API key"
+    | "Billing"
+    | "Guest operations"
+    | "Lab review"
+    | "Lead routing"
+    | "Listing review"
+    | "Vendor onboarding";
   priority: "High" | "Medium" | "Low";
   dueAt: ISODateTime;
 }
@@ -91,7 +98,7 @@ export interface ClientTenant {
   seats: number;
   monthlySpend: number;
   openItems: number;
-  dataRegion: "US" | "EU" | "UAE";
+  dataRegion: "US" | "EU" | "UAE" | "Syria";
   lastActivityAt: ISODateTime;
 }
 
@@ -325,29 +332,29 @@ export const apiSurfaces: ApiSurface[] = [
 export const accountWorkItems: AccountWorkItem[] = [
   {
     id: "work-api-key-001",
-    account: "EsteemedEngineering",
+    account: "Peptrace",
     kind: "API key",
     priority: "High",
     dueAt: "2026-08-11T15:00:00Z"
   },
   {
-    id: "work-lab-review-014",
-    account: "AminoForge",
-    kind: "Lab review",
+    id: "work-guest-ops-014",
+    account: "Shamstay BnB",
+    kind: "Guest operations",
     priority: "Medium",
     dueAt: "2026-08-12T18:30:00Z"
   },
   {
-    id: "work-vendor-onboarding-009",
-    account: "Northstar Peptides",
-    kind: "Vendor onboarding",
+    id: "work-listing-review-009",
+    account: "Sham Real Estate Hub",
+    kind: "Listing review",
     priority: "Medium",
     dueAt: "2026-08-15T12:00:00Z"
   },
   {
-    id: "work-billing-003",
-    account: "Peptide Partners",
-    kind: "Billing",
+    id: "work-lead-routing-003",
+    account: "Sham Real Estate Hub",
+    kind: "Lead routing",
     priority: "Low",
     dueAt: "2026-08-18T09:00:00Z"
   }
@@ -355,56 +362,43 @@ export const accountWorkItems: AccountWorkItem[] = [
 
 export const clientTenants: ClientTenant[] = [
   {
-    id: "client-esteem-engineering",
-    name: "EsteemedEngineering",
-    slug: "esteemed-engineering",
+    id: "client-peptrace",
+    name: "Peptrace",
+    slug: "peptrace",
     plan: "Enterprise",
     status: "Healthy",
-    owner: "Operations",
-    seats: 14,
-    monthlySpend: 12800,
+    owner: "Platform operations",
+    seats: 18,
+    monthlySpend: 16200,
     openItems: 1,
     dataRegion: "US",
     lastActivityAt: "2026-08-10T15:18:00Z"
   },
   {
-    id: "client-amino-forge",
-    name: "AminoForge",
-    slug: "amino-forge",
+    id: "client-shamstay-bnb",
+    name: "Shamstay BnB",
+    slug: "shamstay-bnb",
     plan: "Growth",
-    status: "Watch",
-    owner: "Customer success",
-    seats: 8,
-    monthlySpend: 6400,
-    openItems: 2,
-    dataRegion: "US",
+    status: "Healthy",
+    owner: "Hospitality success",
+    seats: 12,
+    monthlySpend: 8200,
+    openItems: 4,
+    dataRegion: "Syria",
     lastActivityAt: "2026-08-10T11:42:00Z"
   },
   {
-    id: "client-northstar-peptides",
-    name: "Northstar Peptides",
-    slug: "northstar-peptides",
-    plan: "Growth",
+    id: "client-sham-real-estate-hub",
+    name: "Sham Real Estate Hub",
+    slug: "sham-real-estate-hub",
+    plan: "Enterprise",
     status: "Watch",
-    owner: "Quality",
-    seats: 6,
-    monthlySpend: 5200,
-    openItems: 2,
-    dataRegion: "US",
+    owner: "Real estate success",
+    seats: 16,
+    monthlySpend: 32600000,
+    openItems: 4,
+    dataRegion: "Syria",
     lastActivityAt: "2026-08-09T21:06:00Z"
-  },
-  {
-    id: "client-peptide-partners",
-    name: "Peptide Partners",
-    slug: "peptide-partners",
-    plan: "Launch",
-    status: "At risk",
-    owner: "Billing",
-    seats: 5,
-    monthlySpend: 2800,
-    openItems: 3,
-    dataRegion: "US",
-    lastActivityAt: "2026-08-08T19:20:00Z"
   }
 ];
 

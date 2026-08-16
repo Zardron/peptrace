@@ -5,11 +5,12 @@ export class AppController {
   @Get()
   getRoot() {
     return {
-      name: "Peptrace API",
+      name: "EsteemedEngineering Superadmin API",
       version: "0.1.0",
       health: "/api/health",
       routeGroups: [
         "/api/auth/*",
+        "/api/admin-panel/context",
         "/api/clients",
         "/api/vendors",
         "/api/vendor/:idOrSlug",

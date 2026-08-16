@@ -4,6 +4,7 @@ import { JwtModule } from "@nestjs/jwt";
 import { join } from "node:path";
 import { AppController } from "./app.controller";
 import { envValidationSchema } from "./config/env.validation";
+import { AdminPanelModule } from "./modules/admin-panel/admin-panel.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { CatalogModule } from "./modules/catalog/catalog.module";
 import { ClientsModule } from "./modules/clients/clients.module";
@@ -39,6 +40,7 @@ import { TestingModule } from "./modules/testing/testing.module";
     PrismaModule,
     HealthModule,
     AuthModule,
+    AdminPanelModule,
     ClientsModule,
     CatalogModule,
     TestingModule,

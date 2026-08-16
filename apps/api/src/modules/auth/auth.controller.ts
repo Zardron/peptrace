@@ -17,8 +17,8 @@ export class AuthController {
   }
 
   @Post("refresh")
-  refresh() {
-    return this.authService.refresh();
+  refresh(@Headers("authorization") authorization: string | undefined) {
+    return this.authService.refresh(authorization);
   }
 
   @Get("me")
