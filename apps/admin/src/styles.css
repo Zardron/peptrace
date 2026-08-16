@@ -81,13 +81,18 @@
   .login-shell {
     --login-shell-pad-x: clamp(16px, 3vw, 28px);
     --login-shell-pad-y: clamp(12px, 2.2vh, 28px);
+    --portal-accent: #68d391;
+    --portal-accent-strong: #0e7467;
+    --portal-glow: rgba(20, 184, 166, 0.18);
+    --portal-mark: #0c3156;
+    --portal-soft: #edf6f3;
     @apply grid min-h-screen place-items-center overflow-hidden bg-background text-[#13211f];
     height: 100dvh;
     padding: var(--login-shell-pad-y) var(--login-shell-pad-x);
     background:
       linear-gradient(rgba(12, 22, 21, 0.035) 1px, transparent 1px),
       linear-gradient(90deg, rgba(12, 22, 21, 0.035) 1px, transparent 1px),
-      radial-gradient(circle at 16% 15%, rgba(20, 184, 166, 0.16), transparent 26%),
+      radial-gradient(circle at 16% 15%, var(--portal-glow), transparent 26%),
       radial-gradient(circle at 86% 20%, rgba(15, 23, 42, 0.08), transparent 24%),
       linear-gradient(180deg, rgba(14, 116, 103, 0.07), rgba(245, 247, 250, 0) 46%),
       #f5f7fa;
@@ -152,8 +157,8 @@
   .login-brand-panel {
     @apply relative grid min-h-0 content-start overflow-hidden bg-[#0d1715] p-[clamp(22px,2.7vw,32px)] text-white;
     background:
-      linear-gradient(135deg, rgba(104, 211, 145, 0.08), transparent 30%),
-      radial-gradient(circle at 82% 82%, rgba(20, 184, 166, 0.24), transparent 30%),
+      linear-gradient(135deg, var(--portal-glow), transparent 30%),
+      radial-gradient(circle at 82% 82%, var(--portal-glow), transparent 30%),
       #0d1715;
     gap: clamp(10px, 1.25vh, 14px);
     grid-template-rows: repeat(5, auto);
@@ -168,7 +173,9 @@
   }
 
   .login-brand-panel::after {
-    @apply pointer-events-none absolute inset-x-0 top-0 h-px bg-[#68d391]/70 content-[''];
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px content-[''];
+    background: var(--portal-accent);
+    opacity: 0.7;
   }
 
   .login-brand-header {
@@ -177,10 +184,18 @@
 
   .login-brand-mark {
     @apply relative block h-[54px] w-[54px] flex-none overflow-hidden rounded-md shadow-[0_14px_32px_rgba(0,0,0,0.24)];
+    background: var(--portal-mark);
   }
 
   .ee-logo {
     @apply block h-full w-full object-contain;
+  }
+
+  .login-client-initials {
+    @apply grid h-full w-full place-items-center text-base font-extrabold text-white;
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.14), transparent 48%),
+      var(--portal-mark);
   }
 
   .login-brand-header strong,
@@ -207,7 +222,8 @@
   }
 
   .login-brand-copy p {
-    @apply text-xs font-extrabold uppercase text-[#68d391];
+    @apply text-xs font-extrabold uppercase;
+    color: var(--portal-accent);
   }
 
   .login-brand-copy h2 {
@@ -232,7 +248,8 @@
   }
 
   .login-service-map > div span {
-    @apply text-xs font-extrabold uppercase text-[#68d391];
+    @apply text-xs font-extrabold uppercase;
+    color: var(--portal-accent);
   }
 
   .login-service-map > div strong {
@@ -248,7 +265,8 @@
   }
 
   .login-service-map svg {
-    @apply flex-none text-[#68d391];
+    @apply flex-none;
+    color: var(--portal-accent);
   }
 
   .login-feature-stack {
@@ -260,7 +278,8 @@
   }
 
   .login-feature-item svg {
-    @apply flex-none text-[#68d391];
+    @apply flex-none;
+    color: var(--portal-accent);
   }
 
   .login-feature-item strong,
@@ -303,6 +322,8 @@
 
   .login-panel-code {
     @apply rounded-md border border-[#dce5e2] bg-[#f8fbfa] px-2.5 py-1 text-[0.68rem] font-extrabold uppercase text-[#66736f];
+    border-color: color-mix(in srgb, var(--portal-accent-strong) 20%, white);
+    background: var(--portal-soft);
   }
 
   .login-copy {
@@ -316,7 +337,8 @@
   }
 
   .login-copy p {
-    @apply text-xs font-extrabold uppercase text-primary;
+    @apply text-xs font-extrabold uppercase;
+    color: var(--portal-accent-strong);
   }
 
   .login-copy h1 {
@@ -328,7 +350,10 @@
   }
 
   .security-pill {
-    @apply inline-flex min-h-9 items-center gap-2 rounded-full border border-[#cfe9df] bg-[#edf6f3] px-3.5 text-sm font-extrabold text-primary;
+    @apply inline-flex min-h-9 items-center gap-2 rounded-full border px-3.5 text-sm font-extrabold;
+    border-color: color-mix(in srgb, var(--portal-accent-strong) 20%, white);
+    background: var(--portal-soft);
+    color: var(--portal-accent-strong);
   }
 
   .login-form {
@@ -348,7 +373,8 @@
   }
 
   .input-frame:focus-within {
-    @apply border-primary shadow-[0_0_0_3px_rgba(14,116,103,0.12)];
+    border-color: var(--portal-accent-strong);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--portal-accent-strong) 12%, transparent);
   }
 
   .input-frame input {
@@ -372,7 +398,8 @@
   }
 
   .forgot-password-link {
-    @apply whitespace-nowrap text-base font-extrabold text-primary no-underline hover:text-[#0a5d53] hover:underline focus-visible:text-[#0a5d53] focus-visible:underline;
+    @apply whitespace-nowrap text-base font-extrabold no-underline hover:underline focus-visible:underline;
+    color: var(--portal-accent-strong);
   }
 
   .login-error {
@@ -397,7 +424,8 @@
   }
 
   .login-support a {
-    @apply text-primary no-underline;
+    @apply no-underline;
+    color: var(--portal-accent-strong);
   }
 
   .login-assurance {
@@ -828,6 +856,22 @@
   .primary-button > span,
   .primary-button > svg {
     color: hsl(var(--primary-foreground));
+  }
+
+  .login-shell .login-submit {
+    border-color: var(--portal-accent-strong);
+    background: var(--portal-accent-strong);
+  }
+
+  .login-shell .login-submit:hover,
+  .login-shell .login-submit:focus-visible {
+    filter: brightness(0.92);
+  }
+
+  .login-shell .login-submit,
+  .login-shell .login-submit > span,
+  .login-shell .login-submit > svg {
+    color: #ffffff;
   }
 
   .page-header {

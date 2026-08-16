@@ -43,6 +43,19 @@ Docker Compose starts:
 The superadmin API route index is served at `http://localhost:3000/api`.
 The client API route index is served at `http://localhost:3001/client-api`.
 
+## Dedicated Login Portals
+
+Each company signs in through its own URL. The selected portal determines the
+API service, branding, allowed tenant, and browser session namespace:
+
+- EsteemedEngineering: `http://localhost:5173/`
+- Peptrace: `http://localhost:5173/peptrace`
+- Shamstay BnB: `http://localhost:5173/shamstay-bnb`
+- Sham Real Estate Hub: `http://localhost:5173/sham-real-estate-hub`
+
+The root portal accepts only EsteemedEngineering superadmins. Each client portal
+accepts only accounts attached to that client in the database.
+
 ## Admin Logins
 
 The admin login is backed by the `AdminUser` table in Postgres. Local seed data

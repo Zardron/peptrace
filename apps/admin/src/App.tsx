@@ -94,6 +94,42 @@ type NotificationItem = {
   tone: "info" | "success" | "warning";
 };
 
+type LoginPortal = {
+  accessValue: string;
+  aliases: string[];
+  brandName: string;
+  brandSubtitle: string;
+  code: string;
+  defaultEmail: string;
+  description: string;
+  eyebrow: string;
+  features: Array<{
+    description: string;
+    icon: typeof LayoutDashboard;
+    title: string;
+  }>;
+  formDescription: string;
+  headline: string;
+  id: "esteemedengineering" | "peptrace" | "shamstay-bnb" | "sham-real-estate-hub";
+  initials: string;
+  kind: "client" | "superadmin";
+  path: string;
+  services: Array<{
+    icon: typeof LayoutDashboard;
+    label: string;
+  }>;
+  suiteLabel: string;
+  suiteSummary: string;
+  tenantSlug: string | null;
+  theme: {
+    accent: string;
+    accentStrong: string;
+    glow: string;
+    mark: string;
+    soft: string;
+  };
+};
+
 const navigationGroups: Array<{ label: string; items: NavItem[] }> = [
   {
     label: "Operate",
@@ -205,9 +241,160 @@ const superAdminApiClient = new PeptraceApiClient({
 const clientApiClient = new PeptraceApiClient({
   baseUrl: getApiBaseUrl(import.meta.env.VITE_CLIENT_API_BASE_URL, "/client-api")
 });
-const SESSION_STORAGE_KEY = "peptrace.admin.session";
-const TEST_ADMIN_EMAIL = "admin@esteemedengineering.com";
+const LEGACY_SESSION_STORAGE_KEY = "peptrace.admin.session";
+const SESSION_STORAGE_KEY_PREFIX = "peptrace.admin.session.portal";
 const TEST_ADMIN_PASSWORD = "Admin@123";
+
+const loginPortals: LoginPortal[] = [
+  {
+    accessValue: "Internal admin workspace",
+    aliases: ["/", "/login", "/esteemedengineering"],
+    brandName: "EsteemedEngineering",
+    brandSubtitle: "Software operations",
+    code: "EE-OPS",
+    defaultEmail: "admin@esteemedengineering.com",
+    description: "Manage apps, delivery records, access, and operational signals from one secure workspace.",
+    eyebrow: "Enterprise command center",
+    features: [
+      { description: "Encrypted sign-in and role-aware controls", icon: ShieldCheck, title: "Protected sessions" },
+      { description: "Project workflows, launch readiness, and support queues", icon: Activity, title: "Delivery oversight" },
+      { description: "Permission, profile, and workspace management", icon: KeyRound, title: "Account governance" }
+    ],
+    formDescription: "Sign in to manage your software operations workspace.",
+    headline: "Run software operations with clarity.",
+    id: "esteemedengineering",
+    initials: "EE",
+    kind: "superadmin",
+    path: "/",
+    services: [
+      { icon: LayoutDashboard, label: "Web apps" },
+      { icon: Sparkles, label: "Mobile apps" },
+      { icon: Wrench, label: "Admin tools" },
+      { icon: Activity, label: "API services" }
+    ],
+    suiteLabel: "Service suite",
+    suiteSummary: "Production-ready systems",
+    tenantSlug: null,
+    theme: {
+      accent: "#68d391",
+      accentStrong: "#0e7467",
+      glow: "rgba(20, 184, 166, 0.18)",
+      mark: "#0c3156",
+      soft: "#edf6f3"
+    }
+  },
+  {
+    accessValue: "Peptrace admin workspace",
+    aliases: ["/peptrace"],
+    brandName: "Peptrace",
+    brandSubtitle: "Peptide quality intelligence",
+    code: "PT-ADMIN",
+    defaultEmail: "owner@peptrace.com",
+    description: "Manage peptide records, supplier readiness, lab testing, and quality evidence in one workspace.",
+    eyebrow: "Quality operations",
+    features: [
+      { description: "Track supplier status and catalog coverage", icon: Store, title: "Supplier readiness" },
+      { description: "Follow assays, purity, and release decisions", icon: Microscope, title: "Test oversight" },
+      { description: "Control keys and connected quality systems", icon: KeyRound, title: "API access" }
+    ],
+    formDescription: "Sign in to manage the Peptrace quality workspace.",
+    headline: "Trace every product from vendor to verified result.",
+    id: "peptrace",
+    initials: "PT",
+    kind: "client",
+    path: "/peptrace",
+    services: [
+      { icon: Store, label: "Vendor catalog" },
+      { icon: FlaskConical, label: "Peptide records" },
+      { icon: Beaker, label: "Lab testing" },
+      { icon: ClipboardCheck, label: "Quality reports" }
+    ],
+    suiteLabel: "Quality workspace",
+    suiteSummary: "Evidence-led operations",
+    tenantSlug: "peptrace",
+    theme: {
+      accent: "#5ee0b1",
+      accentStrong: "#087767",
+      glow: "rgba(45, 212, 191, 0.2)",
+      mark: "#123f51",
+      soft: "#eaf8f4"
+    }
+  },
+  {
+    accessValue: "Shamstay host workspace",
+    aliases: ["/shamstay-bnb", "/shamstaybnb"],
+    brandName: "Shamstay BnB",
+    brandSubtitle: "Hospitality operations",
+    code: "SS-HOST",
+    defaultEmail: "owner@shamstaybnb.com",
+    description: "Coordinate stays, guests, properties, and service teams across your hospitality business in Syria.",
+    eyebrow: "Stay operations",
+    features: [
+      { description: "See upcoming stays and occupancy at a glance", icon: CalendarCheck, title: "Reservation control" },
+      { description: "Keep guest requests and service work moving", icon: LifeBuoy, title: "Guest operations" },
+      { description: "Manage host, reservations, and property roles", icon: UsersRound, title: "Team access" }
+    ],
+    formDescription: "Sign in to manage the Shamstay BnB hospitality workspace.",
+    headline: "Keep every stay, guest, and property in sync.",
+    id: "shamstay-bnb",
+    initials: "SB",
+    kind: "client",
+    path: "/shamstay-bnb",
+    services: [
+      { icon: CalendarCheck, label: "Reservations" },
+      { icon: Home, label: "Properties" },
+      { icon: UsersRound, label: "Guests" },
+      { icon: ClipboardCheck, label: "Housekeeping" }
+    ],
+    suiteLabel: "Hospitality workspace",
+    suiteSummary: "Guest-ready operations",
+    tenantSlug: "shamstay-bnb",
+    theme: {
+      accent: "#67e8d1",
+      accentStrong: "#0f766e",
+      glow: "rgba(34, 211, 238, 0.18)",
+      mark: "#12485a",
+      soft: "#eaf9f7"
+    }
+  },
+  {
+    accessValue: "Sham Real Estate workspace",
+    aliases: ["/sham-real-estate-hub", "/shamrealestatehub"],
+    brandName: "Sham Real Estate Hub",
+    brandSubtitle: "Real estate operations",
+    code: "SRH-CRM",
+    defaultEmail: "owner@shamrealestatehub.com",
+    description: "Manage listings, leads, viewings, and property deals for your real estate business in Syria.",
+    eyebrow: "Brokerage command center",
+    features: [
+      { description: "Keep active properties and availability current", icon: Building2, title: "Portfolio control" },
+      { description: "Move leads from inquiry through negotiation", icon: Activity, title: "Pipeline oversight" },
+      { description: "Manage owner, manager, and agent permissions", icon: KeyRound, title: "Agent access" }
+    ],
+    formDescription: "Sign in to manage the Sham Real Estate Hub workspace.",
+    headline: "Move listings, leads, and deals forward.",
+    id: "sham-real-estate-hub",
+    initials: "SR",
+    kind: "client",
+    path: "/sham-real-estate-hub",
+    services: [
+      { icon: Building2, label: "Listings" },
+      { icon: UsersRound, label: "Leads" },
+      { icon: CalendarCheck, label: "Viewings" },
+      { icon: BadgeDollarSign, label: "Deals" }
+    ],
+    suiteLabel: "Brokerage workspace",
+    suiteSummary: "Pipeline-led operations",
+    tenantSlug: "sham-real-estate-hub",
+    theme: {
+      accent: "#f2c66d",
+      accentStrong: "#8a5a12",
+      glow: "rgba(242, 198, 109, 0.2)",
+      mark: "#3b3b42",
+      soft: "#fff7e5"
+    }
+  }
+];
 
 function EsteemedEngineeringLogo({ className, title }: { className?: string; title?: string }) {
   return (
@@ -221,38 +408,93 @@ function EsteemedEngineeringLogo({ className, title }: { className?: string; tit
   );
 }
 
-const readStoredSession = (): AdminSession | null => {
-  const readFromStorage = (storage: Storage): AdminSession | null => {
-    const value = storage.getItem(SESSION_STORAGE_KEY);
-    return value ? (JSON.parse(value) as AdminSession) : null;
-  };
+const normalizePortalPath = (pathname: string): string => {
+  const normalizedPath = pathname.trim().toLowerCase().replace(/\/+$/, "");
+  return normalizedPath || "/";
+};
+
+const getLoginPortal = (pathname: string): LoginPortal => {
+  const normalizedPath = normalizePortalPath(pathname);
+  return loginPortals.find((portal) => portal.aliases.includes(normalizedPath)) ?? loginPortals[0]!;
+};
+
+const isSuperAdminSession = (session: AdminSession): boolean =>
+  session.user.role === "superadmin" || session.user.role === "platform_admin";
+
+const sessionMatchesPortal = (session: AdminSession, portal: LoginPortal): boolean =>
+  portal.kind === "superadmin"
+    ? isSuperAdminSession(session)
+    : !isSuperAdminSession(session) && session.user.tenantSlug === portal.tenantSlug;
+
+const getPortalSessionStorageKey = (portal: LoginPortal): string =>
+  `${SESSION_STORAGE_KEY_PREFIX}.${portal.id}`;
+
+const parseStoredSession = (value: string | null): AdminSession | null => {
+  if (!value) {
+    return null;
+  }
 
   try {
-    return readFromStorage(window.localStorage) ?? readFromStorage(window.sessionStorage);
+    return JSON.parse(value) as AdminSession;
   } catch {
     return null;
   }
 };
 
-const writeStoredSession = (session: AdminSession, rememberMe: boolean): void => {
+const readStoredSession = (portal: LoginPortal): AdminSession | null => {
+  const storageKey = getPortalSessionStorageKey(portal);
+
+  try {
+    for (const storage of [window.localStorage, window.sessionStorage]) {
+      const portalSession = parseStoredSession(storage.getItem(storageKey));
+      if (portalSession && sessionMatchesPortal(portalSession, portal)) {
+        return portalSession;
+      }
+    }
+
+    for (const storage of [window.localStorage, window.sessionStorage]) {
+      const legacySession = parseStoredSession(storage.getItem(LEGACY_SESSION_STORAGE_KEY));
+      if (legacySession && sessionMatchesPortal(legacySession, portal)) {
+        storage.setItem(storageKey, JSON.stringify(legacySession));
+        storage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+        return legacySession;
+      }
+    }
+  } catch {
+    // Continue to the login page when browser storage is disabled.
+  }
+
+  return null;
+};
+
+const writeStoredSession = (session: AdminSession, rememberMe: boolean, portal: LoginPortal): void => {
   try {
     const storage = rememberMe ? window.localStorage : window.sessionStorage;
     const fallbackStorage = rememberMe ? window.sessionStorage : window.localStorage;
+    const storageKey = getPortalSessionStorageKey(portal);
 
-    fallbackStorage.removeItem(SESSION_STORAGE_KEY);
-    storage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    fallbackStorage.removeItem(storageKey);
+    window.localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+    window.sessionStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+    storage.setItem(storageKey, JSON.stringify(session));
   } catch {
     // The authenticated in-memory session still works when browser storage is disabled.
   }
 };
 
-const clearStoredSession = (): void => {
-  window.localStorage.removeItem(SESSION_STORAGE_KEY);
-  window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+const clearStoredSession = (portal: LoginPortal): void => {
+  try {
+    const storageKey = getPortalSessionStorageKey(portal);
+    window.localStorage.removeItem(storageKey);
+    window.sessionStorage.removeItem(storageKey);
+    window.localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+    window.sessionStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+  } catch {
+    // The in-memory session is cleared even when browser storage is disabled.
+  }
 };
 
-const isSuperAdminSession = (session: AdminSession): boolean =>
-  session.user.role === "superadmin" || session.user.role === "platform_admin";
+class PortalAccessError extends Error {}
 
 const getSessionApiClient = (session: AdminSession): PeptraceApiClient =>
   isSuperAdminSession(session) ? superAdminApiClient : clientApiClient;
@@ -262,11 +504,18 @@ const setSessionToken = (session: AdminSession | null): void => {
   clientApiClient.setToken(session && !isSuperAdminSession(session) ? session.accessToken : undefined);
 };
 
-const loginToBackend = async (body: { email: string; password: string }): Promise<AdminSession> => {
-  const normalizedEmail = body.email.trim().toLowerCase();
-  return normalizedEmail.endsWith("@esteemedengineering.com")
-    ? superAdminApiClient.login(body)
-    : clientApiClient.login(body);
+const loginToPortal = async (
+  portal: LoginPortal,
+  body: { email: string; password: string }
+): Promise<AdminSession> => {
+  const api = portal.kind === "superadmin" ? superAdminApiClient : clientApiClient;
+  const session = await api.login({ ...body, email: body.email.trim().toLowerCase() });
+
+  if (!sessionMatchesPortal(session, portal)) {
+    throw new PortalAccessError(`This sign-in page only accepts ${portal.brandName} accounts.`);
+  }
+
+  return session;
 };
 
 const formatUserName = (email: string): string => {
@@ -301,7 +550,8 @@ const getAccountInitials = (session: AdminSession): string => {
 };
 
 export function App() {
-  const [session, setSession] = useState<AdminSession | null>(() => readStoredSession());
+  const portal = useMemo(() => getLoginPortal(window.location.pathname), []);
+  const [session, setSession] = useState<AdminSession | null>(() => readStoredSession(portal));
   const [activeSection, setActiveSection] = useState<AdminSection>("overview");
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isNotificationMenuOpen, setIsNotificationMenuOpen] = useState(false);
@@ -329,6 +579,10 @@ export function App() {
   }, [pageFilter, panelData]);
 
   setSessionToken(session);
+
+  useEffect(() => {
+    document.title = session ? `${portal.brandName} Admin` : `${portal.brandName} Admin Login`;
+  }, [portal.brandName, session]);
 
   useEffect(() => {
     setActiveSection("overview");
@@ -411,8 +665,9 @@ export function App() {
   if (!session) {
     return (
       <LoginScreen
+        portal={portal}
         onLogin={(nextSession, rememberMe) => {
-          writeStoredSession(nextSession, rememberMe);
+          writeStoredSession(nextSession, rememberMe, portal);
           setSessionToken(nextSession);
           setSession(nextSession);
         }}
@@ -421,7 +676,7 @@ export function App() {
   }
 
   const signOut = () => {
-    clearStoredSession();
+    clearStoredSession(portal);
     setSessionToken(null);
     setIsAccountMenuOpen(false);
     setIsNotificationMenuOpen(false);
@@ -2849,8 +3104,14 @@ function filterCompanies<T extends AdminPanelCompany>(companies: T[], query: str
   );
 }
 
-function LoginScreen({ onLogin }: { onLogin: (session: AdminSession, rememberMe: boolean) => void }) {
-  const [email, setEmail] = useState(import.meta.env.DEV ? TEST_ADMIN_EMAIL : "");
+function LoginScreen({
+  onLogin,
+  portal
+}: {
+  onLogin: (session: AdminSession, rememberMe: boolean) => void;
+  portal: LoginPortal;
+}) {
+  const [email, setEmail] = useState(import.meta.env.DEV ? portal.defaultEmail : "");
   const [password, setPassword] = useState(import.meta.env.DEV ? TEST_ADMIN_PASSWORD : "");
   const [rememberMe, setRememberMe] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
@@ -2863,10 +3124,12 @@ function LoginScreen({ onLogin }: { onLogin: (session: AdminSession, rememberMe:
     setIsSubmitting(true);
 
     try {
-      const nextSession = await loginToBackend({ email, password });
+      const nextSession = await loginToPortal(portal, { email, password });
       onLogin(nextSession, rememberMe);
     } catch (loginError) {
-      if (loginError instanceof PeptraceApiError && loginError.status === 401) {
+      if (loginError instanceof PortalAccessError) {
+        setError(loginError.message);
+      } else if (loginError instanceof PeptraceApiError && loginError.status === 401) {
         setError("The email or password is incorrect.");
       } else {
         const detail = loginError instanceof Error ? loginError.message : "Unknown browser error";
@@ -2881,80 +3144,74 @@ function LoginScreen({ onLogin }: { onLogin: (session: AdminSession, rememberMe:
     }
   };
 
+  const themeStyle = {
+    "--portal-accent": portal.theme.accent,
+    "--portal-accent-strong": portal.theme.accentStrong,
+    "--portal-glow": portal.theme.glow,
+    "--portal-mark": portal.theme.mark,
+    "--portal-soft": portal.theme.soft
+  } as CSSProperties;
+
   return (
-    <main className="login-shell">
+    <main className="login-shell" data-portal={portal.id} style={themeStyle}>
       <section className="login-panel" aria-labelledby="login-title">
-        <aside className="login-brand-panel" aria-label="Admin console overview">
+        <aside className="login-brand-panel" aria-label={`${portal.brandName} admin portal overview`}>
           <div className="login-brand-header">
             <span className="login-brand-mark" aria-hidden="true">
-              <EsteemedEngineeringLogo className="ee-logo" />
+              {portal.kind === "superadmin" ? (
+                <EsteemedEngineeringLogo className="ee-logo" />
+              ) : (
+                <span className="login-client-initials">{portal.initials}</span>
+              )}
             </span>
             <div>
-              <strong>EsteemedEngineering</strong>
-              <span>Software operations</span>
+              <strong>{portal.brandName}</strong>
+              <span>{portal.brandSubtitle}</span>
             </div>
           </div>
 
           <div className="login-brand-copy">
-            <p>Enterprise command center</p>
-            <h2>Run software operations with clarity.</h2>
-            <span>
-              Manage apps, delivery records, access, and operational signals from one secure workspace.
-            </span>
+            <p>{portal.eyebrow}</p>
+            <h2>{portal.headline}</h2>
+            <span>{portal.description}</span>
           </div>
 
           <div className="login-service-map" aria-hidden="true">
             <div>
-              <span>Service suite</span>
-              <strong>Production-ready systems</strong>
+              <span>{portal.suiteLabel}</span>
+              <strong>{portal.suiteSummary}</strong>
             </div>
             <ul>
-              <li>
-                <LayoutDashboard size={16} strokeWidth={2} />
-                <span>Web apps</span>
-              </li>
-              <li>
-                <Sparkles size={16} strokeWidth={2} />
-                <span>Mobile apps</span>
-              </li>
-              <li>
-                <Wrench size={16} strokeWidth={2} />
-                <span>Admin tools</span>
-              </li>
-              <li>
-                <Activity size={16} strokeWidth={2} />
-                <span>API services</span>
-              </li>
+              {portal.services.map((service) => {
+                const Icon = service.icon;
+                return (
+                  <li key={service.label}>
+                    <Icon size={16} strokeWidth={2} />
+                    <span>{service.label}</span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
 
           <div className="login-feature-stack">
-            <div className="login-feature-item">
-              <ShieldCheck size={18} strokeWidth={2} />
-              <div>
-                <strong>Protected sessions</strong>
-                <span>Encrypted sign-in and role-aware controls</span>
-              </div>
-            </div>
-            <div className="login-feature-item">
-              <Activity size={18} strokeWidth={2} />
-              <div>
-                <strong>Delivery oversight</strong>
-                <span>Project workflows, launch readiness, and support queues</span>
-              </div>
-            </div>
-            <div className="login-feature-item">
-              <KeyRound size={18} strokeWidth={2} />
-              <div>
-                <strong>Account governance</strong>
-                <span>Permission, profile, and workspace management</span>
-              </div>
-            </div>
+            {portal.features.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <div className="login-feature-item" key={feature.title}>
+                  <Icon size={18} strokeWidth={2} />
+                  <div>
+                    <strong>{feature.title}</strong>
+                    <span>{feature.description}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="login-brand-foot">
             <span>Access mode</span>
-            <strong>Internal admin workspace</strong>
+            <strong>{portal.accessValue}</strong>
           </div>
         </aside>
 
@@ -2964,13 +3221,13 @@ function LoginScreen({ onLogin }: { onLogin: (session: AdminSession, rememberMe:
               <ShieldCheck size={15} strokeWidth={2} />
               Protected access
             </span>
-            <span className="login-panel-code">EE-OPS</span>
+            <span className="login-panel-code">{portal.code}</span>
           </div>
 
           <div className="login-copy">
-            <p>Secure sign in</p>
+            <p>{portal.brandName} secure sign in</p>
             <h1 id="login-title">Welcome back</h1>
-            <span>Sign in to manage your software operations workspace.</span>
+            <span>{portal.formDescription}</span>
           </div>
 
           <form className="login-form" onSubmit={submitLogin}>
@@ -2981,7 +3238,7 @@ function LoginScreen({ onLogin }: { onLogin: (session: AdminSession, rememberMe:
                 <Input
                   autoComplete="email"
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="name@company.com"
+                  placeholder={portal.defaultEmail}
                   required
                   type="email"
                   value={email}
@@ -3049,7 +3306,7 @@ function LoginScreen({ onLogin }: { onLogin: (session: AdminSession, rememberMe:
           </div>
 
           <p className="login-assurance">
-            Administrative access is monitored and protected for authorized team members.
+            {portal.brandName} access is monitored and protected for authorized team members.
           </p>
         </div>
       </section>
