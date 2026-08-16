@@ -76,6 +76,44 @@ role. Users cannot deactivate themselves, and each company must retain an
 active owner. All reads and writes are restricted to the signed-in user's
 company; password hashes are never returned.
 
+## Client Secret Locker
+
+The client API includes a tenant-isolated Secret Locker with encrypted,
+immutable versions and audit history. Configure a unique 32-byte base64 master
+key before deployment:
+
+```sh
+openssl rand -base64 32
+SECRET_ENCRYPTION_KEY="paste-generated-value-here"
+SECRET_ENCRYPTION_KEY_ID="production-v1"
+SECRET_ENCRYPTION_PREVIOUS_KEYS='{}'
+```
+
+Production startup fails when the encryption key is missing. Development can
+derive a local-only key from `JWT_SECRET`, but that fallback must not be used for
+deployed data.
+
+To rotate keys, move the old key into `SECRET_ENCRYPTION_PREVIOUS_KEYS` under
+its existing key ID, then configure a new active key and
+`SECRET_ENCRYPTION_KEY_ID`. Existing versions continue using their recorded key
+ID while newly added versions use the active key.
+
+- `GET|POST /client-api/secrets` - list metadata or create a secret container
+- `GET|PATCH /client-api/secrets/:secret` - read or update metadata
+- `GET|POST /client-api/secrets/:secret/versions` - list or add immutable versions
+- `GET /client-api/secrets/:secret/versions/:version/access` - decrypt an enabled version
+- `PATCH /client-api/secrets/:secret/versions/:version` - enable or disable a version
+- `DELETE /client-api/secrets/:secret/versions/:version` - permanently destroy its payload
+- `GET /client-api/secrets/:secret/grants` - list per-secret access
+- `PUT|DELETE /client-api/secrets/:secret/grants/:userId` - grant or revoke access
+- `GET /client-api/secrets/audit` - review administrative and payload-access events
+
+Company owners and admins have implicit locker administration. Other active
+company users can receive a per-secret `viewer`, `accessor`, or `manager` grant.
+Metadata responses never contain encrypted or plaintext values, payload access
+uses no-store response headers, and superadmin sessions cannot call client
+Secret Locker endpoints.
+
 ## Supabase Database
 
 Use the Supabase Dashboard `Connect` button to copy a Postgres connection string

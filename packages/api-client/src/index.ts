@@ -41,6 +41,64 @@ export interface UpdateClientUserRequest {
   role?: ClientUserRole;
 }
 
+export type SecretVersionState = "ENABLED" | "DISABLED" | "DESTROYED";
+export type SecretGrantRole = "viewer" | "accessor" | "manager";
+
+export interface LockerSecretVersion {
+  createdAt: string;
+  createdById: string;
+  destroyedAt: string | null;
+  encryptionKeyId: string;
+  id: string;
+  resourceName: string;
+  state: SecretVersionState;
+  version: number;
+}
+
+export interface LockerSecret {
+  createdAt: string;
+  createdById: string;
+  description: string | null;
+  id: string;
+  labels: Record<string, string>;
+  latestVersion: LockerSecretVersion | null;
+  name: string;
+  resourceName: string;
+  updatedAt: string;
+  versionCount: number;
+}
+
+export interface LockerSecretList {
+  items: LockerSecret[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface LockerSecretGrant {
+  createdAt: string;
+  role: SecretGrantRole;
+  updatedAt: string;
+  user: {
+    displayName: string;
+    email: string;
+    id: string;
+    isActive: boolean;
+    role: string;
+  };
+}
+
+export interface LockerSecretAuditEvent {
+  action: string;
+  actor: { id: string; displayName?: string; email?: string };
+  createdAt: string;
+  id: string;
+  metadata: Record<string, unknown>;
+  secret: { id: string | null; name: string } | null;
+  secretVersionId: string | null;
+}
+
 export interface AdminSession {
   accessToken: string;
   expiresIn: number;
@@ -303,6 +361,87 @@ export class PeptraceApiClient {
 
   deactivateClientUser(id: string): Promise<ClientUser> {
     return this.request<ClientUser>(`/users/${id}`, { method: "DELETE" });
+  }
+
+  listLockerSecrets(query?: { page?: number; pageSize?: number; search?: string }): Promise<LockerSecretList> {
+    return this.request<LockerSecretList>("/secrets", { query });
+  }
+
+  getLockerSecret(secret: string): Promise<LockerSecret> {
+    return this.request<LockerSecret>(`/secrets/${encodeURIComponent(secret)}`);
+  }
+
+  createLockerSecret(body: {
+    description?: string;
+    labels?: Record<string, string>;
+    name: string;
+  }): Promise<LockerSecret> {
+    return this.request<LockerSecret>("/secrets", { body, method: "POST" });
+  }
+
+  updateLockerSecret(
+    secret: string,
+    body: { description?: string; labels?: Record<string, string> }
+  ): Promise<LockerSecret> {
+    return this.request<LockerSecret>(`/secrets/${encodeURIComponent(secret)}`, { body, method: "PATCH" });
+  }
+
+  listLockerSecretVersions(secret: string): Promise<LockerSecretVersion[]> {
+    return this.request<LockerSecretVersion[]>(`/secrets/${encodeURIComponent(secret)}/versions`);
+  }
+
+  addLockerSecretVersion(secret: string, value: string): Promise<LockerSecretVersion> {
+    return this.request<LockerSecretVersion>(`/secrets/${encodeURIComponent(secret)}/versions`, {
+      body: { value },
+      method: "POST"
+    });
+  }
+
+  accessLockerSecretVersion(
+    secret: string,
+    version: number | "latest" = "latest"
+  ): Promise<{ checksum: string; name: string; resourceName: string; value: string; version: number }> {
+    return this.request(`/secrets/${encodeURIComponent(secret)}/versions/${version}/access`);
+  }
+
+  updateLockerSecretVersionState(
+    secret: string,
+    version: number,
+    state: "ENABLED" | "DISABLED"
+  ): Promise<LockerSecretVersion> {
+    return this.request<LockerSecretVersion>(`/secrets/${encodeURIComponent(secret)}/versions/${version}`, {
+      body: { state },
+      method: "PATCH"
+    });
+  }
+
+  destroyLockerSecretVersion(secret: string, version: number): Promise<LockerSecretVersion> {
+    return this.request<LockerSecretVersion>(`/secrets/${encodeURIComponent(secret)}/versions/${version}`, {
+      method: "DELETE"
+    });
+  }
+
+  listLockerSecretGrants(secret: string): Promise<LockerSecretGrant[]> {
+    return this.request<LockerSecretGrant[]>(`/secrets/${encodeURIComponent(secret)}/grants`);
+  }
+
+  setLockerSecretGrant(secret: string, userId: string, role: SecretGrantRole): Promise<LockerSecretGrant> {
+    return this.request<LockerSecretGrant>(`/secrets/${encodeURIComponent(secret)}/grants/${userId}`, {
+      body: { role },
+      method: "PUT"
+    });
+  }
+
+  removeLockerSecretGrant(secret: string, userId: string): Promise<{ removed: true; userId: string }> {
+    return this.request(`/secrets/${encodeURIComponent(secret)}/grants/${userId}`, { method: "DELETE" });
+  }
+
+  listLockerSecretAuditEvents(query?: {
+    page?: number;
+    pageSize?: number;
+    secret?: string;
+  }): Promise<{ items: LockerSecretAuditEvent[]; page: number; pageSize: number; total: number; totalPages: number }> {
+    return this.request("/secrets/audit", { query });
   }
 
   getVendor(idOrSlug: string): Promise<Vendor> {
