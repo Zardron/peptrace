@@ -488,6 +488,7 @@ async function main() {
       where: { email: adminUser.email },
       update: {
         displayName: adminUser.displayName,
+        isActive: true,
         passwordHash,
         role: adminUser.role,
         tenantId: adminUser.tenantId
@@ -495,6 +496,7 @@ async function main() {
       create: {
         email: adminUser.email,
         displayName: adminUser.displayName,
+        isActive: true,
         passwordHash,
         role: adminUser.role,
         tenantId: adminUser.tenantId

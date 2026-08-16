@@ -51,6 +51,7 @@ model AdminUser {
   passwordHash String
   displayName  String
   role         String        @default("owner")
+  isActive     Boolean       @default(true)
   tenantId     String?
   tenant       ClientTenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   lastLoginAt  DateTime?

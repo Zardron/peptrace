@@ -59,6 +59,23 @@ creates a platform superadmin plus white-label client accounts:
 Set `SUPERADMIN_EMAIL` and `ADMIN_PASSWORD` before running `npm run db:seed` to
 change the seeded platform account.
 
+## Client User Management
+
+Every white-label client uses the same tenant-scoped user API. Send the client
+JWT as a bearer token to these `client-api` routes:
+
+- `GET /client-api/users` - list company users with search, role, status, and pagination filters
+- `GET /client-api/users/:id` - read one company user
+- `POST /client-api/users` - create a company user
+- `PATCH /client-api/users/:id` - update profile, role, or active state
+- `POST /client-api/users/:id/password` - set a new password
+- `DELETE /client-api/users/:id` - deactivate a user without deleting their history
+
+Owners and admins can manage users. Only owners can manage or assign the owner
+role. Users cannot deactivate themselves, and each company must retain an
+active owner. All reads and writes are restricted to the signed-in user's
+company; password hashes are never returned.
+
 ## Supabase Database
 
 Use the Supabase Dashboard `Connect` button to copy a Postgres connection string

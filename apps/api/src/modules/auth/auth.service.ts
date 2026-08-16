@@ -29,7 +29,7 @@ export class AuthService {
     const email = this.normalizeEmail(dto.email);
     const adminUser = await this.findLoginUser(email);
 
-    if (!adminUser || !SUPERADMIN_ROLES.has(adminUser.role)) {
+    if (!adminUser || !adminUser.isActive || !SUPERADMIN_ROLES.has(adminUser.role)) {
       throw new UnauthorizedException("Invalid superadmin email or password");
     }
 
@@ -84,7 +84,7 @@ export class AuthService {
       where: { id: payload.sub }
     });
 
-    if (!adminUser || !SUPERADMIN_ROLES.has(adminUser.role)) {
+    if (!adminUser || !adminUser.isActive || !SUPERADMIN_ROLES.has(adminUser.role)) {
       throw new UnauthorizedException("Superadmin session not found");
     }
 

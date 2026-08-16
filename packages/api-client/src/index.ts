@@ -5,6 +5,42 @@ export interface LoginRequest {
   password: string;
 }
 
+export type ClientUserRole = "owner" | "admin" | "manager" | "member" | "viewer";
+export type ClientUserStatus = "active" | "inactive";
+
+export interface ClientUser {
+  id: string;
+  displayName: string;
+  email: string;
+  role: ClientUserRole;
+  status: ClientUserStatus;
+  lastLoginAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientUserList {
+  items: ClientUser[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface CreateClientUserRequest {
+  displayName: string;
+  email: string;
+  password: string;
+  role: ClientUserRole;
+}
+
+export interface UpdateClientUserRequest {
+  displayName?: string;
+  email?: string;
+  isActive?: boolean;
+  role?: ClientUserRole;
+}
+
 export interface AdminSession {
   accessToken: string;
   expiresIn: number;
@@ -234,6 +270,39 @@ export class PeptraceApiClient {
 
   getAdminPanelData(): Promise<AdminPanelData> {
     return this.request<AdminPanelData>("/admin-panel/data");
+  }
+
+  listClientUsers(query?: {
+    page?: number;
+    pageSize?: number;
+    role?: ClientUserRole;
+    search?: string;
+    status?: ClientUserStatus;
+  }): Promise<ClientUserList> {
+    return this.request<ClientUserList>("/users", { query });
+  }
+
+  getClientUser(id: string): Promise<ClientUser> {
+    return this.request<ClientUser>(`/users/${id}`);
+  }
+
+  createClientUser(body: CreateClientUserRequest): Promise<ClientUser> {
+    return this.request<ClientUser>("/users", { body, method: "POST" });
+  }
+
+  updateClientUser(id: string, body: UpdateClientUserRequest): Promise<ClientUser> {
+    return this.request<ClientUser>(`/users/${id}`, { body, method: "PATCH" });
+  }
+
+  resetClientUserPassword(id: string, password: string): Promise<{ id: string; passwordUpdated: true }> {
+    return this.request<{ id: string; passwordUpdated: true }>(`/users/${id}/password`, {
+      body: { password },
+      method: "POST"
+    });
+  }
+
+  deactivateClientUser(id: string): Promise<ClientUser> {
+    return this.request<ClientUser>(`/users/${id}`, { method: "DELETE" });
   }
 
   getVendor(idOrSlug: string): Promise<Vendor> {

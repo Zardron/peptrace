@@ -30,7 +30,7 @@ export class AuthService {
     const email = this.normalizeEmail(dto.email);
     const adminUser = await this.findLoginUser(email);
 
-    if (!adminUser || !adminUser.tenant || SUPERADMIN_ROLES.has(adminUser.role)) {
+    if (!adminUser || !adminUser.isActive || !adminUser.tenant || SUPERADMIN_ROLES.has(adminUser.role)) {
       throw new UnauthorizedException("Invalid client email or password");
     }
 
@@ -80,13 +80,20 @@ export class AuthService {
       where: { id: payload.sub }
     });
 
-    if (!adminUser || !adminUser.tenant || SUPERADMIN_ROLES.has(adminUser.role)) {
+    if (!adminUser || !adminUser.isActive || !adminUser.tenant || SUPERADMIN_ROLES.has(adminUser.role)) {
       throw new UnauthorizedException("Client session not found");
     }
 
     const authenticatedUser = this.toAuthenticatedClientUser(adminUser);
     this.cacheAuthenticatedUser(authenticatedUser);
     return authenticatedUser;
+  }
+
+  invalidateUser(userId: string, email?: string): void {
+    this.authenticatedUserCache.delete(userId);
+    if (email) {
+      this.loginUserCache.delete(this.normalizeEmail(email));
+    }
   }
 
   private async issueToken(user: AuthenticatedClientUser): Promise<ClientSession> {
