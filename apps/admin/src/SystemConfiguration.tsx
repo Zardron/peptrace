@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { SelectMenu } from "./SelectMenu";
 
 type ConnectionForm = UpsertClientDatabaseConnectionRequest & { password: string };
 
@@ -354,9 +355,16 @@ export function SystemConfiguration({ api }: { api: PeptraceApiClient }) {
               <div className="database-form-grid">
                 <label className="form-field">
                   <span>Provider</span>
-                  <select value={form.provider} onChange={(event) => updateProvider(event.target.value as ClientDatabaseProvider)}>
-                    {catalog.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
-                  </select>
+                  <SelectMenu
+                    ariaLabel="Database provider"
+                    onChange={updateProvider}
+                    options={catalog.providers.map((provider) => ({
+                      description: provider.notes,
+                      label: provider.name,
+                      value: provider.id
+                    }))}
+                    value={form.provider}
+                  />
                 </label>
                 <label className="form-field">
                   <span>Connection name</span>
@@ -404,22 +412,32 @@ export function SystemConfiguration({ api }: { api: PeptraceApiClient }) {
                 </label>
                 <label className="form-field">
                   <span>SSL / TLS mode</span>
-                  <select value={form.sslMode} onChange={(event) => updateField("sslMode", event.target.value as ClientDatabaseSslMode)}>
-                    <option value="VERIFY_FULL">Verify certificate and host</option>
-                    <option value="VERIFY_CA">Verify certificate authority</option>
-                    <option value="REQUIRE">Encrypt without certificate verification</option>
-                    <option value="DISABLE">Disable TLS</option>
-                  </select>
+                  <SelectMenu<ClientDatabaseSslMode>
+                    ariaLabel="SSL and TLS mode"
+                    onChange={(value) => updateField("sslMode", value)}
+                    options={[
+                      { label: "Verify certificate and host", value: "VERIFY_FULL" },
+                      { label: "Verify certificate authority", value: "VERIFY_CA" },
+                      { label: "Encrypt without verification", value: "REQUIRE" },
+                      { label: "Disable TLS", value: "DISABLE" }
+                    ]}
+                    value={form.sslMode}
+                  />
                 </label>
 
                 {form.provider === "SUPABASE" && (
                   <label className="form-field">
                     <span>Supabase connection mode</span>
-                    <select value={form.connectionMode} onChange={(event) => updateField("connectionMode", event.target.value as ClientDatabaseConnectionMode)}>
-                      <option value="DIRECT">Direct connection</option>
-                      <option value="SESSION_POOLER">Session pooler</option>
-                      <option value="TRANSACTION_POOLER">Transaction pooler</option>
-                    </select>
+                    <SelectMenu<ClientDatabaseConnectionMode>
+                      ariaLabel="Supabase connection mode"
+                      onChange={(value) => updateField("connectionMode", value)}
+                      options={[
+                        { description: "Persistent backend with IPv6 connectivity", label: "Direct connection", value: "DIRECT" },
+                        { description: "Persistent backend with IPv4-compatible pooling", label: "Session pooler", value: "SESSION_POOLER" },
+                        { description: "Short-lived serverless workloads", label: "Transaction pooler", value: "TRANSACTION_POOLER" }
+                      ]}
+                      value={form.connectionMode}
+                    />
                   </label>
                 )}
 

@@ -1513,13 +1513,84 @@
   }
 
   .form-field input,
-  .form-field select {
+  .form-field select,
+  .select-menu-trigger {
     @apply h-10 w-full rounded-md border border-[#cfd9d5] bg-white px-3 text-sm text-[#17211e] outline-none transition-[border-color,box-shadow];
   }
 
   .form-field input:focus,
   .form-field select:focus {
     @apply border-[#7db4aa] shadow-[0_0_0_3px_rgba(14,116,103,0.1)];
+  }
+
+  .select-menu {
+    @apply relative min-w-0;
+  }
+
+  .select-menu-trigger {
+    @apply flex items-center justify-between gap-3 text-left font-semibold;
+  }
+
+  .select-menu-trigger:hover {
+    @apply border-[#9fb4ad];
+  }
+
+  .select-menu-trigger:focus-visible,
+  .select-menu-trigger[data-open="true"] {
+    @apply border-[#7db4aa] shadow-[0_0_0_3px_rgba(14,116,103,0.1)];
+  }
+
+  .select-menu-trigger > span {
+    @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap;
+  }
+
+  .select-menu-trigger > svg {
+    @apply flex-none text-[#66736f] transition-transform;
+  }
+
+  .select-menu-trigger[data-open="true"] > svg {
+    @apply rotate-180;
+  }
+
+  .select-menu-popover {
+    @apply absolute left-0 right-0 top-[calc(100%+6px)] z-[70] grid max-h-[280px] gap-1 overflow-y-auto rounded-md border border-[#cfd9d5] bg-white p-1.5 shadow-[0_16px_36px_rgba(17,24,23,0.18)];
+  }
+
+  .select-menu-option {
+    @apply grid w-full grid-cols-[22px_minmax(0,1fr)] items-start gap-2 rounded-md border-0 bg-transparent px-2.5 py-2 text-left text-[#34403c];
+  }
+
+  .select-menu-option:hover,
+  .select-menu-option[data-active="true"] {
+    @apply bg-[#edf5f2] text-[#17211e];
+  }
+
+  .select-menu-option[aria-selected="true"] {
+    @apply bg-[#e2f3ed] text-primary;
+  }
+
+  .select-menu-check {
+    @apply grid h-5 w-5 place-items-center;
+  }
+
+  .select-menu-copy {
+    @apply grid min-w-0 gap-0.5;
+  }
+
+  .select-menu-copy strong,
+  .select-menu-copy small {
+    @apply block;
+  }
+
+  .select-menu-copy strong {
+    @apply text-sm font-extrabold leading-5;
+  }
+
+  .select-menu-copy small {
+    @apply overflow-hidden text-ellipsis text-xs leading-4 text-[#6d7a76];
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .provider-guidance {
