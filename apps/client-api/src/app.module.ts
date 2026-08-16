@@ -8,6 +8,7 @@ import { AdminPanelModule } from "./modules/admin-panel/admin-panel.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
 import { PrismaModule } from "./modules/prisma/prisma.module";
+import { SecretsModule } from "./modules/secrets/secrets.module";
 import { UsersModule } from "./modules/users/users.module";
 
 @Module({
@@ -38,7 +39,8 @@ import { UsersModule } from "./modules/users/users.module";
     HealthModule,
     AuthModule,
     AdminPanelModule,
-    UsersModule
+    UsersModule,
+    SecretsModule
   ],
   controllers: [AppController]
 })

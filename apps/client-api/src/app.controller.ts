@@ -12,7 +12,8 @@ export class AppController {
         "/client-api/auth/*",
         "/client-api/admin-panel/context",
         "/client-api/admin-panel/data",
-        "/client-api/users"
+        "/client-api/users",
+        "/client-api/secrets"
       ]
     };
   }

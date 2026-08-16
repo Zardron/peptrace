@@ -22,6 +22,9 @@ model ClientTenant {
   dataRegion      String
   lastActivityAt  DateTime
   adminUsers      AdminUser[]
+  secrets         Secret[]
+  secretGrants    SecretAccessGrant[]
+  secretAuditEvents SecretAuditEvent[]
   whiteLabelPanel WhiteLabelPanel?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
@@ -54,9 +57,82 @@ model AdminUser {
   isActive     Boolean       @default(true)
   tenantId     String?
   tenant       ClientTenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  secretGrants SecretAccessGrant[]
   lastLoginAt  DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+}
+
+model Secret {
+  id             String              @id @default(uuid())
+  tenantId       String
+  tenant         ClientTenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  labels         Json                @default("{}")
+  versionCounter Int                 @default(0)
+  versions       SecretVersion[]
+  grants         SecretAccessGrant[]
+  auditEvents    SecretAuditEvent[]
+  createdById    String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId, updatedAt])
+}
+
+model SecretVersion {
+  id              String             @id @default(uuid())
+  secretId        String
+  secret          Secret             @relation(fields: [secretId], references: [id], onDelete: Cascade)
+  version         Int
+  state           String             @default("ENABLED")
+  encryptedValue  Bytes?
+  encryptionIv    Bytes?
+  authenticationTag Bytes?
+  checksum        String?
+  encryptionKeyId String
+  createdById     String
+  createdAt       DateTime           @default(now())
+  destroyedAt     DateTime?
+  auditEvents     SecretAuditEvent[]
+
+  @@unique([secretId, version])
+  @@index([secretId, state])
+}
+
+model SecretAccessGrant {
+  id        String       @id @default(uuid())
+  tenantId  String
+  tenant    ClientTenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  secretId  String
+  secret    Secret       @relation(fields: [secretId], references: [id], onDelete: Cascade)
+  userId    String
+  user      AdminUser    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([secretId, userId])
+  @@index([tenantId, userId])
+}
+
+model SecretAuditEvent {
+  id              String         @id @default(uuid())
+  tenantId        String
+  tenant          ClientTenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  secretId        String?
+  secret          Secret?        @relation(fields: [secretId], references: [id], onDelete: SetNull)
+  secretVersionId String?
+  secretVersion   SecretVersion? @relation(fields: [secretVersionId], references: [id], onDelete: SetNull)
+  actorId         String
+  action          String
+  metadata        Json           @default("{}")
+  createdAt       DateTime       @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([secretId, createdAt])
 }
 
 model Vendor {
