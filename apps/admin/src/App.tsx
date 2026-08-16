@@ -33,6 +33,7 @@ import {
   Store,
   UserRoundCog,
   UsersRound,
+  Vault,
   Wrench,
   X
 } from "lucide-react";
@@ -44,7 +45,9 @@ import {
   type AdminPanelContext,
   type AdminPanelData,
   type AdminPanelMetric,
-  type AdminSession
+  type AdminSession,
+  type ClientUserList,
+  type LockerSecretList
 } from "@peptrace/api-client";
 import type { ApiSurface, ClientTenant, Lab, LabTest, Peptide, TestingStatus, Vendor } from "@peptrace/domain";
 import { Button } from "@/components/ui/button";
@@ -63,6 +66,8 @@ type AdminSection =
   | "peptides"
   | "testing"
   | "labs"
+  | "users"
+  | "secrets"
   | "access";
 
 type NavItem = {
@@ -149,7 +154,11 @@ const navigationGroups: Array<{ label: string; items: NavItem[] }> = [
   },
   {
     label: "Platform",
-    items: [{ id: "access", label: "Access", icon: KeyRound }]
+    items: [
+      { id: "users", label: "Users", icon: UserRoundCog },
+      { id: "secrets", label: "Secret Locker", icon: Vault },
+      { id: "access", label: "Access", icon: KeyRound }
+    ]
   }
 ];
 
@@ -183,6 +192,16 @@ const sectionMeta: Record<AdminSection, { breadcrumb: string; title: string; des
     breadcrumb: "Catalog / Labs",
     title: "Laboratory network",
     description: "Track partner labs and their Peptrace testing footprint."
+  },
+  users: {
+    breadcrumb: "Platform / Users",
+    title: "Workspace users",
+    description: "Manage database-backed user accounts, roles, status, and recent access."
+  },
+  secrets: {
+    breadcrumb: "Platform / Secret Locker",
+    title: "Secret Locker",
+    description: "Manage tenant-isolated secret metadata, encrypted versions, and access state."
   },
   access: {
     breadcrumb: "EsteemedEngineering / Access",
@@ -699,11 +718,16 @@ export function App() {
   const accountName = session.user.displayName ?? formatUserName(session.user.email);
   const roleLabel = formatRole(session.user.role);
   const workspaceName = panelContext.mode === "client" ? panelContext.company.name : "EsteemedEngineering";
-  const workspaceInitials = isPeptraceClient ? "PT" : getWorkspaceInitials(workspaceName);
-  const workspaceSubline = panelContext.mode === "client" ? `${panelContext.company.accessStatus} company access` : "Admin console";
+  const workspaceInitials = portal.initials || (isPeptraceClient ? "PT" : getWorkspaceInitials(workspaceName));
+  const workspaceSubline = portal.brandSubtitle;
   const navigation = getPanelNavigationGroups(panelContext);
-  const isEsteemedEngineeringWorkspace = workspaceName === "EsteemedEngineering";
+  const isEsteemedEngineeringWorkspace = portal.kind === "superadmin";
   const notificationCount = getNotificationCount(notificationItems);
+  const workspaceThemeStyle = {
+    "--sidebar-accent": portal.theme.accent,
+    "--sidebar-accent-strong": portal.theme.accentStrong,
+    "--sidebar-soft": portal.theme.soft
+  } as CSSProperties;
 
   const selectNotification = (item: NotificationItem) => {
     setActiveSection(item.section);
@@ -713,8 +737,8 @@ export function App() {
   };
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar" aria-label="Primary">
+    <div className="app-shell" data-portal={portal.id} style={workspaceThemeStyle}>
+      <aside className="sidebar" aria-label={`${workspaceName} navigation`}>
         <div className="tenant-switcher">
           <span className={isEsteemedEngineeringWorkspace ? "tenant-avatar tenant-avatar-logo" : "tenant-avatar"}>
             {isEsteemedEngineeringWorkspace ? (
@@ -761,8 +785,8 @@ export function App() {
         <div className="sidebar-status">
           <ShieldCheck size={18} strokeWidth={2} />
           <div>
-            <strong>Secure workspace</strong>
-            <span>Role-based access enabled</span>
+            <strong>{portal.kind === "superadmin" ? "Protected platform access" : "Protected client access"}</strong>
+            <span>{portal.code} / {roleLabel}</span>
           </div>
         </div>
       </aside>
@@ -1352,7 +1376,7 @@ function buildGlobalSearchIndex(
         icon: UserRoundCog,
         id: `account-${account.id}`,
         isNavigation: false,
-        section: "clients",
+        section: "users",
         title: account.displayName
       });
     });
@@ -1600,7 +1624,7 @@ function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: st
   if (context.mode === "superadmin") {
     return [
       {
-        label: "Clients",
+        label: "Client management",
         items: [
           { id: "overview", label: "Overview", icon: LayoutDashboard },
           { id: "clients", label: "Companies", icon: Building2 },
@@ -1609,7 +1633,7 @@ function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: st
         ]
       },
       {
-        label: "Operations",
+        label: "Service operations",
         items: [
           { id: "provisioning", label: "Provisioning", icon: ShieldCheck },
           { id: "support", label: "Support", icon: LifeBuoy },
@@ -1617,7 +1641,7 @@ function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: st
         ]
       },
       {
-        label: "Governance",
+        label: "Platform governance",
         items: [{ id: "access", label: "Access", icon: KeyRound }]
       }
     ];
@@ -1647,7 +1671,8 @@ function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: st
       {
         label: "Admin",
         items: [
-          { id: "clients", label: "Team", icon: UsersRound },
+          { id: "users", label: "Users", icon: UserRoundCog },
+          { id: "secrets", label: "Secret Locker", icon: Vault },
           { id: "access", label: "Settings", icon: KeyRound }
         ]
       }
@@ -1674,7 +1699,8 @@ function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: st
       {
         label: "Admin",
         items: [
-          { id: "clients", label: "Agents", icon: UserRoundCog },
+          { id: "users", label: "Users", icon: UserRoundCog },
+          { id: "secrets", label: "Secret Locker", icon: Vault },
           { id: "access", label: "Settings", icon: KeyRound }
         ]
       }
@@ -1686,8 +1712,9 @@ function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: st
       label: context.panel.brandName,
       items: [
         { id: "overview", label: "Overview", icon: LayoutDashboard },
-        { id: "clients", label: "Accounts", icon: UsersRound },
         { id: "testing", label: "Operations", icon: Activity },
+        { id: "users", label: "Users", icon: UserRoundCog },
+        { id: "secrets", label: "Secret Locker", icon: Vault },
         { id: "access", label: "Settings", icon: KeyRound }
       ]
     }
@@ -1781,6 +1808,16 @@ function getPanelSectionMeta(
         title: "Team access",
         description: "Reservation, operations, and owner-reporting users for this workspace."
       },
+      users: {
+        breadcrumb: "Shamstay BnB / Users",
+        title: "Hospitality users",
+        description: "Database-backed host, reservations, property, and service-team accounts."
+      },
+      secrets: {
+        breadcrumb: "Shamstay BnB / Secret Locker",
+        title: "Hospitality Secret Locker",
+        description: "Encrypted credentials and integration secrets isolated to the Shamstay BnB workspace."
+      },
       access: {
         breadcrumb: "Shamstay BnB / Settings",
         title: "Workspace settings",
@@ -1823,6 +1860,16 @@ function getPanelSectionMeta(
         title: "Agent access",
         description: "Brokerage users, lead-routing roles, and listing responsibility."
       },
+      users: {
+        breadcrumb: "Sham Real Estate Hub / Users",
+        title: "Brokerage users",
+        description: "Database-backed owner, manager, agent, and coordinator accounts."
+      },
+      secrets: {
+        breadcrumb: "Sham Real Estate Hub / Secret Locker",
+        title: "Brokerage Secret Locker",
+        description: "Encrypted portal credentials and integration secrets isolated to this brokerage."
+      },
       access: {
         breadcrumb: "Sham Real Estate Hub / Settings",
         title: "Workspace settings",
@@ -1849,6 +1896,16 @@ function getPanelSectionMeta(
       title: context.panel.operationsTitle,
       description: context.panel.operationsDescription
     },
+    users: {
+      breadcrumb: `${context.panel.brandName} / Users`,
+      title: "Workspace users",
+      description: "Database-backed users, roles, status, and recent access for this company."
+    },
+    secrets: {
+      breadcrumb: `${context.panel.brandName} / Secret Locker`,
+      title: "Secret Locker",
+      description: "Tenant-isolated secret metadata, encrypted versions, and access state."
+    },
     access: {
       breadcrumb: `${context.panel.brandName} / Settings`,
       title: "Workspace settings",
@@ -1872,6 +1929,14 @@ function getPrimaryActionLabel(context: AdminPanelContext, section: AdminSection
     };
 
     return platformActions[section] ?? "Create report";
+  }
+
+  if (section === "users") {
+    return "Invite user";
+  }
+
+  if (section === "secrets") {
+    return "Create secret";
   }
 
   if (isPeptraceClientContext(context)) {
@@ -2502,6 +2567,14 @@ function ClientAdminPanel({
   section: AdminSection;
   vendors: Vendor[];
 }) {
+  if (section === "users") {
+    return <ClientUsersView query={query} />;
+  }
+
+  if (section === "secrets") {
+    return <SecretLockerView query={query} />;
+  }
+
   if (isPeptraceClientContext(context)) {
     if (!data) {
       return null;
@@ -2988,6 +3061,185 @@ function ClientAccounts({
             account.lastLoginAt ? formatDate(account.lastLoginAt) : "Never"
           ])}
         />
+      </section>
+    </section>
+  );
+}
+
+function ClientUsersView({ query }: { query: string }) {
+  const [data, setData] = useState<ClientUserList | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+
+    clientApiClient
+      .listClientUsers({ pageSize: 100 })
+      .then((response) => {
+        if (!cancelled) {
+          setData(response);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError("Could not load workspace users from the client API.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!data) {
+    return <ClientServiceState error={error} icon={UserRoundCog} label="workspace users" />;
+  }
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const users = data.items.filter((user) =>
+    [user.displayName, user.email, user.role, user.status].join(" ").toLowerCase().includes(normalizedQuery)
+  );
+  const activeUsers = data.items.filter((user) => user.status === "active").length;
+  const administrators = data.items.filter((user) => user.role === "owner" || user.role === "admin").length;
+
+  return (
+    <section className="page-flow" aria-label="Database-backed workspace users">
+      <div className="metric-grid three-up">
+        <Metric icon={UsersRound} label="Total users" tone="info" value={data.total.toString()} change="Current tenant only" />
+        <Metric icon={ShieldCheck} label="Active users" tone="success" value={activeUsers.toString()} change={`${data.total - activeUsers} inactive`} />
+        <Metric icon={UserRoundCog} label="Administrators" tone="neutral" value={administrators.toString()} change="Owners and admins" />
+      </div>
+
+      <section className="panel" aria-label="Workspace user directory">
+        <PanelTitle icon={UserRoundCog} id="workspace-users-title" title="User directory" />
+        {users.length > 0 ? (
+          <ResponsiveTable
+            headers={["User", "Role", "Status", "Created", "Last login"]}
+            rows={users.map((user) => [
+              <div className="entity-cell" key={user.id}>
+                <strong>{user.displayName}</strong>
+                <span>{user.email}</span>
+              </div>,
+              formatRole(user.role),
+              <span
+                className={user.status === "active" ? "soft-pill" : "readiness-pill"}
+                data-readiness={user.status === "active" ? undefined : "Needs policy"}
+                key={`${user.id}-status`}
+              >
+                {formatRole(user.status)}
+              </span>,
+              formatDate(user.createdAt),
+              user.lastLoginAt ? formatDate(user.lastLoginAt) : "Never"
+            ])}
+          />
+        ) : (
+          <div className="service-empty">No users match the current search.</div>
+        )}
+      </section>
+    </section>
+  );
+}
+
+function SecretLockerView({ query }: { query: string }) {
+  const [data, setData] = useState<LockerSecretList | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+
+    clientApiClient
+      .listLockerSecrets({ pageSize: 100 })
+      .then((response) => {
+        if (!cancelled) {
+          setData(response);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError("Could not load Secret Locker metadata from the client API.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!data) {
+    return <ClientServiceState error={error} icon={Vault} label="Secret Locker" />;
+  }
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const secrets = data.items.filter((secret) =>
+    [secret.name, secret.description, secret.resourceName, ...Object.keys(secret.labels)]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedQuery)
+  );
+  const versionCount = data.items.reduce((total, secret) => total + secret.versionCount, 0);
+  const enabledSecrets = data.items.filter((secret) => secret.latestVersion?.state === "ENABLED").length;
+
+  return (
+    <section className="page-flow" aria-label="Tenant Secret Locker">
+      <div className="metric-grid three-up">
+        <Metric icon={Vault} label="Secrets" tone="info" value={data.total.toString()} change="Tenant-isolated containers" />
+        <Metric icon={History} label="Versions" tone="neutral" value={versionCount.toString()} change="Immutable encrypted versions" />
+        <Metric icon={ShieldCheck} label="Enabled" tone="success" value={enabledSecrets.toString()} change="Latest version available" />
+      </div>
+
+      <section className="panel" aria-label="Secret metadata directory">
+        <PanelTitle icon={Vault} id="secret-locker-title" title="Secret metadata" />
+        {secrets.length > 0 ? (
+          <ResponsiveTable
+            headers={["Secret", "Resource", "Versions", "Latest state", "Updated"]}
+            rows={secrets.map((secret) => {
+              const state = secret.latestVersion?.state ?? "No versions";
+              const status = state === "ENABLED" ? "COMPLETE" : state === "DISABLED" ? "PENDING" : "FAILED";
+              return [
+                <div className="entity-cell" key={secret.id}>
+                  <strong>{secret.name}</strong>
+                  <span>{secret.description ?? "No description"}</span>
+                </div>,
+                secret.resourceName,
+                secret.versionCount,
+                <span className="status-badge" data-status={status} key={`${secret.id}-state`}>
+                  {state}
+                </span>,
+                formatDate(secret.updatedAt)
+              ];
+            })}
+          />
+        ) : (
+          <div className="service-empty">
+            {data.total === 0 ? "No secrets have been created for this workspace." : "No secrets match the current search."}
+          </div>
+        )}
+      </section>
+    </section>
+  );
+}
+
+function ClientServiceState({
+  error,
+  icon: Icon,
+  label
+}: {
+  error: string | null;
+  icon: typeof LayoutDashboard;
+  label: string;
+}) {
+  return (
+    <section className="page-flow" aria-label={`${label} state`}>
+      <section className="panel service-state" role={error ? "alert" : "status"}>
+        {error ? <AlertCircle size={22} strokeWidth={2} /> : <LoaderCircle className="button-spinner" size={24} strokeWidth={2} />}
+        <div>
+          <strong>{error ? `Unable to load ${label}` : `Loading ${label}`}</strong>
+          <span>{error ?? "Reading the latest records from the workspace database."}</span>
+        </div>
+        {!error && <Icon className="service-state-icon" size={22} strokeWidth={2} />}
       </section>
     </section>
   );

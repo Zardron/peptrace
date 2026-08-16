@@ -433,6 +433,9 @@
   }
 
   .app-shell {
+    --sidebar-accent: #68d391;
+    --sidebar-accent-strong: #0e7467;
+    --sidebar-soft: #edf6f3;
     @apply grid h-screen min-h-screen grid-cols-[280px_minmax(0,1fr)] overflow-hidden;
   }
 
@@ -442,10 +445,13 @@
 
   .tenant-switcher {
     @apply grid min-h-[58px] grid-cols-[34px_minmax(0,1fr)] items-center gap-2.5 rounded-md border border-[#2d3c39] bg-[#1b2523] p-2.5 text-left text-[#eef5f3];
+    border-color: color-mix(in srgb, var(--sidebar-accent) 18%, #2d3c39);
   }
 
   .tenant-avatar {
-    @apply grid h-[34px] w-[34px] place-items-center rounded-md bg-[#dfe9ff] text-xs font-extrabold text-[#25427a];
+    @apply grid h-[34px] w-[34px] place-items-center rounded-md text-xs font-extrabold;
+    background: var(--sidebar-soft);
+    color: var(--sidebar-accent-strong);
   }
 
   .tenant-avatar-logo {
@@ -500,11 +506,16 @@
   }
 
   .nav-item[data-active="true"]::before {
-    @apply bg-[#68d391];
+    background: var(--sidebar-accent);
   }
 
   .sidebar-status {
     @apply mt-auto flex min-h-[72px] items-start gap-2.5 rounded-md border border-[#2d3c39] bg-[#18211f] p-3;
+  }
+
+  .sidebar-status > svg {
+    @apply flex-none;
+    color: var(--sidebar-accent);
   }
 
   .sidebar-status strong,
@@ -518,6 +529,43 @@
 
   .sidebar-status span {
     @apply text-xs text-[#9ca9a6];
+  }
+
+  .service-state {
+    @apply relative flex min-h-28 items-center gap-3 px-5 py-4 text-[#52605b];
+  }
+
+  .service-state > svg:first-child {
+    @apply flex-none text-primary;
+  }
+
+  .service-state[role="alert"] > svg:first-child {
+    @apply text-destructive;
+  }
+
+  .service-state div {
+    @apply grid gap-1;
+  }
+
+  .service-state strong,
+  .service-state span {
+    @apply block;
+  }
+
+  .service-state strong {
+    @apply text-sm font-extrabold text-[#16211e];
+  }
+
+  .service-state span {
+    @apply text-sm text-[#66736f];
+  }
+
+  .service-state-icon {
+    @apply ml-auto text-[#a5b1ad];
+  }
+
+  .service-empty {
+    @apply flex min-h-28 items-center justify-center px-5 py-4 text-center text-sm font-bold text-[#71807b];
   }
 
   .workspace {
