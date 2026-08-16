@@ -31,7 +31,6 @@ export interface CurrentAdminUser {
   tenant: {
     id: string;
     name: string;
-    plan: string;
     slug: string;
   } | null;
 }
@@ -58,11 +57,11 @@ export interface AdminPanelCompany {
   id: string;
   name: string;
   slug: string;
-  plan: string;
+  accessStatus: string;
   status: string;
   owner: string;
-  seats: number;
-  monthlySpend: number;
+  enabledAccounts: number;
+  operationalValue: number;
   openItems: number;
   dataRegion: string;
   lastActivityAt: string;
@@ -263,10 +262,6 @@ export class PeptraceApiClient {
 
   getAccount(): Promise<unknown> {
     return this.request<unknown>("/account/profile");
-  }
-
-  getBilling(): Promise<unknown> {
-    return this.request<unknown>("/billing");
   }
 
   createCustomerApiKey(body: { label: string; scopes: string[] }): Promise<unknown> {

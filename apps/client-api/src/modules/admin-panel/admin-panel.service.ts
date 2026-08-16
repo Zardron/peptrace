@@ -84,7 +84,7 @@ const fallbackPanelDefinition: ClientPanelDefinition = {
   industry: "Operations",
   accentColor: "#0e7467",
   overviewTitle: "Client admin panel",
-  overviewDescription: "Manage this company workspace, users, billing state, and operational queue.",
+  overviewDescription: "Manage this company workspace, users, access state, and operational queue.",
   operationsTitle: "Workspace operations",
   operationsDescription: "Current work across this client account.",
   primaryRecords: [
@@ -98,7 +98,7 @@ const fallbackPanelDefinition: ClientPanelDefinition = {
   workItems: [
     {
       label: "Review workspace setup",
-      detail: "Confirm account permissions and billing settings",
+      detail: "Confirm account permissions and access settings",
       priority: "Medium"
     }
   ]
@@ -137,7 +137,7 @@ export class AdminPanelService {
         role: user.role,
         tenant: user.tenant
       },
-      company,
+      company: this.toCompanyPayload(company),
       panel: this.buildClientPanel(company, stats)
     };
   }
@@ -213,7 +213,7 @@ export class AdminPanelService {
       .then(([clients, vendors, peptides, labs, tests, apiSurfaces, accountWorkItems]) => ({
         accountWorkItems,
         apiSurfaces,
-        clients,
+        clients: clients.map((client) => this.toCompanyPayload(client)),
         labs,
         peptides,
         tests,
@@ -406,9 +406,9 @@ export class AdminPanelService {
       workItems: panelWorkItems.length > 0 ? panelWorkItems : definition.workItems,
       metrics: [
         {
-          label: isShamstay ? "Portfolio plan" : isRealEstate ? "Brokerage plan" : "Plan",
-          value: company.plan,
-          change: isShamstay || isRealEstate ? `${company.seats} team seats` : `${company.seats} seats provisioned`,
+          label: isShamstay ? "Portfolio access" : isRealEstate ? "Brokerage access" : "Workspace access",
+          value: "Granted",
+          change: `${company.adminUsers.length} enabled accounts`,
           tone: "info" as AdminPanelTone
         },
         {
@@ -429,9 +429,9 @@ export class AdminPanelService {
           tone: company.openItems > 1 ? ("warning" as AdminPanelTone) : ("success" as AdminPanelTone)
         },
         {
-          label: isShamstay ? "Monthly bookings" : isRealEstate ? "Pipeline value" : "Monthly spend",
+          label: isShamstay ? "Monthly bookings" : isRealEstate ? "Pipeline value" : "Operational value",
           value: this.formatClientCurrency(company.slug, company.monthlySpend),
-          change: isShamstay ? "Current owner reporting" : isRealEstate ? "Active listings and offers" : "Current billing scope",
+          change: isShamstay ? "Current owner reporting" : isRealEstate ? "Active listings and offers" : "Current workspace reporting",
           tone: "neutral" as AdminPanelTone
         }
       ]
@@ -446,6 +446,17 @@ export class AdminPanelService {
     return slug === "shamstay-bnb" || slug === "sham-real-estate-hub"
       ? `USD ${amount.toLocaleString("en-US")}`
       : this.formatCurrency(amount);
+  }
+
+  private toCompanyPayload<T extends { monthlySpend: number; plan: string; seats: number }>(company: T) {
+    const { monthlySpend, plan, seats, ...client } = company;
+
+    return {
+      ...client,
+      accessStatus: plan,
+      enabledAccounts: seats,
+      operationalValue: monthlySpend
+    };
   }
 
   private toPanelDefinition(panel: PersistedWhiteLabelPanel | null): ClientPanelDefinition {

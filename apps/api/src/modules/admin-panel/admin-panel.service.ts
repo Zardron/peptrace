@@ -86,7 +86,7 @@ const fallbackPanelDefinition: ClientPanelDefinition = {
   industry: "Operations",
   accentColor: "#0e7467",
   overviewTitle: "Client admin panel",
-  overviewDescription: "Manage this company workspace, users, billing state, and operational queue.",
+  overviewDescription: "Manage this company workspace, users, access state, and operational queue.",
   operationsTitle: "Workspace operations",
   operationsDescription: "Current work across this client account.",
   primaryRecords: [
@@ -100,7 +100,7 @@ const fallbackPanelDefinition: ClientPanelDefinition = {
   workItems: [
     {
       label: "Review workspace setup",
-      detail: "Confirm account permissions and billing settings",
+      detail: "Confirm account permissions and access settings",
       priority: "Medium"
     }
   ]
@@ -147,16 +147,16 @@ export class AdminPanelService {
             tone: "warning" as const
           },
           {
-            label: "Monthly spend",
-            value: this.formatCurrency(clients.reduce((total, client) => total + client.monthlySpend, 0)),
-            change: "Managed revenue",
+            label: "Access model",
+            value: "Direct",
+            change: "Company access granted by approval",
             tone: "neutral" as const
           }
         ],
         internalAccounts,
-        clients: clients.map(({ whiteLabelPanel, ...client }) => ({
-          ...client,
-          panel: this.toPanelDefinition(whiteLabelPanel)
+        clients: clients.map((client) => ({
+          ...this.toCompanyPayload(client),
+          panel: this.toPanelDefinition(client.whiteLabelPanel)
         }))
       }
     };
@@ -379,7 +379,15 @@ export class AdminPanelService {
     };
   }
 
-  private formatCurrency(amount: number): string {
-    return `$${amount.toLocaleString("en-US")}`;
+  private toCompanyPayload(company: ClientCompany) {
+    const { monthlySpend, plan, seats, whiteLabelPanel, ...client } = company;
+    void whiteLabelPanel;
+
+    return {
+      ...client,
+      accessStatus: plan,
+      enabledAccounts: seats,
+      operationalValue: monthlySpend
+    };
   }
 }

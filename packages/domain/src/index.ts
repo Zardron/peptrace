@@ -69,7 +69,7 @@ export interface Lab {
 export interface ApiSurface {
   group: string;
   routes: string[];
-  owner: "Auth" | "Catalog" | "Quality" | "Revenue";
+  owner: "Auth" | "Catalog" | "Quality" | "Access";
   readiness: "Scoped" | "Draft" | "Needs policy";
 }
 
@@ -78,7 +78,6 @@ export interface AccountWorkItem {
   account: string;
   kind:
     | "API key"
-    | "Billing"
     | "Guest operations"
     | "Lab review"
     | "Lead routing"
@@ -92,11 +91,11 @@ export interface ClientTenant {
   id: UUID;
   name: string;
   slug: string;
-  plan: "Launch" | "Growth" | "Enterprise";
+  accessStatus: "Granted" | "Pending" | "Paused";
   status: "Healthy" | "Watch" | "At risk";
   owner: string;
-  seats: number;
-  monthlySpend: number;
+  enabledAccounts: number;
+  operationalValue: number;
   openItems: number;
   dataRegion: "US" | "EU" | "UAE" | "Syria";
   lastActivityAt: ISODateTime;
@@ -321,12 +320,6 @@ export const apiSurfaces: ApiSurface[] = [
     owner: "Auth",
     readiness: "Draft"
   },
-  {
-    group: "Billing",
-    routes: ["/billing"],
-    owner: "Revenue",
-    readiness: "Needs policy"
-  }
 ];
 
 export const accountWorkItems: AccountWorkItem[] = [
@@ -365,11 +358,11 @@ export const clientTenants: ClientTenant[] = [
     id: "client-peptrace",
     name: "Peptrace",
     slug: "peptrace",
-    plan: "Enterprise",
+    accessStatus: "Granted",
     status: "Healthy",
     owner: "Platform operations",
-    seats: 18,
-    monthlySpend: 16200,
+    enabledAccounts: 18,
+    operationalValue: 16200,
     openItems: 1,
     dataRegion: "US",
     lastActivityAt: "2026-08-10T15:18:00Z"
@@ -378,11 +371,11 @@ export const clientTenants: ClientTenant[] = [
     id: "client-shamstay-bnb",
     name: "Shamstay BnB",
     slug: "shamstay-bnb",
-    plan: "Growth",
+    accessStatus: "Granted",
     status: "Healthy",
     owner: "Hospitality success",
-    seats: 12,
-    monthlySpend: 8200,
+    enabledAccounts: 12,
+    operationalValue: 8200,
     openItems: 4,
     dataRegion: "Syria",
     lastActivityAt: "2026-08-10T11:42:00Z"
@@ -391,11 +384,11 @@ export const clientTenants: ClientTenant[] = [
     id: "client-sham-real-estate-hub",
     name: "Sham Real Estate Hub",
     slug: "sham-real-estate-hub",
-    plan: "Enterprise",
+    accessStatus: "Granted",
     status: "Watch",
     owner: "Real estate success",
-    seats: 16,
-    monthlySpend: 32600000,
+    enabledAccounts: 16,
+    operationalValue: 32600000,
     openItems: 4,
     dataRegion: "Syria",
     lastActivityAt: "2026-08-09T21:06:00Z"

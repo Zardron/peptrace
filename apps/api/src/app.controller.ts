@@ -19,7 +19,6 @@ export class AppController {
         "/api/labs",
         "/api/testing",
         "/api/account/profile",
-        "/api/billing",
         "/api/authorization/api-keys"
       ]
     };

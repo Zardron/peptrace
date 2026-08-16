@@ -28,7 +28,7 @@ export class ClientsService {
         : undefined,
       where: this.isSuperAdmin(user) ? undefined : { id: user.tenantId ?? "" },
       orderBy: { name: "asc" }
-    });
+    }).then((clients) => clients.map((client) => this.toClientPayload(client)));
   }
 
   async getClient(idOrSlug: string, user: AuthenticatedAdminUser) {
@@ -59,7 +59,7 @@ export class ClientsService {
       throw new ForbiddenException("You can only access your assigned client company");
     }
 
-    return client;
+    return this.toClientPayload(client);
   }
 
   createClient(dto: CreateClientDto, user: AuthenticatedAdminUser) {
@@ -69,13 +69,32 @@ export class ClientsService {
 
     return this.prisma.clientTenant.create({
       data: {
-        ...dto,
+        name: dto.name,
+        slug: dto.slug,
+        plan: dto.accessStatus,
+        status: dto.status,
+        owner: dto.owner,
+        seats: dto.enabledAccounts,
+        monthlySpend: dto.operationalValue,
+        openItems: dto.openItems,
+        dataRegion: dto.dataRegion,
         lastActivityAt: new Date()
       }
-    });
+    }).then((client) => this.toClientPayload(client));
   }
 
   private isSuperAdmin(user: AuthenticatedAdminUser): boolean {
     return SUPERADMIN_ROLES.has(user.role);
+  }
+
+  private toClientPayload<T extends { monthlySpend: number; plan: string; seats: number }>(client: T) {
+    const { monthlySpend, plan, seats, ...rest } = client;
+
+    return {
+      ...rest,
+      accessStatus: plan,
+      enabledAccounts: seats,
+      operationalValue: monthlySpend
+    };
   }
 }

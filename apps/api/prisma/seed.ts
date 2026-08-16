@@ -129,8 +129,8 @@ const whiteLabelPanels = [
         priority: "Medium"
       },
       {
-        label: "Complete billing policy",
-        detail: "Enterprise plan renewal controls",
+        label: "Confirm access policy",
+        detail: "Company API scopes and administrator permissions",
         priority: "Low"
       }
     ]
@@ -261,11 +261,11 @@ async function main() {
       where: { slug: client.slug },
       update: {
         name: client.name,
-        plan: client.plan,
+        plan: client.accessStatus,
         status: client.status,
         owner: client.owner,
-        seats: client.seats,
-        monthlySpend: client.monthlySpend,
+        seats: client.enabledAccounts,
+        monthlySpend: client.operationalValue,
         openItems: client.openItems,
         dataRegion: client.dataRegion,
         lastActivityAt: new Date(client.lastActivityAt)
@@ -274,11 +274,11 @@ async function main() {
         id: client.id,
         name: client.name,
         slug: client.slug,
-        plan: client.plan,
+        plan: client.accessStatus,
         status: client.status,
         owner: client.owner,
-        seats: client.seats,
-        monthlySpend: client.monthlySpend,
+        seats: client.enabledAccounts,
+        monthlySpend: client.operationalValue,
         openItems: client.openItems,
         dataRegion: client.dataRegion,
         lastActivityAt: new Date(client.lastActivityAt)

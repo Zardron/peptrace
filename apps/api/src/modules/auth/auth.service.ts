@@ -206,7 +206,6 @@ export class AuthService {
         ? {
             id: adminUser.tenant.id,
             name: adminUser.tenant.name,
-            plan: adminUser.tenant.plan,
             slug: adminUser.tenant.slug
           }
         : null

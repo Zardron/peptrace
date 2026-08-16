@@ -15,12 +15,6 @@ export class PlatformController {
     return this.platformService.getAccountProfile(user);
   }
 
-  @Get("billing")
-  @UseGuards(JwtAuthGuard)
-  getBilling(@CurrentAdminUser() user: AuthenticatedAdminUser) {
-    return this.platformService.getBilling(user);
-  }
-
   @Get("api-surfaces")
   listApiSurfaces() {
     return this.platformService.listApiSurfaces();

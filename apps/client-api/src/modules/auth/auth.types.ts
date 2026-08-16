@@ -8,7 +8,6 @@ export interface AuthTokenPayload {
 export interface AuthTenant {
   id: string;
   name: string;
-  plan: string;
   slug: string;
 }
 

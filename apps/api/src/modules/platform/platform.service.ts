@@ -18,30 +18,6 @@ export class PlatformService {
     };
   }
 
-  async getBilling(user: AuthenticatedAdminUser) {
-    const tenant = user.tenantId
-      ? await this.prisma.clientTenant.findUnique({
-          where: { id: user.tenantId }
-        })
-      : null;
-
-    return {
-      plan: tenant?.plan ?? user.tenant?.plan ?? "Launch",
-      status: "active",
-      currency: "USD",
-      monthlySpend: tenant?.monthlySpend ?? 0,
-      nextInvoiceAt: "2026-09-01T00:00:00.000Z",
-      tenant: tenant
-        ? {
-            id: tenant.id,
-            name: tenant.name,
-            slug: tenant.slug,
-            status: tenant.status
-          }
-        : user.tenant
-    };
-  }
-
   listApiSurfaces() {
     return this.prisma.apiSurface.findMany({
       orderBy: { group: "asc" }

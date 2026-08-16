@@ -1,5 +1,5 @@
 import { IsIn, IsInt, IsString, Min, MinLength } from "class-validator";
-import { DATA_REGIONS, TENANT_PLANS, TENANT_STATUSES } from "../../common/constants";
+import { ACCESS_STATUSES, DATA_REGIONS, TENANT_STATUSES } from "../../common/constants";
 
 export class CreateClientDto {
   @IsString()
@@ -10,8 +10,8 @@ export class CreateClientDto {
   @MinLength(2)
   slug: string;
 
-  @IsIn(TENANT_PLANS)
-  plan: string;
+  @IsIn(ACCESS_STATUSES)
+  accessStatus: string;
 
   @IsIn(TENANT_STATUSES)
   status: string;
@@ -21,11 +21,11 @@ export class CreateClientDto {
 
   @IsInt()
   @Min(1)
-  seats: number;
+  enabledAccounts: number;
 
   @IsInt()
   @Min(0)
-  monthlySpend: number;
+  operationalValue: number;
 
   @IsInt()
   @Min(0)
