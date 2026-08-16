@@ -5,10 +5,12 @@ API contracts.
 
 ## Workspaces
 
-- `apps/admin` - React and Vite admin panel for vendor, peptide, lab testing,
-  account, and billing operations.
-- `apps/api` - NestJS API for auth, tenant, vendor, peptide, lab testing,
-  account, authorization, and billing routes.
+- `apps/admin` - React and Vite admin panel that can log into the
+  EsteemedEngineering superadmin API or the client white-label API.
+- `apps/api` - NestJS superadmin API for EsteemedEngineering platform auth,
+  all-client visibility, client companies, and cross-tenant account operations.
+- `apps/client-api` - NestJS client API for tenant admin auth and white-label
+  client panel data for Peptrace, Shamstay BnB, and Sham Real Estate Hub.
 - `packages/domain` - Shared Peptrace models, typed sample records, route
   surfaces, and dashboard selectors.
 - `packages/api-client` - Browser-compatible client for the Peptrace API routes.
@@ -19,6 +21,7 @@ API contracts.
 npm install
 npm run dev:admin
 npm run dev:api
+npm run dev:client-api
 npm run build
 npm run typecheck
 ```
@@ -34,20 +37,27 @@ Docker Compose starts:
 
 - `postgres` on `localhost:5432`
 - `api` on `http://localhost:3000/api`
+- `client-api` on `http://localhost:3001/client-api`
 - `admin` on `http://localhost:5173`
 
-The API route index is served at `http://localhost:3000/api`.
+The superadmin API route index is served at `http://localhost:3000/api`.
+The client API route index is served at `http://localhost:3001/client-api`.
 
-## Admin Login
+## Admin Logins
 
 The admin login is backed by the `AdminUser` table in Postgres. Local seed data
-creates this development account:
+creates a platform superadmin plus white-label client accounts:
 
-- Email: `admin@peptrace.com`
-- Password: `Admin@123`
+- EsteemedEngineering superadmin: `admin@esteemedengineering.com` / `Admin@123`
+- Peptrace owner: `owner@peptrace.com` / `Admin@123`
+- Peptrace admin: `ops@peptrace.com` / `Admin@123`
+- Shamstay BnB owner: `owner@shamstaybnb.com` / `Admin@123`
+- Shamstay BnB manager: `reservations@shamstaybnb.com` / `Admin@123`
+- Sham Real Estate Hub owner: `owner@shamrealestatehub.com` / `Admin@123`
+- Sham Real Estate Hub manager: `agents@shamrealestatehub.com` / `Admin@123`
 
-Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` before running `npm run db:seed` to
-create a different seeded admin account.
+Set `SUPERADMIN_EMAIL` and `ADMIN_PASSWORD` before running `npm run db:seed` to
+change the seeded platform account.
 
 ## Supabase Database
 
