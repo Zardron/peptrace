@@ -9,7 +9,6 @@ import { createPostgresPoolOptions } from "../../database/create-postgres-pool-o
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(PrismaService.name);
   private readonly pool: Pool;
-  private keepAliveTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(configService: ConfigService) {
     const connectionString = configService.getOrThrow<string>("DATABASE_URL");
@@ -23,61 +22,58 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     });
   }
 
-  async onModuleInit() {
-    await this.$connect();
-    await this.warmPool();
-    this.keepAliveTimer = setInterval(() => {
-      void this.keepPoolConnectionsAlive();
-    }, 5_000);
-    this.keepAliveTimer.unref();
+  onModuleInit() {
+    // Prisma connects lazily. This keeps the API available while a remote
+    // database connection is being replaced after an idle disconnect.
+    this.logger.log("Database pool ready");
   }
 
   async onModuleDestroy() {
-    if (this.keepAliveTimer) {
-      clearInterval(this.keepAliveTimer);
-    }
     await this.$disconnect();
     await this.pool.end();
   }
 
   async isHealthy() {
-    await this.$queryRaw`SELECT 1`;
+    await this.withConnectionRetry(() => this.$queryRaw`SELECT 1`);
     return true;
   }
 
   async withConnectionRetry<T>(operation: () => Promise<T>): Promise<T> {
-    try {
-      return await operation();
-    } catch (error) {
-      if (!this.isClosedConnectionError(error)) {
-        throw error;
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await operation();
+      } catch (error) {
+        if (!this.isClosedConnectionError(error)) {
+          throw error;
+        }
+
+        lastError = error;
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+        }
       }
-
-      await this.keepPoolConnectionsAlive();
-      return operation();
     }
-  }
 
-  private async warmPool() {
-    const connections = await Promise.allSettled(Array.from({ length: 5 }, () => this.pool.connect()));
-
-    connections.forEach((connection) => {
-      if (connection.status === "fulfilled") {
-        connection.value.release();
-      }
-    });
-
-    const failedConnection = connections.find((connection) => connection.status === "rejected");
-    if (failedConnection?.status === "rejected") {
-      throw failedConnection.reason;
-    }
-  }
-
-  private async keepPoolConnectionsAlive() {
-    await Promise.allSettled(Array.from({ length: 5 }, () => this.pool.query("SELECT 1")));
+    throw lastError;
   }
 
   private isClosedConnectionError(error: unknown): boolean {
-    return typeof error === "object" && error !== null && "code" in error && error.code === "P1017";
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const code = "code" in error ? String(error.code) : "";
+    const message = error.message.toLowerCase();
+
+    return (
+      code === "P1017" ||
+      code === "ECONNRESET" ||
+      code === "ECONNREFUSED" ||
+      message.includes("connection terminated") ||
+      message.includes("connection closed") ||
+      message.includes("server has closed the connection")
+    );
   }
 }

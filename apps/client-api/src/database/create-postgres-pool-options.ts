@@ -8,10 +8,10 @@ export function createPostgresPoolOptions(connectionString: string): PoolConfig 
 
   return {
     connectionString: url.toString(),
-    idleTimeoutMillis: 300_000,
+    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 30_000,
     keepAlive: true,
     max: 5,
-    min: 1,
     ...(isSupabase ? { ssl: { rejectUnauthorized: false } } : {})
   };
 }
