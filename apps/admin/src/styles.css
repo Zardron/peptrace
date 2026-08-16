@@ -40,7 +40,8 @@
 
   button,
   input,
-  select {
+  select,
+  textarea {
     font: inherit;
   }
 
@@ -1588,6 +1589,120 @@
   .database-form-actions {
     @apply flex items-center justify-end gap-2 border-t border-[#e5ebe8] pt-4;
   }
+
+  .secret-dialog-backdrop {
+    @apply fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-[#0d1715]/55 p-5;
+  }
+
+  .secret-dialog {
+    @apply my-auto w-full max-w-[660px] overflow-hidden rounded-md border border-[#d7e0dc] bg-white shadow-[0_28px_90px_rgba(13,23,21,0.28)];
+    max-height: calc(100dvh - 40px);
+  }
+
+  .secret-dialog-header {
+    @apply flex min-h-[76px] items-center justify-between gap-4 border-b border-[#e5ebe8] px-5 py-4;
+  }
+
+  .secret-dialog-title-group {
+    @apply flex min-w-0 items-center gap-3;
+  }
+
+  .secret-dialog-icon {
+    @apply grid h-10 w-10 flex-none place-items-center rounded-md bg-[#e8f5f1] text-primary;
+  }
+
+  .secret-dialog-title-group p,
+  .secret-dialog-title-group h2 {
+    @apply m-0;
+  }
+
+  .secret-dialog-title-group p {
+    @apply text-xs font-extrabold uppercase text-[#6d7a76];
+  }
+
+  .secret-dialog-title-group h2 {
+    @apply text-lg font-extrabold text-[#16211e];
+  }
+
+  .secret-dialog-form {
+    @apply grid gap-4 overflow-y-auto p-5;
+    max-height: calc(100dvh - 118px);
+  }
+
+  .secret-dialog-notice,
+  .secret-dialog-error {
+    @apply flex min-h-11 items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm font-semibold;
+  }
+
+  .secret-dialog-notice {
+    @apply border-[#cfe4dd] bg-[#eff8f5] text-[#31564c];
+  }
+
+  .secret-dialog-error {
+    @apply border-[#f3b7ad] bg-[#fff0ed] text-[#9b3827];
+  }
+
+  .secret-dialog-notice svg,
+  .secret-dialog-error svg {
+    @apply mt-0.5 flex-none;
+  }
+
+  .secret-value-shell {
+    @apply relative block;
+  }
+
+  .secret-value-shell textarea {
+    @apply block w-full resize-y rounded-md border border-[#cfd9d5] bg-white px-3 py-2 pr-11 text-sm leading-5 text-[#17211e] outline-none transition-[border-color,box-shadow];
+    min-height: 110px;
+  }
+
+  .secret-value-shell textarea:focus {
+    @apply border-[#7db4aa] shadow-[0_0_0_3px_rgba(14,116,103,0.1)];
+  }
+
+  .secret-value-shell textarea[data-masked="true"] {
+    -webkit-text-security: disc;
+  }
+
+  .secret-value-shell button {
+    @apply absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-md border-0 bg-white text-[#596660] shadow-[0_1px_3px_rgba(17,24,23,0.12)] hover:bg-[#edf3f1] hover:text-[#17211e];
+  }
+
+  .secret-label-section {
+    @apply grid gap-3 border-t border-[#e5ebe8] pt-4;
+  }
+
+  .secret-label-heading {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .secret-label-heading > div {
+    @apply grid gap-px;
+  }
+
+  .secret-label-heading strong {
+    @apply text-sm font-extrabold text-[#26322e];
+  }
+
+  .secret-label-heading div span {
+    @apply text-xs text-[#71807b];
+  }
+
+  .secret-label-list {
+    @apply grid gap-2;
+  }
+
+  .secret-label-row {
+    @apply grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px] items-center gap-2;
+  }
+
+  .secret-label-row input {
+    @apply h-9 rounded-md border border-[#cfd9d5] px-3 text-sm outline-none focus:border-[#7db4aa] focus:shadow-[0_0_0_3px_rgba(14,116,103,0.1)];
+  }
+
+  .secret-dialog-actions {
+    @apply flex items-center justify-end gap-2 border-t border-[#e5ebe8] pt-4;
+  }
 }
 
 @layer utilities {
@@ -1912,6 +2027,47 @@
 
     .recommended-label {
       @apply col-start-2 justify-self-start;
+    }
+
+    .secret-dialog-backdrop {
+      @apply p-2;
+    }
+
+    .secret-dialog {
+      max-height: calc(100dvh - 16px);
+    }
+
+    .secret-dialog-header,
+    .secret-dialog-form {
+      @apply px-4;
+    }
+
+    .secret-dialog-form {
+      max-height: calc(100dvh - 92px);
+    }
+
+    .secret-label-heading {
+      @apply items-start;
+    }
+
+    .secret-label-row {
+      @apply grid-cols-[minmax(0,1fr)_32px];
+    }
+
+    .secret-label-row input:nth-child(2) {
+      @apply col-span-1 col-start-1 row-start-2;
+    }
+
+    .secret-label-row button {
+      @apply col-start-2 row-span-2 row-start-1;
+    }
+
+    .secret-dialog-actions {
+      @apply flex-col-reverse;
+    }
+
+    .secret-dialog-actions > button {
+      @apply w-full;
     }
   }
 

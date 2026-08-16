@@ -56,6 +56,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import esteemedEngineeringLogoUrl from "./assets/esteemedengineering-logo-a3.png";
+import { PlatformSecretDialog } from "./PlatformSecretDialog";
 import { SystemConfiguration } from "./SystemConfiguration";
 
 type AdminSection =
@@ -2243,7 +2244,13 @@ function SuperAdminSecretLocker({
   query: string;
 }) {
   const normalizedQuery = query.trim().toLowerCase();
-  const summary = getPlatformSecretLocker(context);
+  const [summary, setSummary] = useState(() => getPlatformSecretLocker(context));
+  const [selectedVault, setSelectedVault] = useState<PlatformSecretLockerSummary["companies"][number] | null>(null);
+
+  useEffect(() => {
+    setSummary(getPlatformSecretLocker(context));
+  }, [context]);
+
   const companies = summary.companies
     .map((company) => {
       const companyMatches = [company.tenantName, company.tenantSlug].join(" ").toLowerCase().includes(normalizedQuery);
@@ -2284,6 +2291,10 @@ function SuperAdminSecretLocker({
               </div>
             </div>
             <div className="account-company-summary">
+              <Button className="tool-button" onClick={() => setSelectedVault(company)} type="button" variant="outline">
+                <Plus size={16} strokeWidth={2} />
+                <span>Add secret</span>
+              </Button>
               <span className="soft-pill">Isolated</span>
               <strong>{company.secretCount} {company.secretCount === 1 ? "secret" : "secrets"}</strong>
             </div>
@@ -2320,6 +2331,35 @@ function SuperAdminSecretLocker({
           <Vault size={20} strokeWidth={2} />
           <strong>No Secret Locker records match this search.</strong>
         </section>
+      )}
+
+      {selectedVault && (
+        <PlatformSecretDialog
+          api={superAdminApiClient}
+          client={selectedVault}
+          onClose={() => setSelectedVault(null)}
+          onCreated={(result) => {
+            setSummary((current) => ({
+              ...current,
+              enabledSecrets: current.enabledSecrets + 1,
+              totalSecrets: current.totalSecrets + 1,
+              totalVersions: current.totalVersions + 1,
+              companies: current.companies.map((company) =>
+                company.tenantId === result.tenantId
+                  ? {
+                      ...company,
+                      enabledSecrets: company.enabledSecrets + 1,
+                      lastUpdatedAt: result.secret.updatedAt,
+                      secretCount: company.secretCount + 1,
+                      secrets: [result.secret, ...company.secrets],
+                      versionCount: company.versionCount + 1
+                    }
+                  : company
+              )
+            }));
+            setSelectedVault(null);
+          }}
+        />
       )}
     </section>
   );
@@ -3743,7 +3783,7 @@ function PageHeader({
         <h1 id="page-title">{meta.title}</h1>
         <span>{meta.description}</span>
       </div>
-      {section !== "system" && <div className="page-actions">
+      {section !== "system" && section !== "secrets" && <div className="page-actions">
         <Button className="secondary-button" type="button" variant="outline">
           <Download size={17} strokeWidth={2} />
           <span>Export</span>
