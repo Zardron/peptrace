@@ -205,6 +205,10 @@
     @apply block;
   }
 
+  .login-brand-header .login-client-initials {
+    @apply grid place-items-center;
+  }
+
   .login-brand-header strong {
     @apply text-base font-extrabold leading-tight text-white;
   }
