@@ -222,6 +222,23 @@ export interface PlatformSecretLockerSummary {
   totalVersions: number;
 }
 
+export interface ProvisionPlatformSecretRequest {
+  tenantId: string;
+  name: string;
+  description?: string;
+  labels?: Record<string, string>;
+  value: string;
+}
+
+export interface ProvisionedPlatformSecret {
+  tenantId: string;
+  tenantName: string;
+  tenantSlug: string;
+  secret: PlatformSecretLockerSummary["companies"][number]["secrets"][number] & {
+    labels: Record<string, string>;
+  };
+}
+
 export type ClientDatabaseProvider = "POSTGRESQL" | "SUPABASE" | "MYSQL" | "MONGODB";
 export type ClientDatabaseSslMode = "DISABLE" | "REQUIRE" | "VERIFY_CA" | "VERIFY_FULL";
 export type ClientDatabaseConnectionMode = "STANDARD" | "DIRECT" | "SESSION_POOLER" | "TRANSACTION_POOLER";
@@ -429,6 +446,10 @@ export class PeptraceApiClient {
 
   getAdminPanelData(): Promise<AdminPanelData> {
     return this.request<AdminPanelData>("/admin-panel/data");
+  }
+
+  provisionPlatformSecret(body: ProvisionPlatformSecretRequest): Promise<ProvisionedPlatformSecret> {
+    return this.request<ProvisionedPlatformSecret>("/system/secrets", { body, method: "POST" });
   }
 
   listClientDatabaseConnections(): Promise<ClientDatabaseConnectionList> {

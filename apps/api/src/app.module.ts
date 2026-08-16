@@ -11,6 +11,7 @@ import { ClientsModule } from "./modules/clients/clients.module";
 import { DatabaseConnectionsModule } from "./modules/database-connections/database-connections.module";
 import { HealthModule } from "./modules/health/health.module";
 import { PlatformModule } from "./modules/platform/platform.module";
+import { PlatformSecretsModule } from "./modules/platform-secrets/platform-secrets.module";
 import { PrismaModule } from "./modules/prisma/prisma.module";
 import { TestingModule } from "./modules/testing/testing.module";
 
@@ -46,7 +47,8 @@ import { TestingModule } from "./modules/testing/testing.module";
     DatabaseConnectionsModule,
     CatalogModule,
     TestingModule,
-    PlatformModule
+    PlatformModule,
+    PlatformSecretsModule
   ],
   controllers: [AppController]
 })

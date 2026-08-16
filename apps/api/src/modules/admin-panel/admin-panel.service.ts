@@ -127,6 +127,10 @@ export class AdminPanelService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  invalidateCompaniesCache(): void {
+    this.companiesCache = null;
+  }
+
   async getContext(user: AuthenticatedAdminUser) {
     if (!this.isSuperAdmin(user)) {
       throw new ForbiddenException("The superadmin API only serves EsteemedEngineering platform admins");

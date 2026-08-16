@@ -127,6 +127,12 @@ Metadata responses never contain encrypted or plaintext values, payload access
 uses no-store response headers, and superadmin sessions cannot call client
 Secret Locker endpoints.
 
+EsteemedEngineering superadmins can provision a new client secret and its
+initial encrypted version from the platform Secret Locker. This uses
+`POST /api/system/secrets` with an explicit client tenant. The platform API
+returns metadata only; secret values remain accessible through authorized
+client-api accounts and are recorded in the tenant audit history.
+
 ## Supabase Database
 
 Use the Supabase Dashboard `Connect` button to copy a Postgres connection string

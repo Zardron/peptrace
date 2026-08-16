@@ -6,6 +6,7 @@ import { AdminPanelService } from "./admin-panel.service";
 
 @Module({
   controllers: [AdminPanelController],
+  exports: [AdminPanelService],
   imports: [AuthModule, PrismaModule],
   providers: [AdminPanelService]
 })
