@@ -1,0 +1,41 @@
+name: Complete Code Builder Agent
+
+# Called by the n8n Code Builder agent (via workflow_dispatch) when a build
+# finishes. Marks the "Code Builder Agent" check run on the PR head commit
+# completed with the build report. Check runs can only be modified by GitHub
+# App tokens, so this runs with GITHUB_TOKEN inside Actions.
+on:
+  workflow_dispatch:
+    inputs:
+      check_run_id:
+        description: "Check run ID to complete"
+        required: true
+      conclusion:
+        description: "success, failure, neutral, cancelled, skipped, timed_out"
+        required: true
+        default: "success"
+      summary:
+        description: "Build report markdown"
+        required: false
+
+permissions:
+  checks: write
+
+jobs:
+  complete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Complete check run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          CHECK_RUN_ID: ${{ inputs.check_run_id }}
+          CONCLUSION: ${{ inputs.conclusion }}
+          SUMMARY: ${{ inputs.summary }}
+        run: |
+          gh api "repos/$REPO/check-runs/$CHECK_RUN_ID" -X PATCH \
+            -f status="completed" \
+            -f conclusion="$CONCLUSION" \
+            -f completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -f "output[title]=Code Builder Agent" \
+            -f "output[summary]=$SUMMARY"
