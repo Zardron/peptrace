@@ -1,0 +1,30 @@
+name: Trigger Planner Agent
+
+# Fires when a branch is created. If the branch name contains an issue number
+# (e.g. "issue-4-responsive-home" or "4-responsive-home"), the Software Factory
+# Planner agent (n8n) generates an implementation plan, commits it to
+# plans/issue-<N>.md on the branch, and opens a PR to main.
+on:
+  create
+
+jobs:
+  dispatch-planner:
+    if: github.event.ref_type == 'branch' && github.ref_name != 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract issue number and call Planner agent
+        env:
+          BRANCH: ${{ github.ref_name }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          ISSUE_NUMBER=$(echo "$BRANCH" | grep -oE "[0-9]+" | head -n1)
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "Branch $BRANCH contains no issue number; skipping Planner agent."
+            exit 0
+          fi
+          echo "Dispatching Planner agent for issue #$ISSUE_NUMBER (branch $BRANCH)"
+          curl -sf -X POST "https://n8n.esteemed.engineering/webhook/factory/plan-issue" \
+            -H "Content-Type: application/json" \
+            -d "{\"owner\":\"$OWNER\",\"repository\":\"$REPO\",\"branch\":\"$BRANCH\",\"issueNumber\":$ISSUE_NUMBER}"
+          echo "Planner agent dispatched."
