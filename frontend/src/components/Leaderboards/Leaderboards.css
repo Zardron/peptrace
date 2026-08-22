@@ -1,0 +1,153 @@
+.leaderboards {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.leaderboards-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.84px;
+  color: var(--text);
+}
+
+.section-tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tab {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.66px;
+  color: var(--text);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.filter-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 12px;
+}
+
+.filter-label {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.72px;
+  color: var(--text);
+}
+
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.72px;
+  border-radius: 999px;
+}
+
+.filter-chevron {
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.filter-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.toggle-option {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.72px;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.toggle-option.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.boards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 1091px) {
+  .boards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 566px) {
+  .leaderboards {
+    padding: 16px 0;
+  }
+
+  .leaderboards-header {
+    padding: 0 16px;
+  }
+
+  .filter-bar {
+    padding: 0 16px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-left,
+  .filter-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .boards-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}

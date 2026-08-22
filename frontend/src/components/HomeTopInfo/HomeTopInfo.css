@@ -1,0 +1,45 @@
+.home-top-info {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 16px 20px 0;
+}
+
+.top-info-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--primary);
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.top-info-banner:hover {
+  background: var(--primary-hover);
+}
+
+.top-info-text {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+  color: #fff;
+}
+
+.top-info-arrow {
+  width: 17px;
+  height: auto;
+  display: block;
+}
+
+@media (max-width: 566px) {
+  .home-top-info {
+    padding: 0;
+  }
+
+  .top-info-banner {
+    width: 100%;
+    justify-content: center;
+    border-radius: 0;
+  }
+}
