@@ -15,6 +15,25 @@
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
+  /* Peptrace design tokens */
+  --header-height: 72px;
+  --page-max-width: 1200px;
+  --page-padding: 24px;
+  --section-gap: 64px;
+  --card-bg: #fafafa;
+  --card-border: #eaeaea;
+  --card-radius: 12px;
+  --table-border: #f0f0f0;
+  --rating-high: #22c55e;
+  --rating-mid: #eab308;
+  --rating-low: #ef4444;
+  --pill-bg: #08060d;
+  --pill-color: #fff;
+  --footer-bg: #f7f7f8;
+  --footer-border: #e5e4e7;
+  --bp-mobile: 566px;
+  --bp-tablet: 1091px;
+
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light dark;
@@ -43,18 +62,21 @@
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+    --card-bg: #1f2028;
+    --card-border: #2e303a;
+    --table-border: #2e303a;
+    --footer-bg: #1a1b22;
+    --footer-border: #2e303a;
+    --pill-bg: #f3f4f6;
+    --pill-color: #08060d;
   }
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
+  width: 100%;
+  max-width: var(--page-max-width);
   margin: 0 auto;
-  text-align: center;
+  text-align: left;
   border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
@@ -67,7 +89,8 @@ body {
 }
 
 h1,
-h2 {
+h2,
+h3 {
   font-family: var(--heading);
   font-weight: 500;
   color: var(--text-h);
@@ -82,17 +105,30 @@ h1 {
     margin: 20px 0;
   }
 }
+
 h2 {
-  font-size: 24px;
+  font-size: 32px;
   line-height: 118%;
-  letter-spacing: -0.24px;
+  letter-spacing: -0.32px;
   margin: 0 0 8px;
   @media (max-width: 1024px) {
-    font-size: 20px;
+    font-size: 24px;
   }
 }
+
+h3 {
+  font-size: 20px;
+  line-height: 130%;
+  margin: 0 0 8px;
+}
+
 p {
   margin: 0;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
 }
 
 code,

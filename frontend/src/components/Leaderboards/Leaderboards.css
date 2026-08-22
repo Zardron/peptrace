@@ -1,0 +1,129 @@
+.leaderboards {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.leaderboards__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.leaderboards__tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 9999px;
+  padding: 4px;
+}
+
+.leaderboards__tab {
+  padding: 6px 16px;
+  border-radius: 9999px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.leaderboards__tab--active {
+  background: var(--pill-bg);
+  color: var(--pill-color);
+}
+
+.leaderboards__filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.leaderboards__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.leaderboards__badge-sublabel {
+  font-weight: 400;
+  color: var(--text);
+}
+
+.leaderboards__rank-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.leaderboards__rank-options {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 9999px;
+  padding: 4px;
+}
+
+.leaderboards__rank-btn {
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.leaderboards__rank-btn--active {
+  background: var(--pill-bg);
+  color: var(--pill-color);
+}
+
+.leaderboards__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 566px) {
+  .leaderboards__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .leaderboards__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .leaderboards__filters {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (min-width: 567px) and (max-width: 1091px) {
+  .leaderboards__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
