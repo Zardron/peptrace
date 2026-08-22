@@ -1,6 +1,7 @@
 name: Trigger Code Builder Agent
 
-# Manual dispatch (Actions tab -> Trigger Code Builder Agent -> Run workflow).
+# Fires automatically when a PR is opened (e.g. the Planner agent's plan PR)
+# and manually via the Actions tab (Trigger Code Builder Agent -> Run workflow).
 # Resolves the PR head branch + issue number, creates a "Code Builder Agent"
 # check run on the PR head commit (shown in the PR checks), and calls the n8n
 # Code Builder agent, which marks the check completed with the build report.
@@ -11,6 +12,8 @@ on:
         description: "Pull request number to build"
         required: true
         type: number
+  pull_request:
+    types: [opened]
 
 permissions:
   checks: write
@@ -24,7 +27,7 @@ jobs:
       - name: Resolve PR, create check run, dispatch Code Builder agent
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR: ${{ inputs.pr_number }}
+          PR: ${{ inputs.pr_number || github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
@@ -34,8 +37,10 @@ jobs:
           BRANCH=$(gh api "repos/$REPO/pulls/$PR" --jq .head.ref)
           ISSUE_NUMBER=$(echo "$BRANCH" | grep -oE "[0-9]+" | head -n1)
           if [ -z "$ISSUE_NUMBER" ]; then
-            echo "Branch $BRANCH contains no issue number."
-            exit 1
+            echo "Branch $BRANCH contains no issue number; skipping Code Builder agent."
+            # Fail loudly only on manual dispatch; on PR events skip cleanly so
+            # the PR is not left with a red workflow check.
+            [ "${{ github.event_name }}" = "workflow_dispatch" ] && exit 1 || exit 0
           fi
           CHECK_RUN_ID=$(gh api "repos/$REPO/check-runs" \
             -f name="Code Builder Agent" \
