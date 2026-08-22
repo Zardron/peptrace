@@ -1,0 +1,53 @@
+# Deployment for the peptrace servers (Docker + Traefik already installed).
+#
+# Environments (same file on both servers, different .env):
+#   staging    — peptrace.stg.esteemed.engineering (same VPS as figma-calc)
+#   production — peptrace.co (separate server, not set up yet)
+#
+# Usage:
+#   1. Copy this file and a filled-in .env to the server (~/services/peptrace).
+#   2. Set PEPTRACE_DOMAIN in .env (and TRAEFIK_NETWORK / TRAEFIK_CERT_RESOLVER
+#      if they differ from the defaults).
+#   3. docker compose -f docker-compose.deploy.yml pull && docker compose -f docker-compose.deploy.yml up -d
+#
+# Routing: the frontend serves the domain root, the API serves /api/* (the
+# /api prefix is stripped before requests reach the container, so the API
+# keeps its plain routes like /health).
+#
+# The images are built and published by GitHub Actions (see .github/workflows/docker.yml).
+
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/peptrace/peptrace-frontend:latest}
+    restart: unless-stopped
+    networks:
+      - traefik
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.peptrace.rule: "Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`)"
+      traefik.http.routers.peptrace.entrypoints: websecure
+      traefik.http.routers.peptrace.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      traefik.http.services.peptrace.loadbalancer.server.port: 80
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/peptrace/peptrace-api:latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    networks:
+      - traefik
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.peptrace-api.rule: "Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`) && PathPrefix(`/api`)"
+      traefik.http.routers.peptrace-api.priority: "100"
+      traefik.http.routers.peptrace-api.entrypoints: websecure
+      traefik.http.routers.peptrace-api.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      traefik.http.routers.peptrace-api.middlewares: peptrace-api-strip
+      traefik.http.middlewares.peptrace-api-strip.stripprefix.prefixes: "/api"
+      traefik.http.services.peptrace-api.loadbalancer.server.port: 3000
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}

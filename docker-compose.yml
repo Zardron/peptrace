@@ -1,0 +1,17 @@
+services:
+  frontend:
+    build: ./frontend
+    image: peptrace-frontend:local
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_HOST_PORT:-8080}:80"
+
+  api:
+    build: ./api
+    image: peptrace-api:local
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3000}
+    ports:
+      - "${API_HOST_PORT:-3000}:${PORT:-3000}"
