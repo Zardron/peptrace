@@ -63,7 +63,7 @@ jobs:
           envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
-            cd ~/services/peptrace
+            cd ~/services/peptrace-stg
             export FRONTEND_IMAGE="$DEPLOY_FRONTEND_IMAGE"
             export API_IMAGE="$DEPLOY_API_IMAGE"
             echo "Deploying $FRONTEND_IMAGE and $API_IMAGE"
