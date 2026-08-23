@@ -1,0 +1,158 @@
+.home-bottom {
+  background: var(--bg-white);
+  border-top: 1px solid var(--border);
+}
+
+.home-bottom-inner {
+  display: flex;
+  max-width: 1120px;
+  margin: 0 auto;
+  gap: 8px;
+  padding: 0 20px;
+}
+
+.legal-block {
+  flex: 1 1 0;
+  background: var(--bg-white);
+  padding: 24px 16px;
+  border-radius: 4px;
+}
+
+.legal-heading {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 1.68px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.legal-text {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 1.4px;
+  line-height: 1.6;
+  color: var(--text-light);
+}
+
+.legal-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.newsletter-block {
+  flex: 1 1 0;
+  background: var(--primary);
+  padding: 32px;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.newsletter-heading {
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: 2.66px;
+  line-height: 1.2;
+  color: var(--bg);
+  text-align: center;
+}
+
+.newsletter-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.newsletter-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #fff;
+  background: transparent;
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 1.96px;
+  border-radius: 4px;
+  outline: none;
+  text-align: center;
+}
+
+.newsletter-input::placeholder {
+  color: rgba(247, 247, 245, 0.8);
+}
+
+.newsletter-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 24px;
+  background: #fff;
+  color: var(--primary);
+  border: none;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 1.4px;
+  align-self: flex-start;
+  transition: background 0.2s;
+}
+
+.newsletter-button:hover {
+  background: #f0f0f0;
+}
+
+.newsletter-button img {
+  width: 16px;
+  height: auto;
+}
+
+.newsletter-privacy {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 1.4px;
+  line-height: 1.4;
+  color: #fff;
+  text-align: center;
+}
+
+/* Tablet */
+@media (max-width: 1091px) {
+  .home-bottom-inner {
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+  }
+
+  .legal-block {
+    order: 2;
+    padding: 24px 20px;
+  }
+
+  .newsletter-block {
+    order: 1;
+    border-radius: 0;
+    padding: 32px 20px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 566px) {
+  .legal-block {
+    order: 1;
+  }
+
+  .newsletter-block {
+    order: 2;
+  }
+
+  .newsletter-form {
+    gap: 8px;
+  }
+
+  .newsletter-button {
+    align-self: stretch;
+    width: 100%;
+  }
+}

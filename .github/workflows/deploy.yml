@@ -1,0 +1,84 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - production
+      tag:
+        description: "Image tag to deploy (e.g. sha-f8c7e79)"
+        required: true
+        type: string
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Lowercase image name
+        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+
+      - name: Check SERVER_IP configuration
+        run: |
+          echo "vars.SERVER_IP:    '${{ vars.SERVER_IP }}'"
+          echo "secrets.SERVER_IP is $([ -n '${{ secrets.SERVER_IP }}' ] && echo 'set (masked)' || echo 'not set')"
+          if [ -z '${{ vars.SERVER_IP }}' ] && [ -z '${{ secrets.SERVER_IP }}' ]; then
+            echo "::error::SERVER_IP is empty. Add it to the '${{ inputs.environment }}' environment as a variable OR a secret."
+            exit 1
+          fi
+
+      - name: Check SSH_PRIVATE_KEY length
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          len=${#SSH_PRIVATE_KEY}
+          echo "SSH_PRIVATE_KEY length: $len characters"
+          if [ "$len" -eq 0 ]; then
+            echo "::error::SSH_PRIVATE_KEY is empty. Add it to the '${{ inputs.environment }}' environment secrets."
+            exit 1
+          fi
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_FRONTEND_IMAGE: ${{ env.IMAGE_NAME }}-frontend:${{ env.TAG }}
+          DEPLOY_API_IMAGE: ${{ env.IMAGE_NAME }}-api:${{ env.TAG }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_PAT: ${{ secrets.PAT }}
+        with:
+          host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
+          username: github
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,GHCR_USER,GHCR_PAT
+          script: |
+            set -euo pipefail
+            cd ~/services/peptrace
+            export FRONTEND_IMAGE="$DEPLOY_FRONTEND_IMAGE"
+            export API_IMAGE="$DEPLOY_API_IMAGE"
+            echo "Deploying $FRONTEND_IMAGE and $API_IMAGE"
+            echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker compose -f docker-compose.deploy.yml pull
+            docker compose -f docker-compose.deploy.yml up -d --remove-orphans
+            for service in frontend api; do
+              cid="$(docker compose -f docker-compose.deploy.yml ps -q "$service")"
+              for i in $(seq 1 24); do
+                status="$(docker inspect --format='{{.State.Health.Status}}' "$cid" 2>/dev/null || echo unknown)"
+                echo "$service health: $status ($i/24)"
+                [ "$status" = "healthy" ] && break
+                [ "$i" = "24" ] && { echo "$service container did not become healthy"; exit 1; }
+                sleep 5
+              done
+            done
+            docker image prune -f
+            echo "Deployed $FRONTEND_IMAGE and $API_IMAGE"

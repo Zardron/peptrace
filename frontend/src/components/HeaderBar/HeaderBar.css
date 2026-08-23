@@ -1,0 +1,165 @@
+.header-bar {
+  background: var(--bg-white);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  gap: 16px;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.header-logo {
+  height: 48px;
+  width: auto;
+  display: block;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.nav-link {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.84px;
+  color: var(--text);
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.nav-link:hover {
+  opacity: 0.7;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-divider {
+  display: inline-block;
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+}
+
+.pill-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.84px;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+
+.pill-button.outline {
+  color: var(--primary);
+  border: 1.5px solid var(--primary);
+  background: transparent;
+}
+
+.pill-button.outline:hover {
+  background: rgba(16, 110, 86, 0.06);
+}
+
+.pill-button.solid {
+  color: #fff;
+  background: var(--primary);
+  border: 1.5px solid var(--primary);
+}
+
+.pill-button.solid:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+}
+
+.menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  padding: 4px;
+}
+
+.header-nav-row {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 16px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.nav-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.84px;
+  color: #fff;
+  background: var(--primary);
+  text-decoration: none;
+}
+
+.tablet-only {
+  display: none;
+}
+
+.mobile-only {
+  display: none;
+}
+
+/* Tablet: 567px – 1091px */
+@media (max-width: 1091px) {
+  .desktop-only {
+    display: none !important;
+  }
+
+  .tablet-only {
+    display: inline-flex !important;
+  }
+
+  .header-nav-row {
+    display: flex;
+  }
+}
+
+/* Mobile: 0px – 566px */
+@media (max-width: 566px) {
+  .tablet-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: inline-flex !important;
+  }
+
+  .header-nav-row {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .header-nav-row.open {
+    display: flex;
+  }
+}
