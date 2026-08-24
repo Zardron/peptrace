@@ -1,0 +1,170 @@
+.leaderboard-card {
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.card-summary {
+  padding: 16px 18px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.84px;
+  color: var(--text);
+}
+
+.card-test-count {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.72px;
+  color: var(--text);
+}
+
+.card-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.72px;
+  color: var(--text-gray);
+}
+
+.card-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.54px;
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  margin-top: 2px;
+}
+
+.card-cta svg {
+  flex-shrink: 0;
+}
+
+.card-table {
+  border-top: 1px solid var(--border);
+  flex: 1 1 auto;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 36px 1fr 60px 52px;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.72px;
+  color: var(--text-gray);
+}
+
+.table-header .col-rank {
+  color: var(--text-muted);
+}
+
+.table-body {
+  padding: 9px 0;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 36px 1fr 60px 52px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px;
+  min-height: 48px;
+}
+
+.col-rank {
+  text-align: left;
+}
+
+.rank-number {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.96px;
+  color: var(--text);
+}
+
+.vendor-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vendor-avatar {
+  width: 33px;
+  height: 33px;
+  background: var(--avatar-bg);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.vendor-name {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.78px;
+  color: var(--text-dark);
+  line-height: 1.2;
+}
+
+.col-price,
+.col-rating {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.72px;
+  color: var(--text-gray);
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.footer-link {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.78px;
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.footer-count {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.78px;
+  color: var(--text);
+}
+
+@media (max-width: 566px) {
+  .leaderboard-card {
+    border-radius: 4px;
+    margin: 0 16px;
+  }
+}
