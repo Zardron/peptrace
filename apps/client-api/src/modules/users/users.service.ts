@@ -7,18 +7,27 @@ import { PrismaService } from "../prisma/prisma.service";
 import { ClientUserRole, CreateUserDto, ListUsersQueryDto, ResetUserPasswordDto, UpdateUserDto } from "./users.dto";
 
 const USER_MANAGER_ROLES = new Set(["owner", "admin"]);
-const clientUserSelect = {
+const SUPERADMIN_ROLES = new Set(["superadmin", "platform_admin"]);
+const clientUserMembershipSelect = {
   id: true,
-  email: true,
-  displayName: true,
   role: true,
   isActive: true,
-  lastLoginAt: true,
   createdAt: true,
-  updatedAt: true
-} satisfies Prisma.AdminUserSelect;
+  updatedAt: true,
+  user: {
+    select: {
+      id: true,
+      email: true,
+      displayName: true,
+      isActive: true,
+      lastLoginAt: true,
+      createdAt: true,
+      updatedAt: true
+    }
+  }
+} satisfies Prisma.TenantMembershipSelect;
 
-type ClientUserRecord = Prisma.AdminUserGetPayload<{ select: typeof clientUserSelect }>;
+type ClientUserRecord = Prisma.TenantMembershipGetPayload<{ select: typeof clientUserMembershipSelect }>;
 
 @Injectable()
 export class UsersService {
@@ -31,10 +40,8 @@ export class UsersService {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 25;
     const search = query.search?.trim();
-    const where: Prisma.AdminUserWhereInput = {
-      tenantId: actor.tenantId,
-      ...(query.role ? { role: query.role } : {}),
-      ...(query.status ? { isActive: query.status === "active" } : {}),
+    const userWhere: Prisma.AdminUserWhereInput = {
+      ...(query.status === "active" ? { isActive: true } : {}),
       ...(search
         ? {
             OR: [
@@ -44,17 +51,28 @@ export class UsersService {
           }
         : {})
     };
+    const where: Prisma.TenantMembershipWhereInput = {
+      tenantId: actor.tenantId,
+      ...(query.role ? { role: query.role } : {}),
+      ...(query.status === "active" ? { isActive: true } : {}),
+      ...(query.status === "inactive"
+        ? {
+            OR: [{ isActive: false }, { user: { isActive: false } }]
+          }
+        : {}),
+      ...(Object.keys(userWhere).length > 0 ? { user: userWhere } : {})
+    };
 
     const [items, total] = await this.prisma.withConnectionRetry(() =>
       Promise.all([
-        this.prisma.adminUser.findMany({
-          orderBy: [{ isActive: "desc" }, { displayName: "asc" }],
-          select: clientUserSelect,
+        this.prisma.tenantMembership.findMany({
+          orderBy: [{ isActive: "desc" }, { user: { displayName: "asc" } }],
+          select: clientUserMembershipSelect,
           skip: (page - 1) * pageSize,
           take: pageSize,
           where
         }),
-        this.prisma.adminUser.count({ where })
+        this.prisma.tenantMembership.count({ where })
       ])
     );
 
@@ -68,7 +86,7 @@ export class UsersService {
   }
 
   async getUser(id: string, actor: AuthenticatedClientUser) {
-    return this.toClientUser(await this.getTenantUser(id, actor.tenantId));
+    return this.toClientUser(await this.getTenantMembership(id, actor.tenantId));
   }
 
   async createUser(dto: CreateUserDto, actor: AuthenticatedClientUser) {
@@ -76,24 +94,61 @@ export class UsersService {
     this.assertCanAssignRole(actor, dto.role);
 
     const email = this.normalizeEmail(dto.email);
-    await this.assertEmailAvailable(email);
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const existingUser = await this.prisma.withConnectionRetry(() =>
+      this.prisma.adminUser.findUnique({
+        select: { id: true, role: true },
+        where: { email }
+      })
+    );
+
+    if (existingUser) {
+      if (SUPERADMIN_ROLES.has(existingUser.role)) {
+        throw new BadRequestException("Platform users cannot be assigned to client workspaces");
+      }
+      await this.assertMembershipAvailable(existingUser.id, actor.tenantId);
+    }
 
     try {
       const user = await this.prisma.withConnectionRetry(() =>
-        this.prisma.adminUser.create({
-          data: {
-            displayName: dto.displayName.trim(),
-            email,
-            isActive: true,
-            passwordHash,
-            role: dto.role,
-            tenantId: actor.tenantId
-          },
-          select: clientUserSelect
+        this.prisma.$transaction(async (transaction) => {
+          if (existingUser) {
+            return transaction.tenantMembership.create({
+              data: {
+                isActive: true,
+                role: dto.role,
+                tenantId: actor.tenantId,
+                userId: existingUser.id
+              },
+              select: clientUserMembershipSelect
+            });
+          }
+
+          const passwordHash = await bcrypt.hash(dto.password, 12);
+          const createdUser = await transaction.adminUser.create({
+            data: {
+              displayName: dto.displayName.trim(),
+              email,
+              isActive: true,
+              passwordHash,
+              role: dto.role,
+              tenantId: actor.tenantId
+            },
+            select: { id: true }
+          });
+
+          return transaction.tenantMembership.create({
+            data: {
+              isActive: true,
+              role: dto.role,
+              tenantId: actor.tenantId,
+              userId: createdUser.id
+            },
+            select: clientUserMembershipSelect
+          });
         })
       );
 
+      this.authService.invalidateUser(user.user.id, user.user.email);
       return this.toClientUser(user);
     } catch (error) {
       this.rethrowUniqueEmail(error);
@@ -102,48 +157,69 @@ export class UsersService {
 
   async updateUser(id: string, dto: UpdateUserDto, actor: AuthenticatedClientUser) {
     this.assertCanManageUsers(actor);
-    const target = await this.getTenantUser(id, actor.tenantId);
+    const target = await this.getTenantMembership(id, actor.tenantId);
     this.assertCanManageTarget(actor, target);
 
     if (Object.keys(dto).length === 0) {
       throw new BadRequestException("Provide at least one user field to update");
     }
 
-    if (actor.id === target.id && dto.isActive === false) {
+    if (actor.id === target.user.id && dto.isActive === false) {
       throw new BadRequestException("You cannot deactivate your own account");
     }
-    if (actor.id === target.id && dto.role && dto.role !== target.role) {
+    if (actor.id === target.user.id && dto.role && dto.role !== target.role) {
       throw new BadRequestException("You cannot change your own role");
     }
     if (dto.role) {
       this.assertCanAssignRole(actor, dto.role);
     }
     if (target.role === "owner" && (dto.isActive === false || (dto.role && dto.role !== "owner"))) {
-      await this.assertAnotherActiveOwner(target.id, actor.tenantId);
+      await this.assertAnotherActiveOwner(target.user.id, actor.tenantId);
     }
 
     const email = dto.email ? this.normalizeEmail(dto.email) : undefined;
-    if (email && email !== target.email) {
-      await this.assertEmailAvailable(email, target.id);
+    if (email && email !== target.user.email) {
+      await this.assertEmailAvailable(email, target.user.id);
+    }
+    const displayName = dto.displayName?.trim();
+    const updatesGlobalIdentity =
+      (displayName !== undefined && displayName !== target.user.displayName) ||
+      (email !== undefined && email !== target.user.email);
+    if (updatesGlobalIdentity) {
+      await this.assertIdentityScopedToTenant(
+        target.user.id,
+        actor.tenantId,
+        "Shared user identities cannot be edited from a single company"
+      );
     }
 
     try {
       const user = await this.prisma.withConnectionRetry(() =>
-        this.prisma.adminUser.update({
-          data: {
-            ...(dto.displayName !== undefined ? { displayName: dto.displayName.trim() } : {}),
-            ...(email !== undefined ? { email } : {}),
-            ...(dto.role !== undefined ? { role: dto.role } : {}),
-            ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {})
-          },
-          select: clientUserSelect,
-          where: { id: target.id }
+        this.prisma.$transaction(async (transaction) => {
+          if (dto.displayName !== undefined || email !== undefined) {
+            await transaction.adminUser.update({
+              data: {
+                ...(displayName !== undefined ? { displayName } : {}),
+                ...(email !== undefined ? { email } : {})
+              },
+              where: { id: target.user.id }
+            });
+          }
+
+          return transaction.tenantMembership.update({
+            data: {
+              ...(dto.role !== undefined ? { role: dto.role } : {}),
+              ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {})
+            },
+            select: clientUserMembershipSelect,
+            where: { tenantId_userId: { tenantId: actor.tenantId, userId: target.user.id } }
+          });
         })
       );
 
-      this.authService.invalidateUser(target.id, target.email);
-      if (email && email !== target.email) {
-        this.authService.invalidateUser(target.id, email);
+      this.authService.invalidateUser(target.user.id, target.user.email);
+      if (email && email !== target.user.email) {
+        this.authService.invalidateUser(target.user.id, email);
       }
       return this.toClientUser(user);
     } catch (error) {
@@ -153,52 +229,57 @@ export class UsersService {
 
   async resetPassword(id: string, dto: ResetUserPasswordDto, actor: AuthenticatedClientUser) {
     this.assertCanManageUsers(actor);
-    const target = await this.getTenantUser(id, actor.tenantId);
+    const target = await this.getTenantMembership(id, actor.tenantId);
     this.assertCanManageTarget(actor, target);
+    await this.assertIdentityScopedToTenant(
+      target.user.id,
+      actor.tenantId,
+      "Shared user passwords must be reset by the platform or account owner"
+    );
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
     await this.prisma.withConnectionRetry(() =>
       this.prisma.adminUser.update({
         data: { passwordHash },
-        where: { id: target.id }
+        where: { id: target.user.id }
       })
     );
-    this.authService.invalidateUser(target.id, target.email);
+    this.authService.invalidateUser(target.user.id, target.user.email);
 
-    return { id: target.id, passwordUpdated: true };
+    return { id: target.user.id, passwordUpdated: true };
   }
 
   async deactivateUser(id: string, actor: AuthenticatedClientUser) {
     this.assertCanManageUsers(actor);
-    const target = await this.getTenantUser(id, actor.tenantId);
+    const target = await this.getTenantMembership(id, actor.tenantId);
     this.assertCanManageTarget(actor, target);
 
-    if (target.id === actor.id) {
+    if (target.user.id === actor.id) {
       throw new BadRequestException("You cannot deactivate your own account");
     }
     if (target.role === "owner" && target.isActive) {
-      await this.assertAnotherActiveOwner(target.id, actor.tenantId);
+      await this.assertAnotherActiveOwner(target.user.id, actor.tenantId);
     }
     if (!target.isActive) {
       return this.toClientUser(target);
     }
 
     const user = await this.prisma.withConnectionRetry(() =>
-      this.prisma.adminUser.update({
+      this.prisma.tenantMembership.update({
         data: { isActive: false },
-        select: clientUserSelect,
-        where: { id: target.id }
+        select: clientUserMembershipSelect,
+        where: { tenantId_userId: { tenantId: actor.tenantId, userId: target.user.id } }
       })
     );
-    this.authService.invalidateUser(target.id, target.email);
+    this.authService.invalidateUser(target.user.id, target.user.email);
     return this.toClientUser(user);
   }
 
-  private async getTenantUser(id: string, tenantId: string): Promise<ClientUserRecord> {
+  private async getTenantMembership(id: string, tenantId: string): Promise<ClientUserRecord> {
     const user = await this.prisma.withConnectionRetry(() =>
-      this.prisma.adminUser.findFirst({
-        select: clientUserSelect,
-        where: { id, tenantId }
+      this.prisma.tenantMembership.findFirst({
+        select: clientUserMembershipSelect,
+        where: { tenantId, userId: id }
       })
     );
 
@@ -228,12 +309,13 @@ export class UsersService {
 
   private async assertAnotherActiveOwner(excludedUserId: string, tenantId: string): Promise<void> {
     const ownerCount = await this.prisma.withConnectionRetry(() =>
-      this.prisma.adminUser.count({
+      this.prisma.tenantMembership.count({
         where: {
-          id: { not: excludedUserId },
           isActive: true,
           role: "owner",
-          tenantId
+          tenantId,
+          userId: { not: excludedUserId },
+          user: { isActive: true }
         }
       })
     );
@@ -256,6 +338,34 @@ export class UsersService {
     }
   }
 
+  private async assertMembershipAvailable(userId: string, tenantId: string): Promise<void> {
+    const existing = await this.prisma.withConnectionRetry(() =>
+      this.prisma.tenantMembership.findUnique({
+        select: { id: true },
+        where: { tenantId_userId: { tenantId, userId } }
+      })
+    );
+
+    if (existing) {
+      throw new ConflictException("This user already belongs to the company");
+    }
+  }
+
+  private async assertIdentityScopedToTenant(userId: string, tenantId: string, message: string): Promise<void> {
+    const otherMemberships = await this.prisma.withConnectionRetry(() =>
+      this.prisma.tenantMembership.count({
+        where: {
+          tenantId: { not: tenantId },
+          userId
+        }
+      })
+    );
+
+    if (otherMemberships > 0) {
+      throw new BadRequestException(message);
+    }
+  }
+
   private rethrowUniqueEmail(error: unknown): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       throw new ConflictException("A user with this email already exists");
@@ -267,16 +377,17 @@ export class UsersService {
     return email.trim().toLowerCase();
   }
 
-  private toClientUser(user: ClientUserRecord) {
+  private toClientUser(membership: ClientUserRecord) {
     return {
-      id: user.id,
-      displayName: user.displayName,
-      email: user.email,
-      role: user.role,
-      status: user.isActive ? ("active" as const) : ("inactive" as const),
-      lastLoginAt: user.lastLoginAt,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt
+      id: membership.user.id,
+      displayName: membership.user.displayName,
+      email: membership.user.email,
+      role: membership.role,
+      status: membership.isActive && membership.user.isActive ? ("active" as const) : ("inactive" as const),
+      lastLoginAt: membership.user.lastLoginAt,
+      createdAt: membership.user.createdAt,
+      updatedAt:
+        membership.updatedAt > membership.user.updatedAt ? membership.updatedAt : membership.user.updatedAt
     };
   }
 }

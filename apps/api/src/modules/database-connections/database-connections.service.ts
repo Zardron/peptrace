@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { MongoClient, type MongoClientOptions } from "mongodb";
 import mysql from "mysql2/promise";
 import { isIP } from "node:net";
@@ -184,6 +185,10 @@ export class DatabaseConnectionsService {
       create: { tenantId, ...connectionData },
       update: connectionData
     });
+    await this.writeAudit(user, "DATABASE_CONNECTION_UPSERT", tenantId, {
+      provider: connection.provider,
+      status: connection.status
+    });
     return this.toPayload(connection);
   }
 
@@ -213,6 +218,10 @@ export class DatabaseConnectionsService {
         updatedByEmail: user.email
       }
     });
+    await this.writeAudit(user, "DATABASE_CONNECTION_TEST", tenantId, {
+      status,
+      success: status === "CONNECTED"
+    });
 
     return { success: status === "CONNECTED", connection: this.toPayload(updated) };
   }
@@ -224,6 +233,7 @@ export class DatabaseConnectionsService {
       throw new NotFoundException("Client tenant not found");
     }
     await this.prisma.clientDatabaseConnection.deleteMany({ where: { tenantId } });
+    await this.writeAudit(user, "DATABASE_CONNECTION_USE_SHARED", tenantId, {});
     return { tenantId, mode: "SHARED", connection: null };
   }
 
@@ -429,6 +439,22 @@ export class DatabaseConnectionsService {
 
   private passwordAad(tenantId: string): string {
     return `client-database-connection:${tenantId}`;
+  }
+
+  private writeAudit(
+    user: AuthenticatedAdminUser,
+    action: string,
+    tenantId: string,
+    metadata: Prisma.InputJsonObject
+  ) {
+    return this.prisma.platformAuditEvent.create({
+      data: {
+        action,
+        actorId: user.id,
+        metadata,
+        tenantId
+      }
+    });
   }
 
   private assertSuperadmin(user: AuthenticatedAdminUser): void {

@@ -7,8 +7,13 @@ import { envValidationSchema } from "./config/env.validation";
 import { AdminPanelModule } from "./modules/admin-panel/admin-panel.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { HealthModule } from "./modules/health/health.module";
+import { OperationsModule } from "./modules/operations/operations.module";
 import { PrismaModule } from "./modules/prisma/prisma.module";
+import { QualityModule } from "./modules/quality/quality.module";
+import { RealEstateModule } from "./modules/real-estate/real-estate.module";
 import { SecretsModule } from "./modules/secrets/secrets.module";
+import { ServicesModule } from "./modules/services/services.module";
+import { ShamstayModule } from "./modules/shamstay/shamstay.module";
 import { UsersModule } from "./modules/users/users.module";
 
 @Module({
@@ -39,7 +44,12 @@ import { UsersModule } from "./modules/users/users.module";
     HealthModule,
     AuthModule,
     AdminPanelModule,
+    OperationsModule,
+    QualityModule,
+    RealEstateModule,
     UsersModule,
+    ServicesModule,
+    ShamstayModule,
     SecretsModule
   ],
   controllers: [AppController]

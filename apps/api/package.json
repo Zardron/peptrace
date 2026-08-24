@@ -9,6 +9,10 @@
     "start:dev": "nest start --watch",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate:multitenancy": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260816203000_add_multi_tenant_memberships/migration.sql",
+    "db:migrate:services": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260817120000_add_backend_services/migration.sql",
+    "db:migrate:client-domains": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260817143000_add_client_project_domains/migration.sql",
+    "db:migrate:marketplace-features": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260817170000_expand_project_marketplace_features/migration.sql",
     "db:push": "prisma db push --schema prisma/schema.prisma",
     "db:seed": "prisma db seed",
     "db:setup": "npm run db:push && npm run db:seed"

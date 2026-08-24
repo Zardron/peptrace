@@ -3,6 +3,8 @@ import type { AccountWorkItem, ApiSurface, ClientTenant, Lab, LabTest, Peptide, 
 export interface LoginRequest {
   email: string;
   password: string;
+  tenantId?: string;
+  tenantSlug?: string;
 }
 
 export type ClientUserRole = "owner" | "admin" | "manager" | "member" | "viewer";
@@ -107,10 +109,18 @@ export interface AdminSession {
     email: string;
     displayName: string;
     id: string;
+    membershipId: string | null;
     role: string;
     tenantId: string | null;
     tenantName: string | null;
     tenantSlug: string | null;
+    tenants: Array<{
+      id: string;
+      membershipId: string | null;
+      name: string;
+      role: string;
+      slug: string;
+    }>;
   };
 }
 
@@ -118,6 +128,7 @@ export interface CurrentAdminUser {
   id: string;
   email: string;
   displayName: string;
+  membershipId: string | null;
   role: string;
   tenantId: string | null;
   tenantName: string | null;
@@ -127,6 +138,7 @@ export interface CurrentAdminUser {
     name: string;
     slug: string;
   } | null;
+  tenants: AdminSession["user"]["tenants"];
 }
 
 export type AdminPanelTone = "info" | "neutral" | "success" | "warning";
@@ -162,6 +174,33 @@ export interface AdminPanelCompany {
   adminUsers: AdminPanelAccount[];
 }
 
+export interface CreateClientRequest {
+  name: string;
+  slug: string;
+  accessStatus: string;
+  status: string;
+  owner: string;
+  enabledAccounts: number;
+  operationalValue: number;
+  openItems: number;
+  dataRegion: string;
+  industry?: string;
+  accentColor?: string;
+  ownerUser?: {
+    displayName: string;
+    email: string;
+    password?: string;
+  };
+  settings?: {
+    branding?: Record<string, unknown>;
+    enabledModules?: string[];
+    integrations?: Record<string, unknown>;
+    limits?: Record<string, unknown>;
+    labels?: Record<string, unknown>;
+    businessSettings?: Record<string, unknown>;
+  };
+}
+
 export interface AdminPanelRecord {
   label: string;
   detail: string;
@@ -177,6 +216,7 @@ export interface AdminPanelWorkItem {
 
 export interface WhiteLabelPanel {
   brandName: string;
+  enabledModules?: string[];
   productName: string;
   industry: string;
   accentColor: string;
@@ -436,8 +476,22 @@ export class PeptraceApiClient {
     });
   }
 
+  switchTenant(body: { tenantId?: string; tenantSlug?: string }): Promise<AdminSession> {
+    return this.request<AdminSession>("/auth/switch-tenant", {
+      method: "POST",
+      body
+    });
+  }
+
   getCurrentAdminUser(): Promise<CurrentAdminUser> {
     return this.request<CurrentAdminUser>("/auth/me");
+  }
+
+  createClient(body: CreateClientRequest): Promise<AdminPanelCompany> {
+    return this.request<AdminPanelCompany>("/clients", {
+      method: "POST",
+      body
+    });
   }
 
   getAdminPanelContext(): Promise<AdminPanelContext> {

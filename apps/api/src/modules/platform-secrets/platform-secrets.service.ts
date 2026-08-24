@@ -94,6 +94,18 @@ export class PlatformSecretsService {
             }
           ]
         });
+        await transaction.platformAuditEvent.create({
+          data: {
+            action: "PLATFORM_SECRET_PROVISION",
+            actorId: actor.id,
+            metadata: {
+              name: secret.name,
+              secretId,
+              source: "SUPERADMIN"
+            },
+            tenantId: tenant.id
+          }
+        });
         return { secret, version };
       });
       this.adminPanelService.invalidateCompaniesCache();

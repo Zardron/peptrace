@@ -6,6 +6,7 @@ import { AppController } from "./app.controller";
 import { envValidationSchema } from "./config/env.validation";
 import { AdminPanelModule } from "./modules/admin-panel/admin-panel.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { BackendServicesModule } from "./modules/backend-services/backend-services.module";
 import { CatalogModule } from "./modules/catalog/catalog.module";
 import { ClientsModule } from "./modules/clients/clients.module";
 import { DatabaseConnectionsModule } from "./modules/database-connections/database-connections.module";
@@ -43,6 +44,7 @@ import { TestingModule } from "./modules/testing/testing.module";
     HealthModule,
     AuthModule,
     AdminPanelModule,
+    BackendServicesModule,
     ClientsModule,
     DatabaseConnectionsModule,
     CatalogModule,

@@ -3,6 +3,7 @@ export interface AuthTokenPayload {
   role: string;
   sub: string;
   tenantId: string | null;
+  membershipId?: string | null;
 }
 
 export interface AuthTenant {
@@ -11,15 +12,22 @@ export interface AuthTenant {
   slug: string;
 }
 
+export interface AuthTenantMembership extends AuthTenant {
+  membershipId: string | null;
+  role: string;
+}
+
 export interface AuthenticatedAdminUser {
   id: string;
   displayName: string;
   email: string;
+  membershipId: string | null;
   role: string;
   tenantId: string | null;
   tenantName: string | null;
   tenantSlug: string | null;
   tenant: AuthTenant | null;
+  tenants: AuthTenantMembership[];
 }
 
 export interface AdminSession {
@@ -30,9 +38,11 @@ export interface AdminSession {
     email: string;
     displayName: string;
     id: string;
+    membershipId: string | null;
     role: string;
     tenantId: string | null;
     tenantName: string | null;
     tenantSlug: string | null;
+    tenants: AuthTenantMembership[];
   };
 }

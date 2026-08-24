@@ -63,6 +63,24 @@ type ClientCompany = {
   whiteLabelPanel: PersistedWhiteLabelPanel | null;
 };
 
+type CompanyMembership = {
+  createdAt: Date;
+  role: string;
+  user: {
+    id: string;
+    displayName: string;
+    email: string;
+    isActive: boolean;
+    lastLoginAt: Date | null;
+    createdAt: Date;
+  };
+};
+
+type ClientCompanyRecord = Omit<ClientCompany, "adminUsers"> & {
+  adminUsers?: CompanyAccount[];
+  memberships: CompanyMembership[];
+};
+
 type PersistedWhiteLabelPanel = {
   brandName: string;
   productName: string;
@@ -224,15 +242,21 @@ export class AdminPanelService {
     return this.prisma.withConnectionRetry(() =>
       this.prisma.clientTenant.findMany({
         include: {
-          adminUsers: {
-            orderBy: { displayName: "asc" },
+          memberships: {
+            orderBy: { user: { displayName: "asc" } },
             select: {
-              id: true,
-              displayName: true,
-              email: true,
               role: true,
-              lastLoginAt: true,
-              createdAt: true
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  email: true,
+                  isActive: true,
+                  lastLoginAt: true,
+                  createdAt: true
+                }
+              }
             }
           },
           secrets: {
@@ -259,7 +283,7 @@ export class AdminPanelService {
           }
         }
       })
-    );
+    ).then((companies) => companies.map((company) => this.withMembershipAccounts(company as ClientCompanyRecord)));
   }
 
   private queryInternalAccounts(): Promise<CompanyAccount[]> {
@@ -435,7 +459,7 @@ export class AdminPanelService {
   }
 
   private isSuperAdmin(user: AuthenticatedAdminUser): boolean {
-    return SUPERADMIN_ROLES.has(user.role);
+    return SUPERADMIN_ROLES.has(user.role) && !user.tenantId;
   }
 
   private toViewer(user: AuthenticatedAdminUser) {
@@ -445,6 +469,23 @@ export class AdminPanelService {
       email: user.email,
       role: user.role,
       tenant: user.tenant
+    };
+  }
+
+  private withMembershipAccounts(company: ClientCompanyRecord): ClientCompany {
+    const { memberships, adminUsers: _legacyAdminUsers, ...client } = company;
+    void _legacyAdminUsers;
+
+    return {
+      ...client,
+      adminUsers: memberships.map((membership) => ({
+        id: membership.user.id,
+        displayName: membership.user.displayName,
+        email: membership.user.email,
+        role: membership.role,
+        lastLoginAt: membership.user.lastLoginAt,
+        createdAt: membership.user.createdAt
+      }))
     };
   }
 

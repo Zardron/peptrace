@@ -40,7 +40,26 @@ type ClientCompany = {
   dataRegion: string;
   lastActivityAt: Date;
   adminUsers: CompanyAccount[];
+  settings: { enabledModules: string[] } | null;
   whiteLabelPanel: PersistedWhiteLabelPanel | null;
+};
+
+type CompanyMembership = {
+  createdAt: Date;
+  role: string;
+  user: {
+    id: string;
+    displayName: string;
+    email: string;
+    isActive: boolean;
+    lastLoginAt: Date | null;
+    createdAt: Date;
+  };
+};
+
+type ClientCompanyRecord = Omit<ClientCompany, "adminUsers"> & {
+  adminUsers?: CompanyAccount[];
+  memberships: CompanyMembership[];
 };
 
 type PersistedWhiteLabelPanel = {
@@ -58,6 +77,7 @@ type PersistedWhiteLabelPanel = {
 
 type ClientPanelDefinition = {
   brandName: string;
+  enabledModules: string[];
   productName: string;
   industry: string;
   accentColor: string;
@@ -80,6 +100,7 @@ type PeptracePanelStats = {
 
 const fallbackPanelDefinition: ClientPanelDefinition = {
   brandName: "Client workspace",
+  enabledModules: ["overview", "operations", "users", "secrets", "access"],
   productName: "Client admin",
   industry: "Operations",
   accentColor: "#0e7467",
@@ -317,22 +338,31 @@ export class AdminPanelService {
     return this.prisma.withConnectionRetry(() =>
       this.prisma.clientTenant.findUnique({
         include: {
-          adminUsers: {
-            orderBy: { displayName: "asc" },
+          memberships: {
+            orderBy: { user: { displayName: "asc" } },
             select: {
-              id: true,
-              displayName: true,
-              email: true,
               role: true,
-              lastLoginAt: true,
-              createdAt: true
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  email: true,
+                  isActive: true,
+                  lastLoginAt: true,
+                  createdAt: true
+                }
+              }
             }
+          },
+          settings: {
+            select: { enabledModules: true }
           },
           whiteLabelPanel: true
         },
         where: { id: tenantId }
       })
-    );
+    ).then((company) => (company ? this.withMembershipAccounts(company as ClientCompanyRecord) : null));
   }
 
   private refreshCompany(tenantId: string): void {
@@ -399,9 +429,14 @@ export class AdminPanelService {
         ]
       : definition.primaryRecords;
     const panelWorkItems = isPeptrace && workItems.length > 0 ? workItems : definition.workItems;
+    const enabledModules =
+      company.settings?.enabledModules && company.settings.enabledModules.length > 0
+        ? company.settings.enabledModules
+        : definition.enabledModules;
 
     return {
       ...definition,
+      enabledModules,
       primaryRecords: primaryRecords.length > 0 ? primaryRecords : definition.primaryRecords,
       workItems: panelWorkItems.length > 0 ? panelWorkItems : definition.workItems,
       metrics: [
@@ -449,13 +484,33 @@ export class AdminPanelService {
   }
 
   private toCompanyPayload<T extends { monthlySpend: number; plan: string; seats: number }>(company: T) {
-    const { monthlySpend, plan, seats, ...client } = company;
+    const { monthlySpend, plan, seats, settings: _settings, ...client } = company as T & {
+      settings?: ClientCompany["settings"];
+    };
+    void _settings;
 
     return {
       ...client,
       accessStatus: plan,
       enabledAccounts: seats,
       operationalValue: monthlySpend
+    };
+  }
+
+  private withMembershipAccounts(company: ClientCompanyRecord): ClientCompany {
+    const { memberships, adminUsers: _legacyAdminUsers, ...client } = company;
+    void _legacyAdminUsers;
+
+    return {
+      ...client,
+      adminUsers: memberships.map((membership) => ({
+        id: membership.user.id,
+        displayName: membership.user.displayName,
+        email: membership.user.email,
+        role: membership.role,
+        lastLoginAt: membership.user.lastLoginAt,
+        createdAt: membership.user.createdAt
+      }))
     };
   }
 
@@ -466,6 +521,7 @@ export class AdminPanelService {
 
     return {
       brandName: panel.brandName,
+      enabledModules: fallbackPanelDefinition.enabledModules,
       productName: panel.productName,
       industry: panel.industry,
       accentColor: panel.accentColor,

@@ -48,6 +48,7 @@ import {
   type AdminPanelMetric,
   type AdminSession,
   type ClientUserList,
+  type CreateClientRequest,
   type LockerSecretList,
   type PlatformSecretLockerSummary
 } from "@peptrace/api-client";
@@ -122,7 +123,7 @@ type LoginPortal = {
   headline: string;
   id: "esteemedengineering" | "peptrace" | "shamstay-bnb" | "sham-real-estate-hub";
   initials: string;
-  kind: "client" | "superadmin";
+  kind: "client" | "shared" | "superadmin";
   path: string;
   services: Array<{
     icon: typeof LayoutDashboard;
@@ -166,6 +167,19 @@ const navigationGroups: Array<{ label: string; items: NavItem[] }> = [
     ]
   }
 ];
+
+const genericClientModuleNavigation: Record<string, NavItem> = {
+  access: { id: "access", label: "Settings", icon: KeyRound },
+  clients: { id: "clients", label: "Accounts", icon: UsersRound },
+  labs: { id: "labs", label: "Labs", icon: Beaker },
+  operations: { id: "testing", label: "Operations", icon: Activity },
+  overview: { id: "overview", label: "Overview", icon: LayoutDashboard },
+  peptides: { id: "peptides", label: "Records", icon: FlaskConical },
+  secrets: { id: "secrets", label: "Secret Locker", icon: Vault },
+  testing: { id: "testing", label: "Testing", icon: Microscope },
+  users: { id: "users", label: "Users", icon: UserRoundCog },
+  vendors: { id: "vendors", label: "Catalog", icon: Store }
+};
 
 const sectionMeta: Record<AdminSection, { breadcrumb: string; title: string; description: string }> = {
   overview: {
@@ -273,11 +287,35 @@ const clientApiClient = new PeptraceApiClient({
 const LEGACY_SESSION_STORAGE_KEY = "peptrace.admin.session";
 const SESSION_STORAGE_KEY_PREFIX = "peptrace.admin.session.portal";
 const TEST_ADMIN_PASSWORD = "Admin@123";
+const CLIENT_ACCESS_STATUSES = ["Granted", "Pending", "Paused"] as const;
+const CLIENT_TENANT_STATUSES = ["Healthy", "Watch", "At risk"] as const;
+const CLIENT_DATA_REGIONS = ["US", "EU", "UAE", "Syria"] as const;
+const DEFAULT_NEW_CLIENT_MODULES = ["overview", "operations", "users", "secrets", "access"];
+const AVAILABLE_CLIENT_MODULES = [
+  { id: "overview", label: "Overview" },
+  { id: "operations", label: "Operations" },
+  { id: "users", label: "Users" },
+  { id: "secrets", label: "Secret Locker" },
+  { id: "access", label: "Access" },
+  { id: "vendors", label: "Catalog" },
+  { id: "testing", label: "Testing" },
+  { id: "labs", label: "Labs" }
+];
 
 const loginPortals: LoginPortal[] = [
   {
-    accessValue: "Internal admin workspace",
-    aliases: ["/", "/login", "/esteemedengineering"],
+    accessValue: "Shared SaaS admin platform",
+    aliases: [
+      "/",
+      "/login",
+      "/admin",
+      "/esteemedengineering",
+      "/peptrace",
+      "/shamstay-bnb",
+      "/shamstaybnb",
+      "/sham-real-estate-hub",
+      "/shamrealestatehub"
+    ],
     brandName: "EsteemedEngineering",
     brandSubtitle: "Software operations",
     code: "EE-OPS",
@@ -289,11 +327,11 @@ const loginPortals: LoginPortal[] = [
       { description: "Project workflows, launch readiness, and support queues", icon: Activity, title: "Delivery oversight" },
       { description: "Permission, profile, and workspace management", icon: KeyRound, title: "Account governance" }
     ],
-    formDescription: "Sign in to manage your software operations workspace.",
+    formDescription: "Sign in once to access platform administration and every client workspace you belong to.",
     headline: "Run software operations with clarity.",
     id: "esteemedengineering",
     initials: "EE",
-    kind: "superadmin",
+    kind: "shared",
     path: "/",
     services: [
       { icon: LayoutDashboard, label: "Web apps" },
@@ -447,13 +485,25 @@ const getLoginPortal = (pathname: string): LoginPortal => {
   return loginPortals.find((portal) => portal.aliases.includes(normalizedPath)) ?? loginPortals[0]!;
 };
 
+const getRequestedTenantSlug = (pathname: string): string | null => {
+  const normalizedPath = normalizePortalPath(pathname);
+  return loginPortals.find((portal) => portal.kind === "client" && portal.aliases.includes(normalizedPath))?.tenantSlug ?? null;
+};
+
 const isSuperAdminSession = (session: AdminSession): boolean =>
   session.user.role === "superadmin" || session.user.role === "platform_admin";
 
+const getSessionTenants = (session: AdminSession): AdminSession["user"]["tenants"] =>
+  Array.isArray(session.user.tenants) ? session.user.tenants : [];
+
 const sessionMatchesPortal = (session: AdminSession, portal: LoginPortal): boolean =>
-  portal.kind === "superadmin"
+  portal.kind === "shared"
+    ? true
+    : portal.kind === "superadmin"
     ? isSuperAdminSession(session)
-    : !isSuperAdminSession(session) && session.user.tenantSlug === portal.tenantSlug;
+    : !isSuperAdminSession(session) &&
+      (session.user.tenantSlug === portal.tenantSlug ||
+        getSessionTenants(session).some((tenant) => tenant.slug === portal.tenantSlug));
 
 const getPortalSessionStorageKey = (portal: LoginPortal): string =>
   `${SESSION_STORAGE_KEY_PREFIX}.${portal.id}`;
@@ -523,6 +573,14 @@ const clearStoredSession = (portal: LoginPortal): void => {
   }
 };
 
+const wasStoredSessionRemembered = (portal: LoginPortal): boolean => {
+  try {
+    return window.localStorage.getItem(getPortalSessionStorageKey(portal)) !== null;
+  } catch {
+    return false;
+  }
+};
+
 class PortalAccessError extends Error {}
 
 const getSessionApiClient = (session: AdminSession): PeptraceApiClient =>
@@ -535,16 +593,39 @@ const setSessionToken = (session: AdminSession | null): void => {
 
 const loginToPortal = async (
   portal: LoginPortal,
-  body: { email: string; password: string }
+  body: { email: string; password: string },
+  requestedTenantSlug: string | null = null
 ): Promise<AdminSession> => {
-  const api = portal.kind === "superadmin" ? superAdminApiClient : clientApiClient;
-  const session = await api.login({ ...body, email: body.email.trim().toLowerCase() });
+  const loginBody = {
+    ...body,
+    email: body.email.trim().toLowerCase(),
+    tenantSlug: portal.kind === "client" ? portal.tenantSlug ?? undefined : undefined
+  };
+  const session =
+    portal.kind === "shared"
+      ? await loginToSharedPortal(loginBody, requestedTenantSlug)
+      : await (portal.kind === "superadmin" ? superAdminApiClient : clientApiClient).login(loginBody);
 
   if (!sessionMatchesPortal(session, portal)) {
     throw new PortalAccessError(`This sign-in page only accepts ${portal.brandName} accounts.`);
   }
 
   return session;
+};
+
+const loginToSharedPortal = async (body: { email: string; password: string }, requestedTenantSlug: string | null): Promise<AdminSession> => {
+  try {
+    return await superAdminApiClient.login(body);
+  } catch (error) {
+    if (!(error instanceof PeptraceApiError) || error.status !== 401) {
+      throw error;
+    }
+  }
+
+  return clientApiClient.login({
+    ...body,
+    tenantSlug: requestedTenantSlug ?? undefined
+  });
 };
 
 const formatUserName = (email: string): string => {
@@ -578,8 +659,17 @@ const getAccountInitials = (session: AdminSession): string => {
   return initials || "PT";
 };
 
+const getPortalForSession = (session: AdminSession, fallbackPortal: LoginPortal): LoginPortal => {
+  if (isSuperAdminSession(session)) {
+    return loginPortals[0]!;
+  }
+
+  return loginPortals.find((candidate) => candidate.tenantSlug === session.user.tenantSlug) ?? fallbackPortal;
+};
+
 export function App() {
   const portal = useMemo(() => getLoginPortal(window.location.pathname), []);
+  const requestedTenantSlug = useMemo(() => getRequestedTenantSlug(window.location.pathname), []);
   const [session, setSession] = useState<AdminSession | null>(() => readStoredSession(portal));
   const [activeSection, setActiveSection] = useState<AdminSection>("overview");
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
@@ -587,6 +677,8 @@ export function App() {
   const [panelContext, setPanelContext] = useState<AdminPanelContext | null>(null);
   const [panelData, setPanelData] = useState<AdminPanelData | null>(null);
   const [panelError, setPanelError] = useState<string | null>(null);
+  const [isCreateClientOpen, setIsCreateClientOpen] = useState(false);
+  const [tenantSwitchError, setTenantSwitchError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [pageFilter, setPageFilter] = useState("");
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
@@ -608,10 +700,12 @@ export function App() {
   }, [pageFilter, panelData]);
 
   setSessionToken(session);
+  const activePortal = session ? getPortalForSession(session, portal) : portal;
+  const availableTenants = session && !isSuperAdminSession(session) ? getSessionTenants(session) : [];
 
   useEffect(() => {
-    document.title = session ? `${portal.brandName} Admin` : `${portal.brandName} Admin Login`;
-  }, [portal.brandName, session]);
+    document.title = session ? `${activePortal.brandName} Admin` : `${portal.brandName} Admin Login`;
+  }, [activePortal.brandName, portal.brandName, session]);
 
   useEffect(() => {
     setActiveSection("overview");
@@ -695,6 +789,7 @@ export function App() {
     return (
       <LoginScreen
         portal={portal}
+        requestedTenantSlug={requestedTenantSlug}
         onLogin={(nextSession, rememberMe) => {
           writeStoredSession(nextSession, rememberMe, portal);
           setSessionToken(nextSession);
@@ -709,9 +804,31 @@ export function App() {
     setSessionToken(null);
     setIsAccountMenuOpen(false);
     setIsNotificationMenuOpen(false);
+    setIsCreateClientOpen(false);
     setPanelContext(null);
     setPanelData(null);
     setSession(null);
+  };
+
+  const switchTenant = async (tenantId: string) => {
+    if (!session || isSuperAdminSession(session) || tenantId === session.user.tenantId) {
+      return;
+    }
+
+    setTenantSwitchError(null);
+    try {
+      const nextSession = await clientApiClient.switchTenant({ tenantId });
+      writeStoredSession(nextSession, wasStoredSessionRemembered(portal), portal);
+      setSessionToken(nextSession);
+      setIsAccountMenuOpen(false);
+      setIsNotificationMenuOpen(false);
+      setIsCreateClientOpen(false);
+      setPanelContext(null);
+      setPanelData(null);
+      setSession(nextSession);
+    } catch {
+      setTenantSwitchError("Could not switch workspace.");
+    }
   };
 
   if (!panelContext) {
@@ -728,15 +845,16 @@ export function App() {
   const accountName = session.user.displayName ?? formatUserName(session.user.email);
   const roleLabel = formatRole(session.user.role);
   const workspaceName = panelContext.mode === "client" ? panelContext.company.name : "EsteemedEngineering";
-  const workspaceInitials = portal.initials || (isPeptraceClient ? "PT" : getWorkspaceInitials(workspaceName));
-  const workspaceSubline = portal.brandSubtitle;
+  const workspaceInitials = isSuperAdminSession(session) ? activePortal.initials : getWorkspaceInitials(workspaceName);
+  const workspaceSubline = panelContext.mode === "client" ? panelContext.panel.industry : activePortal.brandSubtitle;
   const navigation = getPanelNavigationGroups(panelContext);
-  const isEsteemedEngineeringWorkspace = portal.kind === "superadmin";
+  const isEsteemedEngineeringWorkspace = isSuperAdminSession(session);
   const notificationCount = getNotificationCount(notificationItems);
+  const clientAccentColor = panelContext.mode === "client" ? panelContext.panel.accentColor : null;
   const workspaceThemeStyle = {
-    "--sidebar-accent": portal.theme.accent,
-    "--sidebar-accent-strong": portal.theme.accentStrong,
-    "--sidebar-soft": portal.theme.soft
+    "--sidebar-accent": clientAccentColor ?? activePortal.theme.accent,
+    "--sidebar-accent-strong": clientAccentColor ?? activePortal.theme.accentStrong,
+    "--sidebar-soft": panelContext.mode === "client" ? "#eef7f4" : activePortal.theme.soft
   } as CSSProperties;
 
   const selectNotification = (item: NotificationItem) => {
@@ -747,7 +865,7 @@ export function App() {
   };
 
   return (
-    <div className="app-shell" data-portal={portal.id} style={workspaceThemeStyle}>
+    <div className="app-shell" data-portal={activePortal.id} style={workspaceThemeStyle}>
       <aside className="sidebar" aria-label={`${workspaceName} navigation`}>
         <div className="tenant-switcher">
           <span className={isEsteemedEngineeringWorkspace ? "tenant-avatar tenant-avatar-logo" : "tenant-avatar"}>
@@ -795,8 +913,8 @@ export function App() {
         <div className="sidebar-status">
           <ShieldCheck size={18} strokeWidth={2} />
           <div>
-            <strong>{portal.kind === "superadmin" ? "Protected platform access" : "Protected client access"}</strong>
-            <span>{portal.code} / {roleLabel}</span>
+            <strong>{isSuperAdminSession(session) ? "Protected platform access" : "Protected client access"}</strong>
+            <span>{activePortal.code} / {roleLabel}</span>
           </div>
         </div>
       </aside>
@@ -945,6 +1063,28 @@ export function App() {
                     </div>
                   </dl>
 
+                  {availableTenants.length > 1 && (
+                    <div className="workspace-switch-list" aria-label="Switch workspace">
+                      <strong>Workspaces</strong>
+                      {availableTenants.map((tenant) => (
+                        <button
+                          className="workspace-switch-item"
+                          data-active={tenant.id === session.user.tenantId}
+                          key={tenant.id}
+                          onClick={() => switchTenant(tenant.id)}
+                          type="button"
+                        >
+                          <span>{getWorkspaceInitials(tenant.name)}</span>
+                          <span>
+                            <strong>{tenant.name}</strong>
+                            <small>{formatRole(tenant.role)}</small>
+                          </span>
+                        </button>
+                      ))}
+                      {tenantSwitchError && <small className="workspace-switch-error">{tenantSwitchError}</small>}
+                    </div>
+                  )}
+
                   <Button className="account-menu-item danger" onClick={signOut} role="menuitem" type="button" variant="ghost">
                     <LogOut size={16} strokeWidth={2} />
                     <span>Log out</span>
@@ -955,7 +1095,16 @@ export function App() {
           </div>
         </header>
 
-        <PageHeader meta={activeMeta} primaryAction={getPrimaryActionLabel(panelContext, activeSection)} section={activeSection} />
+        <PageHeader
+          meta={activeMeta}
+          onPrimaryAction={
+            panelContext.mode === "superadmin" && activeSection === "clients"
+              ? () => setIsCreateClientOpen(true)
+              : undefined
+          }
+          primaryAction={getPrimaryActionLabel(panelContext, activeSection)}
+          section={activeSection}
+        />
 
         {panelContext.mode === "superadmin" ? (
           <SuperAdminPanel context={panelContext} query={pageFilter} section={activeSection} />
@@ -966,6 +1115,21 @@ export function App() {
             query={pageFilter}
             section={activeSection}
             vendors={visibleVendors}
+          />
+        )}
+
+        {isCreateClientOpen && panelContext.mode === "superadmin" && (
+          <CreateClientDialog
+            api={superAdminApiClient}
+            onClose={() => setIsCreateClientOpen(false)}
+            onCreated={async () => {
+              const refreshedContext = await superAdminApiClient.getAdminPanelContext();
+              setPanelContext(refreshedContext);
+              setActiveSection("clients");
+              setPageFilter("");
+              setQuery("");
+              setIsCreateClientOpen(false);
+            }}
           />
         )}
       </main>
@@ -1743,16 +1907,33 @@ function getPanelNavigationGroups(context: AdminPanelContext): Array<{ label: st
     ];
   }
 
+  return getGenericClientNavigation(context);
+}
+
+function getGenericClientNavigation(context: Extract<AdminPanelContext, { mode: "client" }>): Array<{ label: string; items: NavItem[] }> {
+  const overviewItem = genericClientModuleNavigation.overview!;
+  const configuredModules =
+    context.panel.enabledModules && context.panel.enabledModules.length > 0
+      ? context.panel.enabledModules
+      : DEFAULT_NEW_CLIENT_MODULES;
+  const seenSections = new Set<AdminSection>();
+  const items = configuredModules.flatMap((moduleId) => {
+    const item = genericClientModuleNavigation[moduleId];
+    if (!item || seenSections.has(item.id)) {
+      return [];
+    }
+    seenSections.add(item.id);
+    return [item];
+  });
+
+  if (!seenSections.has("overview")) {
+    items.unshift(overviewItem);
+  }
+
   return [
     {
       label: context.panel.brandName,
-      items: [
-        { id: "overview", label: "Overview", icon: LayoutDashboard },
-        { id: "testing", label: "Operations", icon: Activity },
-        { id: "users", label: "Users", icon: UserRoundCog },
-        { id: "secrets", label: "Secret Locker", icon: Vault },
-        { id: "access", label: "Settings", icon: KeyRound }
-      ]
+      items: items.length > 0 ? items : [overviewItem]
     }
   ];
 }
@@ -3557,12 +3738,332 @@ function filterCompanies<T extends AdminPanelCompany>(companies: T[], query: str
   );
 }
 
+type CreateClientForm = {
+  accessStatus: (typeof CLIENT_ACCESS_STATUSES)[number];
+  accentColor: string;
+  createOwnerAccount: boolean;
+  dataRegion: (typeof CLIENT_DATA_REGIONS)[number];
+  enabledAccounts: string;
+  enabledModules: string[];
+  industry: string;
+  name: string;
+  openItems: string;
+  operationalValue: string;
+  owner: string;
+  ownerDisplayName: string;
+  ownerEmail: string;
+  ownerPassword: string;
+  slug: string;
+  status: (typeof CLIENT_TENANT_STATUSES)[number];
+};
+
+const createEmptyClientForm = (): CreateClientForm => ({
+  accessStatus: "Granted",
+  accentColor: "#0e7467",
+  createOwnerAccount: true,
+  dataRegion: "UAE",
+  enabledAccounts: "3",
+  enabledModules: DEFAULT_NEW_CLIENT_MODULES,
+  industry: "Operations",
+  name: "",
+  openItems: "1",
+  operationalValue: "0",
+  owner: "",
+  ownerDisplayName: "",
+  ownerEmail: "",
+  ownerPassword: "",
+  slug: "",
+  status: "Healthy"
+});
+
+const slugifyTenantName = (value: string): string =>
+  value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+
+function CreateClientDialog({
+  api,
+  onClose,
+  onCreated
+}: {
+  api: PeptraceApiClient;
+  onClose: () => void;
+  onCreated: (client: AdminPanelCompany) => void | Promise<void>;
+}) {
+  const [form, setForm] = useState<CreateClientForm>(() => createEmptyClientForm());
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isSubmitting) onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSubmitting, onClose]);
+
+  const updateField = <Key extends keyof CreateClientForm>(field: Key, value: CreateClientForm[Key]) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const updateName = (value: string) => {
+    setForm((current) => ({
+      ...current,
+      name: value,
+      slug: current.slug === slugifyTenantName(current.name) ? slugifyTenantName(value) : current.slug
+    }));
+  };
+
+  const toggleModule = (moduleId: string, enabled: boolean) => {
+    setForm((current) => {
+      if (moduleId === "overview") {
+        return current;
+      }
+      const modules = new Set(current.enabledModules);
+      if (enabled) {
+        modules.add(moduleId);
+      } else {
+        modules.delete(moduleId);
+      }
+      modules.add("overview");
+      return { ...current, enabledModules: AVAILABLE_CLIENT_MODULES.map((module) => module.id).filter((id) => modules.has(id)) };
+    });
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+
+    const enabledAccounts = Number(form.enabledAccounts);
+    const operationalValue = Number(form.operationalValue);
+    const openItems = Number(form.openItems);
+    if (![enabledAccounts, operationalValue, openItems].every(Number.isInteger)) {
+      setError("Client account, value, and open item fields must be whole numbers.");
+      return;
+    }
+    if (form.createOwnerAccount && (!form.ownerEmail.trim() || !form.ownerDisplayName.trim() || !form.ownerPassword)) {
+      setError("Owner account creation needs an email, display name, and initial password.");
+      return;
+    }
+
+    const body: CreateClientRequest = {
+      accessStatus: form.accessStatus,
+      accentColor: form.accentColor.trim() || undefined,
+      dataRegion: form.dataRegion,
+      enabledAccounts,
+      industry: form.industry.trim() || undefined,
+      name: form.name.trim(),
+      openItems,
+      operationalValue,
+      owner: form.owner.trim(),
+      slug: slugifyTenantName(form.slug),
+      status: form.status,
+      ownerUser: form.createOwnerAccount
+        ? {
+            displayName: form.ownerDisplayName.trim(),
+            email: form.ownerEmail.trim().toLowerCase(),
+            password: form.ownerPassword
+          }
+        : undefined,
+      settings: {
+        branding: {
+          accentColor: form.accentColor.trim() || "#0e7467",
+          name: form.name.trim(),
+          slug: slugifyTenantName(form.slug)
+        },
+        enabledModules: form.enabledModules
+      }
+    };
+
+    setIsSubmitting(true);
+    try {
+      const client = await api.createClient(body);
+      try {
+        await onCreated(client);
+      } catch {
+        setError("Client was created, but the admin panel could not refresh. Reload the workspace to see the new tenant.");
+      }
+    } catch (requestError) {
+      setError(getCreateClientError(requestError));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div
+      className="secret-dialog-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !isSubmitting) onClose();
+      }}
+      role="presentation"
+    >
+      <section aria-labelledby="create-client-dialog-title" aria-modal="true" className="secret-dialog client-dialog" role="dialog">
+        <div className="secret-dialog-header">
+          <div className="secret-dialog-title-group">
+            <span className="secret-dialog-icon">
+              <Building2 size={20} strokeWidth={2} />
+            </span>
+            <div>
+              <p>Platform tenant</p>
+              <h2 id="create-client-dialog-title">Add client</h2>
+            </div>
+          </div>
+          <Button aria-label="Close" className="icon-button compact" disabled={isSubmitting} onClick={onClose} title="Close" type="button" variant="outline" size="icon">
+            <X size={17} strokeWidth={2} />
+          </Button>
+        </div>
+
+        <form className="secret-dialog-form" onSubmit={submit}>
+          <div className="secret-dialog-notice">
+            <ShieldCheck size={18} strokeWidth={2} />
+            <span>New clients receive tenant settings, a white-label panel, and membership-based owner access in one transaction.</span>
+          </div>
+
+          {error && (
+            <div className="secret-dialog-error" role="alert">
+              <AlertCircle size={18} strokeWidth={2} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="client-dialog-grid">
+            <label className="form-field">
+              <span>Company name</span>
+              <Input autoFocus maxLength={120} onChange={(event) => updateName(event.target.value)} required value={form.name} />
+            </label>
+            <label className="form-field">
+              <span>Tenant slug</span>
+              <Input
+                maxLength={80}
+                onChange={(event) => updateField("slug", slugifyTenantName(event.target.value))}
+                pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                required
+                value={form.slug}
+              />
+            </label>
+            <label className="form-field">
+              <span>Owner</span>
+              <Input maxLength={120} onChange={(event) => updateField("owner", event.target.value)} required value={form.owner} />
+            </label>
+            <label className="form-field">
+              <span>Industry</span>
+              <Input maxLength={120} onChange={(event) => updateField("industry", event.target.value)} value={form.industry} />
+            </label>
+            <label className="form-field">
+              <span>Access</span>
+              <select onChange={(event) => updateField("accessStatus", event.target.value as CreateClientForm["accessStatus"])} value={form.accessStatus}>
+                {CLIENT_ACCESS_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Health</span>
+              <select onChange={(event) => updateField("status", event.target.value as CreateClientForm["status"])} value={form.status}>
+                {CLIENT_TENANT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Data region</span>
+              <select onChange={(event) => updateField("dataRegion", event.target.value as CreateClientForm["dataRegion"])} value={form.dataRegion}>
+                {CLIENT_DATA_REGIONS.map((region) => <option key={region} value={region}>{region}</option>)}
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Accent color</span>
+              <Input maxLength={7} onChange={(event) => updateField("accentColor", event.target.value)} pattern="#[0-9a-fA-F]{6}" value={form.accentColor} />
+            </label>
+            <label className="form-field">
+              <span>Enabled accounts</span>
+              <Input min={1} onChange={(event) => updateField("enabledAccounts", event.target.value)} required type="number" value={form.enabledAccounts} />
+            </label>
+            <label className="form-field">
+              <span>Operational value</span>
+              <Input min={0} onChange={(event) => updateField("operationalValue", event.target.value)} required type="number" value={form.operationalValue} />
+            </label>
+            <label className="form-field">
+              <span>Open items</span>
+              <Input min={0} onChange={(event) => updateField("openItems", event.target.value)} required type="number" value={form.openItems} />
+            </label>
+          </div>
+
+          <div className="client-owner-section">
+            <div className="secret-label-heading">
+              <div>
+                <strong>Enabled modules</strong>
+                <span>Selected modules are saved to tenant settings.</span>
+              </div>
+            </div>
+            <div className="client-module-grid">
+              {AVAILABLE_CLIENT_MODULES.map((module) => (
+                <label className="client-module-toggle" key={module.id}>
+                  <Checkbox
+                    checked={form.enabledModules.includes(module.id)}
+                    disabled={module.id === "overview"}
+                    onCheckedChange={(checked) => toggleModule(module.id, checked === true)}
+                  />
+                  <span>{module.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="client-owner-section">
+            <label className="client-owner-toggle">
+              <Checkbox checked={form.createOwnerAccount} onCheckedChange={(checked) => updateField("createOwnerAccount", checked === true)} />
+              <span>
+                <strong>Create owner account</strong>
+                <small>Owner access is stored as a tenant membership.</small>
+              </span>
+            </label>
+
+            {form.createOwnerAccount && (
+              <div className="client-dialog-grid">
+                <label className="form-field">
+                  <span>Owner display name</span>
+                  <Input maxLength={120} onChange={(event) => updateField("ownerDisplayName", event.target.value)} required value={form.ownerDisplayName} />
+                </label>
+                <label className="form-field">
+                  <span>Owner email</span>
+                  <Input autoComplete="email" onChange={(event) => updateField("ownerEmail", event.target.value)} required type="email" value={form.ownerEmail} />
+                </label>
+                <label className="form-field">
+                  <span>Initial password</span>
+                  <Input autoComplete="new-password" minLength={8} onChange={(event) => updateField("ownerPassword", event.target.value)} required type="password" value={form.ownerPassword} />
+                </label>
+              </div>
+            )}
+          </div>
+
+          <div className="secret-dialog-actions">
+            <Button className="secondary-button" disabled={isSubmitting} onClick={onClose} type="button" variant="outline">
+              Cancel
+            </Button>
+            <Button className="primary-button" disabled={isSubmitting} type="submit">
+              {isSubmitting ? <LoaderCircle className="button-spinner" size={17} /> : <Plus size={17} strokeWidth={2} />}
+              <span>{isSubmitting ? "Creating client" : "Create client"}</span>
+            </Button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+function getCreateClientError(error: unknown): string {
+  if (error instanceof PeptraceApiError && error.payload && typeof error.payload === "object" && "message" in error.payload) {
+    const message = (error.payload as { message?: unknown }).message;
+    if (Array.isArray(message)) return message.join(" ");
+    if (typeof message === "string") return message;
+  }
+  return "Could not create the client. Please try again.";
+}
+
 function LoginScreen({
   onLogin,
-  portal
+  portal,
+  requestedTenantSlug
 }: {
   onLogin: (session: AdminSession, rememberMe: boolean) => void;
   portal: LoginPortal;
+  requestedTenantSlug: string | null;
 }) {
   const [email, setEmail] = useState(import.meta.env.DEV ? portal.defaultEmail : "");
   const [password, setPassword] = useState(import.meta.env.DEV ? TEST_ADMIN_PASSWORD : "");
@@ -3577,7 +4078,7 @@ function LoginScreen({
     setIsSubmitting(true);
 
     try {
-      const nextSession = await loginToPortal(portal, { email, password });
+      const nextSession = await loginToPortal(portal, { email, password }, requestedTenantSlug);
       onLogin(nextSession, rememberMe);
     } catch (loginError) {
       if (loginError instanceof PortalAccessError) {
@@ -3611,7 +4112,7 @@ function LoginScreen({
         <aside className="login-brand-panel" aria-label={`${portal.brandName} admin portal overview`}>
           <div className="login-brand-header">
             <span className="login-brand-mark" aria-hidden="true">
-              {portal.kind === "superadmin" ? (
+              {portal.kind !== "client" ? (
                 <EsteemedEngineeringLogo className="ee-logo" />
               ) : (
                 <span className="login-client-initials">{portal.initials}</span>
@@ -3769,10 +4270,12 @@ function LoginScreen({
 
 function PageHeader({
   meta,
+  onPrimaryAction,
   primaryAction,
   section
 }: {
   meta: (typeof sectionMeta)[AdminSection];
+  onPrimaryAction?: () => void;
   primaryAction?: string;
   section: AdminSection;
 }) {
@@ -3788,7 +4291,7 @@ function PageHeader({
           <Download size={17} strokeWidth={2} />
           <span>Export</span>
         </Button>
-        <Button className="primary-button" type="button">
+        <Button className="primary-button" onClick={onPrimaryAction} type="button">
           {section === "vendors" || primaryAction?.startsWith("Add") || primaryAction?.startsWith("Invite") ? (
             <Plus size={17} strokeWidth={2} />
           ) : (

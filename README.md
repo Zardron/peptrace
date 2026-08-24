@@ -43,23 +43,26 @@ Docker Compose starts:
 The superadmin API route index is served at `http://localhost:3000/api`.
 The client API route index is served at `http://localhost:3001/client-api`.
 
-## Dedicated Login Portals
+## Shared Admin Login
 
-Each company signs in through its own URL. The selected portal determines the
-API service, branding, allowed tenant, and browser session namespace:
+The admin app now uses one shared login and one shared frontend. The legacy
+client URLs remain as compatibility aliases during migration, but tenant access
+is resolved from the authenticated user's active `TenantMembership` records:
 
-- EsteemedEngineering: `http://localhost:5173/`
-- Peptrace: `http://localhost:5173/peptrace`
-- Shamstay BnB: `http://localhost:5173/shamstay-bnb`
-- Sham Real Estate Hub: `http://localhost:5173/sham-real-estate-hub`
+- Shared admin: `http://localhost:5173/`
+- Compatibility alias: `http://localhost:5173/peptrace`
+- Compatibility alias: `http://localhost:5173/shamstay-bnb`
+- Compatibility alias: `http://localhost:5173/sham-real-estate-hub`
 
-The root portal accepts only EsteemedEngineering superadmins. Each client portal
-accepts only accounts attached to that client in the database.
+Client users can switch between workspaces they belong to from the account
+menu. Shared auth, user, and tenant endpoints are listed in
+[docs/shared-endpoints.md](docs/shared-endpoints.md).
 
 ## Admin Logins
 
-The admin login is backed by the `AdminUser` table in Postgres. Local seed data
-creates a platform superadmin plus white-label client accounts:
+The admin login is backed by global `AdminUser` records and tenant-scoped
+`TenantMembership` rows in Postgres. Local seed data creates a platform
+superadmin plus white-label client accounts:
 
 - EsteemedEngineering superadmin: `admin@esteemedengineering.com` / `Admin@123`
 - Peptrace owner: `owner@peptrace.com` / `Admin@123`
@@ -71,6 +74,19 @@ creates a platform superadmin plus white-label client accounts:
 
 Set `SUPERADMIN_EMAIL` and `ADMIN_PASSWORD` before running `npm run db:seed` to
 change the seeded platform account.
+
+For an existing database that already has the base Peptrace tables, apply the
+multi-tenant membership backfill before starting the updated APIs:
+
+```sh
+npm run db:migrate:multitenancy
+npm run db:seed
+```
+
+The migration creates `TenantMembership`, `TenantSettings`, and
+`PlatformAuditEvent`. Authenticated admin routes expect those tables to exist.
+For a fresh local/demo database, `npm run db:setup` still creates the current
+schema with `db:push` and then seeds repeatable demo data.
 
 ## Client User Management
 
@@ -156,7 +172,35 @@ before using this screen and configure a production
 `DATABASE_CONNECTION_ENCRYPTION_KEY`.
 
 Provider fields, security controls, and the repository-adapter rollout are
-documented in [docs/client-database-connections.md](docs/client-database-connections.md).
+summarized in [docs/shared-endpoints.md](docs/shared-endpoints.md).
 
 The admin app reads shared types from `@peptrace/domain`, so backend services
 can reuse the same contracts as they come online.
+
+## Backend Service Endpoints
+
+The backend now has a service catalog that separates shared services from
+client-specific service assignments without requiring admin panel changes.
+
+- Platform service definitions and tenant assignments: `/api/services` and
+  `/api/clients/:tenantId/services`
+- Client service discovery: `/client-api/services`
+- Client operations read API: `/client-api/operations`,
+  `/client-api/operations/records`, and `/client-api/operations/work-items`
+- Peptrace quality read API: `/client-api/quality/vendors`,
+  `/client-api/quality/peptides`, `/client-api/quality/labs`,
+  `/client-api/quality/tests`, `/client-api/quality/batches`, and
+  `/client-api/quality/certificates`
+- Shamstay BnB project API: `/client-api/shamstay/properties`,
+  `/client-api/shamstay/reservations`, `/client-api/shamstay/turnovers`,
+  `/client-api/shamstay/maintenance`, and `/client-api/shamstay/payouts`
+- Sham Real Estate Hub project API: `/client-api/real-estate/listings`,
+  `/client-api/real-estate/leads`, `/client-api/real-estate/viewings`,
+  `/client-api/real-estate/offers`, and `/client-api/real-estate/commissions`
+
+Endpoint docs are split by ownership:
+
+- [docs/shared-endpoints.md](docs/shared-endpoints.md)
+- [docs/peptrace-endpoints.md](docs/peptrace-endpoints.md)
+- [docs/shamstay-endpoints.md](docs/shamstay-endpoints.md)
+- [docs/shamrealestate-endpoints.md](docs/shamrealestate-endpoints.md)

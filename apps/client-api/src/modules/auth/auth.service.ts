@@ -1,12 +1,24 @@
-import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { PrismaService } from "../prisma/prisma.service";
-import { LoginDto } from "./auth.dto";
+import { LoginDto, SwitchTenantDto } from "./auth.dto";
 import { AuthenticatedClientUser, AuthTokenPayload, ClientSession } from "./auth.types";
+import {
+  TenantMembershipCandidate,
+  selectTenantMembership,
+  toTenantMembershipSummary
+} from "./tenant-membership.policy";
 
-type AdminUserWithTenant = Prisma.AdminUserGetPayload<{ include: { tenant: true } }>;
+type AdminUserWithMemberships = Prisma.AdminUserGetPayload<{
+  include: {
+    memberships: {
+      include: { tenant: true };
+    };
+    tenant: true;
+  };
+}>;
 
 const SUPERADMIN_ROLES = new Set(["superadmin", "platform_admin"]);
 const AUTHENTICATED_USER_CACHE_TTL_MS = 60_000;
@@ -19,7 +31,7 @@ export class AuthService {
     string,
     { expiresAt: number; user: AuthenticatedClientUser }
   >();
-  private readonly loginUserCache = new Map<string, { expiresAt: number; user: AdminUserWithTenant }>();
+  private readonly loginUserCache = new Map<string, { expiresAt: number; user: AdminUserWithMemberships }>();
 
   constructor(
     private readonly jwtService: JwtService,
@@ -30,7 +42,7 @@ export class AuthService {
     const email = this.normalizeEmail(dto.email);
     const adminUser = await this.findLoginUser(email);
 
-    if (!adminUser || !adminUser.isActive || !adminUser.tenant || SUPERADMIN_ROLES.has(adminUser.role)) {
+    if (!adminUser || !adminUser.isActive || SUPERADMIN_ROLES.has(adminUser.role)) {
       throw new UnauthorizedException("Invalid client email or password");
     }
 
@@ -41,7 +53,24 @@ export class AuthService {
 
     this.recordLastLogin(adminUser.id);
 
-    const authenticatedUser = this.toAuthenticatedClientUser(adminUser);
+    const authenticatedUser = this.toAuthenticatedClientUser(adminUser, dto.tenantId ?? dto.tenantSlug);
+    this.cacheAuthenticatedUser(authenticatedUser);
+    return this.issueToken(authenticatedUser);
+  }
+
+  async switchTenant(authorizationHeader: string | undefined, dto: SwitchTenantDto): Promise<ClientSession> {
+    const currentUser = await this.getAuthenticatedUser(authorizationHeader);
+    const requestedTenant = dto.tenantId ?? dto.tenantSlug;
+    if (!requestedTenant) {
+      throw new BadRequestException("Provide tenantId or tenantSlug to switch tenant context");
+    }
+
+    const adminUser = await this.queryLoginUser(currentUser.email);
+    if (!adminUser || !adminUser.isActive || SUPERADMIN_ROLES.has(adminUser.role)) {
+      throw new UnauthorizedException("Client session not found");
+    }
+
+    const authenticatedUser = this.toAuthenticatedClientUser(adminUser, requestedTenant);
     this.cacheAuthenticatedUser(authenticatedUser);
     return this.issueToken(authenticatedUser);
   }
@@ -68,29 +97,39 @@ export class AuthService {
       throw new UnauthorizedException("Invalid or expired bearer token");
     }
 
-    const cachedUser = this.authenticatedUserCache.get(payload.sub);
+    const cacheKey = this.getAuthenticatedUserCacheKey(payload.sub, payload.tenantId);
+    const cachedUser = this.authenticatedUserCache.get(cacheKey);
     if (cachedUser && cachedUser.expiresAt > Date.now()) {
       return cachedUser.user;
     }
 
-    this.authenticatedUserCache.delete(payload.sub);
+    this.authenticatedUserCache.delete(cacheKey);
 
     const adminUser = await this.prisma.adminUser.findUnique({
-      include: { tenant: true },
+      include: {
+        memberships: {
+          include: { tenant: true }
+        },
+        tenant: true
+      },
       where: { id: payload.sub }
     });
 
-    if (!adminUser || !adminUser.isActive || !adminUser.tenant || SUPERADMIN_ROLES.has(adminUser.role)) {
+    if (!adminUser || !adminUser.isActive || SUPERADMIN_ROLES.has(adminUser.role)) {
       throw new UnauthorizedException("Client session not found");
     }
 
-    const authenticatedUser = this.toAuthenticatedClientUser(adminUser);
+    const authenticatedUser = this.toAuthenticatedClientUser(adminUser, payload.tenantId ?? undefined);
     this.cacheAuthenticatedUser(authenticatedUser);
     return authenticatedUser;
   }
 
   invalidateUser(userId: string, email?: string): void {
-    this.authenticatedUserCache.delete(userId);
+    for (const key of this.authenticatedUserCache.keys()) {
+      if (key === userId || key.startsWith(`${userId}:`)) {
+        this.authenticatedUserCache.delete(key);
+      }
+    }
     if (email) {
       this.loginUserCache.delete(this.normalizeEmail(email));
     }
@@ -99,6 +138,7 @@ export class AuthService {
   private async issueToken(user: AuthenticatedClientUser): Promise<ClientSession> {
     const accessToken = await this.jwtService.signAsync({
       email: user.email,
+      membershipId: user.membershipId,
       role: user.role,
       sub: user.id,
       tenantId: user.tenantId
@@ -112,10 +152,12 @@ export class AuthService {
         email: user.email,
         displayName: user.displayName,
         id: user.id,
+        membershipId: user.membershipId,
         role: user.role,
         tenantId: user.tenantId,
         tenantName: user.tenantName,
-        tenantSlug: user.tenantSlug
+        tenantSlug: user.tenantSlug,
+        tenants: user.tenants
       }
     };
   }
@@ -129,7 +171,7 @@ export class AuthService {
     return email.trim().toLowerCase();
   }
 
-  private async findLoginUser(email: string): Promise<AdminUserWithTenant | null> {
+  private async findLoginUser(email: string): Promise<AdminUserWithMemberships | null> {
     const cachedUser = this.loginUserCache.get(email);
     if (cachedUser) {
       if (cachedUser.expiresAt <= Date.now()) {
@@ -152,10 +194,15 @@ export class AuthService {
     return user;
   }
 
-  private queryLoginUser(email: string): Promise<AdminUserWithTenant | null> {
+  private queryLoginUser(email: string): Promise<AdminUserWithMemberships | null> {
     return this.prisma.withConnectionRetry(() =>
       this.prisma.adminUser.findUnique({
-        include: { tenant: true },
+        include: {
+          memberships: {
+            include: { tenant: true }
+          },
+          tenant: true
+        },
         where: { email }
       })
     );
@@ -190,30 +237,74 @@ export class AuthService {
   }
 
   private cacheAuthenticatedUser(user: AuthenticatedClientUser): void {
-    this.authenticatedUserCache.set(user.id, {
+    this.authenticatedUserCache.set(this.getAuthenticatedUserCacheKey(user.id, user.tenantId), {
       expiresAt: Date.now() + AUTHENTICATED_USER_CACHE_TTL_MS,
       user
     });
   }
 
-  private toAuthenticatedClientUser(adminUser: AdminUserWithTenant): AuthenticatedClientUser {
-    if (!adminUser.tenant) {
+  private getAuthenticatedUserCacheKey(userId: string, tenantId: string | null | undefined): string {
+    return `${userId}:${tenantId ?? "none"}`;
+  }
+
+  private toAuthenticatedClientUser(
+    adminUser: AdminUserWithMemberships,
+    requestedTenant?: string | null
+  ): AuthenticatedClientUser {
+    const memberships = this.getMembershipCandidates(adminUser);
+    const selectedMembership = selectTenantMembership(memberships, requestedTenant);
+
+    if (!selectedMembership) {
       throw new UnauthorizedException("Client account is not assigned to a company");
     }
+
+    const tenants = memberships.filter((membership) => membership.isActive).map(toTenantMembershipSummary);
 
     return {
       id: adminUser.id,
       displayName: adminUser.displayName,
       email: adminUser.email,
-      role: adminUser.role,
-      tenantId: adminUser.tenant.id,
-      tenantName: adminUser.tenant.name,
-      tenantSlug: adminUser.tenant.slug,
+      membershipId: selectedMembership.id,
+      role: selectedMembership.role,
+      tenantId: selectedMembership.tenant.id,
+      tenantName: selectedMembership.tenant.name,
+      tenantSlug: selectedMembership.tenant.slug,
       tenant: {
-        id: adminUser.tenant.id,
-        name: adminUser.tenant.name,
-        slug: adminUser.tenant.slug
-      }
+        id: selectedMembership.tenant.id,
+        name: selectedMembership.tenant.name,
+        slug: selectedMembership.tenant.slug
+      },
+      tenants
     };
+  }
+
+  private getMembershipCandidates(adminUser: AdminUserWithMemberships): TenantMembershipCandidate[] {
+    const memberships: TenantMembershipCandidate[] = adminUser.memberships
+      .filter((membership) => membership.tenant)
+      .map((membership) => ({
+        id: membership.id,
+        isActive: membership.isActive,
+        role: membership.role,
+        tenant: {
+          id: membership.tenant.id,
+          name: membership.tenant.name,
+          slug: membership.tenant.slug
+        }
+      }));
+
+    if (adminUser.tenant && !memberships.some((membership) => membership.tenant.id === adminUser.tenantId)) {
+      memberships.push({
+        id: null,
+        isActive: adminUser.isActive,
+        role: adminUser.role,
+        tenant: {
+          id: adminUser.tenant.id,
+          name: adminUser.tenant.name,
+          slug: adminUser.tenant.slug
+        }
+      });
+    }
+
+    return memberships;
   }
 }

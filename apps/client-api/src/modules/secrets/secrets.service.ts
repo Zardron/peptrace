@@ -334,6 +334,13 @@ export class SecretsService {
         where: { secretId: secret.id, tenantId: actor.tenantId }
       })
     );
+    const memberships = await this.prisma.withConnectionRetry(() =>
+      this.prisma.tenantMembership.findMany({
+        select: { role: true, userId: true },
+        where: { tenantId: actor.tenantId, userId: { in: grants.map((grant) => grant.userId) } }
+      })
+    );
+    const rolesByUserId = new Map(memberships.map((membership) => [membership.userId, membership.role]));
 
     return grants.map((grant) => ({
       createdAt: grant.createdAt,
@@ -344,7 +351,7 @@ export class SecretsService {
         email: grant.user.email,
         id: grant.userId,
         isActive: grant.user.isActive,
-        role: grant.user.role
+        role: rolesByUserId.get(grant.userId) ?? grant.user.role
       }
     }));
   }
@@ -358,15 +365,19 @@ export class SecretsService {
     this.assertLockerAdmin(actor);
     const secret = await this.getTenantSecret(identifier, actor.tenantId);
     const target = await this.prisma.withConnectionRetry(() =>
-      this.prisma.adminUser.findFirst({
-        select: { displayName: true, email: true, id: true, isActive: true, role: true },
-        where: { id: userId, tenantId: actor.tenantId }
+      this.prisma.tenantMembership.findFirst({
+        select: {
+          isActive: true,
+          role: true,
+          user: { select: { displayName: true, email: true, id: true, isActive: true } }
+        },
+        where: { tenantId: actor.tenantId, userId }
       })
     );
     if (!target) {
       throw new NotFoundException("User not found in this company");
     }
-    if (!target.isActive) {
+    if (!target.isActive || !target.user.isActive) {
       throw new BadRequestException("Secret access cannot be granted to an inactive user");
     }
     if (LOCKER_ADMIN_ROLES.has(target.role)) {
@@ -379,19 +390,19 @@ export class SecretsService {
           role: dto.role,
           secretId: secret.id,
           tenantId: actor.tenantId,
-          userId: target.id
+          userId: target.user.id
         },
         update: { role: dto.role },
-        where: { secretId_userId: { secretId: secret.id, userId: target.id } }
+        where: { secretId_userId: { secretId: secret.id, userId: target.user.id } }
       })
     );
-    await this.writeAudit(actor, "GRANT_SET", secret.id, null, { role: dto.role, userId: target.id });
+    await this.writeAudit(actor, "GRANT_SET", secret.id, null, { role: dto.role, userId: target.user.id });
 
     return {
       createdAt: grant.createdAt,
       role: grant.role,
       updatedAt: grant.updatedAt,
-      user: target
+      user: { ...target.user, role: target.role }
     };
   }
 
@@ -437,12 +448,12 @@ export class SecretsService {
     );
     const actorIds = [...new Set(events.map((event) => event.actorId))];
     const actors = await this.prisma.withConnectionRetry(() =>
-      this.prisma.adminUser.findMany({
-        select: { displayName: true, email: true, id: true },
-        where: { id: { in: actorIds }, tenantId: actor.tenantId }
+      this.prisma.tenantMembership.findMany({
+        select: { user: { select: { displayName: true, email: true, id: true } } },
+        where: { tenantId: actor.tenantId, userId: { in: actorIds } }
       })
     );
-    const actorsById = new Map(actors.map((user) => [user.id, user]));
+    const actorsById = new Map(actors.map((membership) => [membership.user.id, membership.user]));
 
     return {
       items: events.map((event) => ({

@@ -11,6 +11,8 @@ export class AppController {
       routeGroups: [
         "/api/auth/*",
         "/api/admin-panel/context",
+        "/api/services",
+        "/api/clients/:tenantId/services",
         "/api/clients",
         "/api/vendors",
         "/api/vendor/:idOrSlug",
@@ -19,7 +21,8 @@ export class AppController {
         "/api/labs",
         "/api/testing",
         "/api/account/profile",
-        "/api/authorization/api-keys"
+        "/api/authorization/api-keys",
+        "/api/system/database-connections"
       ]
     };
   }

@@ -16,8 +16,9 @@ export class PlatformController {
   }
 
   @Get("api-surfaces")
-  listApiSurfaces() {
-    return this.platformService.listApiSurfaces();
+  @UseGuards(JwtAuthGuard)
+  listApiSurfaces(@CurrentAdminUser() user: AuthenticatedAdminUser) {
+    return this.platformService.listApiSurfaces(user);
   }
 
   @Post("authorization/api-keys")

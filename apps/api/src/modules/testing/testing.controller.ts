@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CreateLabTestDto } from "./testing.dto";
 import { TestingService } from "./testing.service";
 
 @Controller("testing")
+@UseGuards(JwtAuthGuard)
 export class TestingController {
   constructor(private readonly testingService: TestingService) {}
 

@@ -29,7 +29,7 @@ export class AuthService {
     const email = this.normalizeEmail(dto.email);
     const adminUser = await this.findLoginUser(email);
 
-    if (!adminUser || !adminUser.isActive || !SUPERADMIN_ROLES.has(adminUser.role)) {
+    if (!adminUser || !this.isPlatformAdmin(adminUser)) {
       throw new UnauthorizedException("Invalid superadmin email or password");
     }
 
@@ -84,7 +84,7 @@ export class AuthService {
       where: { id: payload.sub }
     });
 
-    if (!adminUser || !adminUser.isActive || !SUPERADMIN_ROLES.has(adminUser.role)) {
+    if (!adminUser || !this.isPlatformAdmin(adminUser)) {
       throw new UnauthorizedException("Superadmin session not found");
     }
 
@@ -96,6 +96,7 @@ export class AuthService {
   private async issueToken(user: AuthenticatedAdminUser): Promise<AdminSession> {
     const accessToken = await this.jwtService.signAsync({
       email: user.email,
+      membershipId: user.membershipId,
       role: user.role,
       sub: user.id,
       tenantId: user.tenantId
@@ -109,10 +110,12 @@ export class AuthService {
         email: user.email,
         displayName: user.displayName,
         id: user.id,
+        membershipId: user.membershipId,
         role: user.role,
         tenantId: user.tenantId,
         tenantName: user.tenantName,
-        tenantSlug: user.tenantSlug
+        tenantSlug: user.tenantSlug,
+        tenants: user.tenants
       }
     };
   }
@@ -193,11 +196,16 @@ export class AuthService {
     });
   }
 
+  private isPlatformAdmin(adminUser: Pick<AdminUserWithTenant, "isActive" | "role" | "tenantId"> | null): boolean {
+    return Boolean(adminUser?.isActive && SUPERADMIN_ROLES.has(adminUser.role) && !adminUser.tenantId);
+  }
+
   private toAuthenticatedAdminUser(adminUser: AdminUserWithTenant): AuthenticatedAdminUser {
     return {
       id: adminUser.id,
       displayName: adminUser.displayName,
       email: adminUser.email,
+      membershipId: null,
       role: adminUser.role,
       tenantId: adminUser.tenantId,
       tenantName: adminUser.tenant?.name ?? null,
@@ -208,7 +216,8 @@ export class AuthService {
             name: adminUser.tenant.name,
             slug: adminUser.tenant.slug
           }
-        : null
+        : null,
+      tenants: []
     };
   }
 }
