@@ -8,8 +8,10 @@ starter shell they will build on.
 
 - `frontend/` — React + TypeScript + Vite web app, wrapped with [Capacitor](https://capacitorjs.com/)
   for iOS and Android. The native projects live in `frontend/ios/` and `frontend/android/`.
+- `admin/` — built admin panel bundle at the repo root.
 - `api/` — Express + TypeScript backend server (Dockerized). Business logic and
-  routes will be added by the AI Software Factory.
+  routes will be added by the AI Software Factory. Service bundles are grouped in
+  `api/services/` by admin panel, projects, and shared userbase ownership.
 
 ## App identity
 

@@ -1,0 +1,130 @@
+import { AuthenticatedAdminUser } from "../auth/auth.types";
+import { PrismaService } from "../prisma/prisma.service";
+import { DatabaseCredentialEncryptionService } from "./database-credential-encryption.service";
+import { DatabaseProvider, UpsertDatabaseConnectionDto } from "./database-connections.dto";
+export declare class DatabaseConnectionsService {
+    private readonly prisma;
+    private readonly encryption;
+    constructor(prisma: PrismaService, encryption: DatabaseCredentialEncryptionService);
+    listConnections(user: AuthenticatedAdminUser): Promise<{
+        recommendedProvider: DatabaseProvider;
+        clients: {
+            id: string;
+            name: string;
+            slug: string;
+            dataRegion: string;
+            mode: string;
+            connection: {
+                id: string;
+                tenantId: string;
+                provider: string;
+                displayName: string;
+                host: string;
+                port: number;
+                databaseName: string;
+                username: string | null;
+                hasPassword: boolean;
+                sslMode: string;
+                connectionMode: string;
+                schemaName: string | null;
+                authSource: string | null;
+                replicaSet: string | null;
+                useSrv: boolean;
+                status: string;
+                lastTestedAt: string | null;
+                lastTestMessage: string | null;
+                updatedByEmail: string;
+                createdAt: string;
+                updatedAt: string;
+                maskedConnectionString: string;
+            } | null;
+        }[];
+    }>;
+    getProviderCatalog(user: AuthenticatedAdminUser): {
+        recommendation: {
+            provider: DatabaseProvider;
+            summary: string;
+        };
+        providers: {
+            id: DatabaseProvider;
+            name: string;
+            defaultPort: number;
+            requiredFields: string[];
+            optionalFields: string[];
+            notes: string;
+        }[];
+    };
+    upsertConnection(tenantId: string, dto: UpsertDatabaseConnectionDto, user: AuthenticatedAdminUser): Promise<{
+        id: string;
+        tenantId: string;
+        provider: string;
+        displayName: string;
+        host: string;
+        port: number;
+        databaseName: string;
+        username: string | null;
+        hasPassword: boolean;
+        sslMode: string;
+        connectionMode: string;
+        schemaName: string | null;
+        authSource: string | null;
+        replicaSet: string | null;
+        useSrv: boolean;
+        status: string;
+        lastTestedAt: string | null;
+        lastTestMessage: string | null;
+        updatedByEmail: string;
+        createdAt: string;
+        updatedAt: string;
+        maskedConnectionString: string;
+    }>;
+    testConnection(tenantId: string, user: AuthenticatedAdminUser): Promise<{
+        success: boolean;
+        connection: {
+            id: string;
+            tenantId: string;
+            provider: string;
+            displayName: string;
+            host: string;
+            port: number;
+            databaseName: string;
+            username: string | null;
+            hasPassword: boolean;
+            sslMode: string;
+            connectionMode: string;
+            schemaName: string | null;
+            authSource: string | null;
+            replicaSet: string | null;
+            useSrv: boolean;
+            status: string;
+            lastTestedAt: string | null;
+            lastTestMessage: string | null;
+            updatedByEmail: string;
+            createdAt: string;
+            updatedAt: string;
+            maskedConnectionString: string;
+        };
+    }>;
+    useSharedDatabase(tenantId: string, user: AuthenticatedAdminUser): Promise<{
+        tenantId: string;
+        mode: string;
+        connection: null;
+    }>;
+    private runConnectionTest;
+    private testPostgres;
+    private testMysql;
+    private testMongo;
+    private decryptPassword;
+    private validateConnectionInput;
+    private normalizeHost;
+    private assertAllowedTestHost;
+    private postgresSsl;
+    private safeErrorMessage;
+    private toPayload;
+    private maskedConnectionString;
+    private hostForUri;
+    private supportsSchema;
+    private passwordAad;
+    private writeAudit;
+    private assertSuperadmin;
+}
