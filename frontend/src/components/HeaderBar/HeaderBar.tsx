@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './HeaderBar.css'
+import promoArrow from '../../assets/arrow-right.svg'
 import logoSvg from '../../assets/logo.svg'
 
 interface HeaderBarProps {
@@ -16,6 +17,11 @@ export default function HeaderBar({ onSignUpClick }: HeaderBarProps) {
 
   return (
     <header className="header-bar">
+      <a href="/testing" className="header-promo-banner">
+        <span>Get your free peptide safety test</span>
+        <img src={promoArrow} alt="" />
+      </a>
+
       <div className="header-top">
         <a href="/" className="header-brand">
           <img src={logoSvg} alt="Peptrace" className="header-logo" />

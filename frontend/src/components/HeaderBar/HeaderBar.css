@@ -2,6 +2,10 @@
   background: var(--bg-white);
 }
 
+.header-promo-banner {
+  display: none;
+}
+
 .header-top {
   display: flex;
   align-items: center;
@@ -133,6 +137,31 @@
 @media (max-width: 1091px) {
   .desktop-only {
     display: none !important;
+  }
+
+  .header-promo-banner {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 16px;
+    background: var(--primary);
+    color: #fff;
+    text-decoration: none;
+  }
+
+  .header-promo-banner span {
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    line-height: 1;
+  }
+
+  .header-promo-banner img {
+    width: 16.74px;
+    height: 5.19px;
+    flex: 0 0 auto;
   }
 
   .tablet-only {
