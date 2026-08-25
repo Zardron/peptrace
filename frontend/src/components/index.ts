@@ -1,6 +1,8 @@
+export { default as AuthModal } from './AuthModal/AuthModal'
 export { default as HeaderBar } from './HeaderBar/HeaderBar'
 export { default as HomeTopInfo } from './HomeTopInfo/HomeTopInfo'
 export { default as Leaderboards } from './Leaderboards/Leaderboards'
 export { default as LeaderboardCard } from './LeaderboardCard/LeaderboardCard'
 export { default as HomeBottom } from './HomeBottom/HomeBottom'
+export { default as MembershipPage } from './MembershipPage/MembershipPage'
 export { default as SiteFooter } from './SiteFooter/SiteFooter'

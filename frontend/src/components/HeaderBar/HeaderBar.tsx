@@ -2,8 +2,17 @@ import { useState } from 'react'
 import './HeaderBar.css'
 import logoSvg from '../../assets/logo.svg'
 
-export default function HeaderBar() {
+interface HeaderBarProps {
+  onSignUpClick?: () => void
+}
+
+export default function HeaderBar({ onSignUpClick }: HeaderBarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  const handleSignUpClick = () => {
+    setMobileOpen(false)
+    onSignUpClick?.()
+  }
 
   return (
     <header className="header-bar">
@@ -21,7 +30,7 @@ export default function HeaderBar() {
         <div className="header-actions desktop-only">
           <span className="header-divider" />
           <a href="/vendors" className="pill-button outline">vendors</a>
-          <a href="/signup" className="pill-button solid">sign up</a>
+          <button type="button" className="pill-button solid" onClick={handleSignUpClick}>sign up</button>
         </div>
 
         <button
@@ -37,7 +46,7 @@ export default function HeaderBar() {
           </svg>
         </button>
 
-        <a href="/signup" className="pill-button solid tablet-only">sign up</a>
+        <button type="button" className="pill-button solid tablet-only" onClick={handleSignUpClick}>sign up</button>
       </div>
 
       <nav className={`header-nav-row ${mobileOpen ? 'open' : ''}`}>
