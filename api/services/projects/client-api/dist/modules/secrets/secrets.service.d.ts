@@ -162,10 +162,10 @@ export declare class SecretsService {
         updatedAt: Date;
         user: {
             role: string;
+            email: string;
             id: string;
             displayName: string;
             isActive: boolean;
-            email: string;
         };
     }>;
     removeGrant(identifier: string, userId: string, actor: AuthenticatedClientUser): Promise<{
@@ -176,9 +176,9 @@ export declare class SecretsService {
         items: {
             action: string;
             actor: {
+                email: string;
                 id: string;
                 displayName: string;
-                email: string;
             } | {
                 id: string;
             };

@@ -1,0 +1,38 @@
+{
+  "name": "peptrace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/domain",
+    "packages/api-client",
+    "api/services/admin-panel/platform-api",
+    "api/services/projects/client-api",
+    "admin"
+  ],
+  "scripts": {
+    "dev": "npm run dev:admin",
+    "dev:admin": "npm run dev -w @peptrace/admin",
+    "dev:admin:docker": "npm run dev:docker -w @peptrace/admin",
+    "dev:api": "npm run start:dev -w @peptrace/api",
+    "dev:client-api": "npm run start:dev -w @peptrace/client-api",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "preview": "npm run preview -w @peptrace/admin",
+    "db:migrate:multitenancy": "npm run db:migrate:multitenancy -w @peptrace/api",
+    "db:migrate:services": "npm run db:migrate:services -w @peptrace/api",
+    "db:migrate:client-domains": "npm run db:migrate:client-domains -w @peptrace/api",
+    "db:migrate:marketplace-features": "npm run db:migrate:marketplace-features -w @peptrace/api",
+    "db:push": "npm run db:push -w @peptrace/api",
+    "db:seed": "npm run db:seed -w @peptrace/api",
+    "db:setup": "npm run db:setup -w @peptrace/api",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=20.19.0 || >=22.12.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

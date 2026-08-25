@@ -84,8 +84,8 @@ export declare class BackendServicesController {
     }>;
     listTenantServices(tenantId: string, user: AuthenticatedAdminUser): Promise<{
         tenant: {
-            id: string;
             name: string;
+            id: string;
             slug: string;
             status: string;
             dataRegion: string;
@@ -125,8 +125,8 @@ export declare class BackendServicesController {
     }>;
     getTenantService(tenantId: string, serviceKey: string, user: AuthenticatedAdminUser): Promise<{
         tenant: {
-            id: string;
             name: string;
+            id: string;
             slug: string;
             status: string;
             dataRegion: string;
@@ -166,8 +166,8 @@ export declare class BackendServicesController {
     }>;
     upsertTenantService(tenantId: string, serviceKey: string, dto: UpsertTenantBackendServiceDto, user: AuthenticatedAdminUser): Promise<{
         tenant: {
-            id: string;
             name: string;
+            id: string;
             slug: string;
             status: string;
             dataRegion: string;
@@ -207,8 +207,8 @@ export declare class BackendServicesController {
     }>;
     removeTenantService(tenantId: string, serviceKey: string, user: AuthenticatedAdminUser): Promise<{
         tenant: {
-            id: string;
             name: string;
+            id: string;
             slug: string;
             status: string;
             dataRegion: string;

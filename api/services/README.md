@@ -6,9 +6,9 @@ Service bundles are grouped by ownership area:
 - `projects/` contains project-facing and product-specific API services.
 - `shared-userbase/` contains shared user, auth, role, tenant-access, external Userbase, database routing, and JWT session boundaries.
 
-Current preserved bundles:
+Current service bundles:
 
-- `admin-panel/platform-api/` was moved from `apps/api/`.
-- `projects/client-api/` was moved from `apps/client-api/`.
+- `admin-panel/platform-api/` contains the platform/admin API service.
+- `projects/client-api/` contains the project/client API service.
 
 Keep new source modules in `api/src/services/` using the same area names.

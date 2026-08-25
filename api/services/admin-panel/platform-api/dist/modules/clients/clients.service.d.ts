@@ -28,22 +28,22 @@ export declare class ClientsService {
     private readonly adminPanelService;
     constructor(prisma: PrismaService, adminPanelService: AdminPanelService);
     listClients(user: AuthenticatedAdminUser): Promise<(Omit<{
-        monthlySpend: number;
-        plan: string;
-        seats: number;
-        id: string;
         name: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
         slug: string;
+        plan: string;
         status: string;
         owner: string;
+        seats: number;
+        monthlySpend: number;
         openItems: number;
         dataRegion: string;
         lastActivityAt: Date;
-        createdAt: Date;
-        updatedAt: Date;
     } & {
         memberships?: ClientTenantWithMemberships["memberships"];
-    }, "monthlySpend" | "plan" | "seats" | "memberships"> & {
+    }, "memberships" | "plan" | "seats" | "monthlySpend"> & {
         adminUsers: {
             id: string;
             displayName: string;
@@ -58,33 +58,33 @@ export declare class ClientsService {
     })[]>;
     getClient(idOrSlug: string, user: AuthenticatedAdminUser): Promise<Omit<{
         memberships: {
+            role: string;
             createdAt: Date;
             user: {
-                id: string;
-                createdAt: Date;
-                displayName: string;
                 email: string;
+                id: string;
+                displayName: string;
                 lastLoginAt: Date | null;
+                createdAt: Date;
             };
-            role: string;
         }[];
     } & {
-        monthlySpend: number;
-        plan: string;
-        seats: number;
-        id: string;
         name: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
         slug: string;
+        plan: string;
         status: string;
         owner: string;
+        seats: number;
+        monthlySpend: number;
         openItems: number;
         dataRegion: string;
         lastActivityAt: Date;
-        createdAt: Date;
-        updatedAt: Date;
     } & {
         memberships?: ClientTenantWithMemberships["memberships"];
-    }, "monthlySpend" | "plan" | "seats" | "memberships"> & {
+    }, "memberships" | "plan" | "seats" | "monthlySpend"> & {
         adminUsers: {
             id: string;
             displayName: string;
@@ -99,33 +99,33 @@ export declare class ClientsService {
     }>;
     createClient(dto: CreateClientDto, user: AuthenticatedAdminUser): Promise<Omit<{
         memberships: {
+            role: string;
             createdAt: Date;
             user: {
-                id: string;
-                createdAt: Date;
-                displayName: string;
                 email: string;
+                id: string;
+                displayName: string;
                 lastLoginAt: Date | null;
+                createdAt: Date;
             };
-            role: string;
         }[];
     } & {
-        monthlySpend: number;
-        plan: string;
-        seats: number;
-        id: string;
         name: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
         slug: string;
+        plan: string;
         status: string;
         owner: string;
+        seats: number;
+        monthlySpend: number;
         openItems: number;
         dataRegion: string;
         lastActivityAt: Date;
-        createdAt: Date;
-        updatedAt: Date;
     } & {
         memberships?: ClientTenantWithMemberships["memberships"];
-    }, "monthlySpend" | "plan" | "seats" | "memberships"> & {
+    }, "memberships" | "plan" | "seats" | "monthlySpend"> & {
         adminUsers: {
             id: string;
             displayName: string;

@@ -51,7 +51,7 @@ export declare class AdminPanelController {
             settings?: {
                 enabledModules: string[];
             } | null;
-        }, "monthlySpend" | "plan" | "seats" | "settings"> & {
+        }, "plan" | "seats" | "monthlySpend" | "settings"> & {
             accessStatus: string;
             enabledAccounts: number;
             operationalValue: number;
@@ -97,32 +97,32 @@ export declare class AdminPanelController {
         }[];
         apiSurfaces: never[] | {
             id: string;
-            owner: string;
             createdAt: Date;
             updatedAt: Date;
+            owner: string;
             group: string;
             routes: string[];
             readiness: string;
         }[];
         clients: (Omit<{
-            monthlySpend: number;
-            plan: string;
-            seats: number;
-            id: string;
             name: string;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             slug: string;
+            plan: string;
             status: string;
             owner: string;
+            seats: number;
+            monthlySpend: number;
             openItems: number;
             dataRegion: string;
             lastActivityAt: Date;
-            createdAt: Date;
-            updatedAt: Date;
         } & {
             settings?: {
                 enabledModules: string[];
             } | null;
-        }, "monthlySpend" | "plan" | "seats" | "settings"> & {
+        }, "plan" | "seats" | "monthlySpend" | "settings"> & {
             accessStatus: string;
             enabledAccounts: number;
             operationalValue: number;
@@ -144,10 +144,10 @@ export declare class AdminPanelController {
             }[];
         } & {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             partnerSince: Date;
         })[];
         peptides: never[] | ({
@@ -167,33 +167,33 @@ export declare class AdminPanelController {
             }[];
         } & {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
         })[];
         tests: never[] | ({
             vendor: {
                 id: string;
-                slug: string;
+                displayName: string;
                 createdAt: Date;
                 updatedAt: Date;
-                displayName: string;
+                slug: string;
                 overallRating: number;
             };
             peptide: {
                 id: string;
-                slug: string;
                 createdAt: Date;
                 updatedAt: Date;
+                slug: string;
                 label: string;
             };
             lab: {
                 id: string;
-                slug: string;
+                displayName: string;
                 createdAt: Date;
                 updatedAt: Date;
-                displayName: string;
+                slug: string;
                 partnerSince: Date;
             };
         } & {
@@ -213,9 +213,9 @@ export declare class AdminPanelController {
         vendors: never[] | ({
             products: {
                 id: string;
-                slug: string;
                 createdAt: Date;
                 updatedAt: Date;
+                slug: string;
                 label: string;
                 vendorId: string;
                 peptideId: string;
@@ -228,10 +228,10 @@ export declare class AdminPanelController {
             }[];
         } & {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             overallRating: number;
         })[];
     }>;

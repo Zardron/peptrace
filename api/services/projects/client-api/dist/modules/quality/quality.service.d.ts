@@ -8,9 +8,9 @@ export declare class QualityService {
     listVendors(user: AuthenticatedClientUser): Promise<({
         products: {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
             vendorId: string;
             peptideId: string;
@@ -23,18 +23,18 @@ export declare class QualityService {
         }[];
     } & {
         id: string;
-        slug: string;
+        displayName: string;
         createdAt: Date;
         updatedAt: Date;
-        displayName: string;
+        slug: string;
         overallRating: number;
     })[]>;
     getVendor(idOrSlug: string, user: AuthenticatedClientUser): Promise<{
         products: {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
             vendorId: string;
             peptideId: string;
@@ -61,10 +61,10 @@ export declare class QualityService {
         }[];
     } & {
         id: string;
-        slug: string;
+        displayName: string;
         createdAt: Date;
         updatedAt: Date;
-        displayName: string;
+        slug: string;
         overallRating: number;
     }>;
     listPeptides(user: AuthenticatedClientUser): Promise<({
@@ -84,17 +84,17 @@ export declare class QualityService {
         }[];
     } & {
         id: string;
-        slug: string;
         createdAt: Date;
         updatedAt: Date;
+        slug: string;
         label: string;
     })[]>;
     getPeptide(idOrSlug: string, user: AuthenticatedClientUser): Promise<{
         products: {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
             vendorId: string;
             peptideId: string;
@@ -121,9 +121,9 @@ export declare class QualityService {
         }[];
     } & {
         id: string;
-        slug: string;
         createdAt: Date;
         updatedAt: Date;
+        slug: string;
         label: string;
     }>;
     listLabs(user: AuthenticatedClientUser): Promise<({
@@ -143,10 +143,10 @@ export declare class QualityService {
         }[];
     } & {
         id: string;
-        slug: string;
+        displayName: string;
         createdAt: Date;
         updatedAt: Date;
-        displayName: string;
+        slug: string;
         partnerSince: Date;
     })[]>;
     listTests(query: {
@@ -156,25 +156,25 @@ export declare class QualityService {
     }, user: AuthenticatedClientUser): Promise<({
         vendor: {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             overallRating: number;
         };
         peptide: {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
         };
         lab: {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             partnerSince: Date;
         };
     } & {
@@ -194,25 +194,25 @@ export declare class QualityService {
     getTest(id: string, user: AuthenticatedClientUser): Promise<{
         vendor: {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             overallRating: number;
         };
         peptide: {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
         };
         lab: {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             partnerSince: Date;
         };
     } & {
@@ -231,11 +231,11 @@ export declare class QualityService {
     }>;
     listBatches(query: ListQualityQueryDto, user: AuthenticatedClientUser): Promise<({
         certificates: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
-            tenantId: string;
+            status: string;
             batchId: string;
             labTestId: string | null;
             certificateNumber: string;
@@ -245,29 +245,29 @@ export declare class QualityService {
             summary: Prisma.JsonValue;
         }[];
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         vialSizeMg: number;
         vendorId: string;
         peptideId: string;
-        tenantId: string;
+        notes: string | null;
         batchCode: string;
         productId: string | null;
         manufacturedAt: Date | null;
         receivedAt: Date | null;
         quantityVials: number;
         storageCondition: string | null;
-        notes: string | null;
     })[]>;
     getBatch(idOrCode: string, user: AuthenticatedClientUser): Promise<{
         certificates: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
-            tenantId: string;
+            status: string;
             batchId: string;
             labTestId: string | null;
             certificateNumber: string;
@@ -277,29 +277,29 @@ export declare class QualityService {
             summary: Prisma.JsonValue;
         }[];
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         vialSizeMg: number;
         vendorId: string;
         peptideId: string;
-        tenantId: string;
+        notes: string | null;
         batchCode: string;
         productId: string | null;
         manufacturedAt: Date | null;
         receivedAt: Date | null;
         quantityVials: number;
         storageCondition: string | null;
-        notes: string | null;
     }>;
     createBatch(dto: CreatePeptraceBatchDto, user: AuthenticatedClientUser): Promise<{
         certificates: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
-            tenantId: string;
+            status: string;
             batchId: string;
             labTestId: string | null;
             certificateNumber: string;
@@ -309,29 +309,29 @@ export declare class QualityService {
             summary: Prisma.JsonValue;
         }[];
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         vialSizeMg: number;
         vendorId: string;
         peptideId: string;
-        tenantId: string;
+        notes: string | null;
         batchCode: string;
         productId: string | null;
         manufacturedAt: Date | null;
         receivedAt: Date | null;
         quantityVials: number;
         storageCondition: string | null;
-        notes: string | null;
     }>;
     updateBatchStatus(id: string, dto: UpdateQualityStatusDto, user: AuthenticatedClientUser): Promise<{
         certificates: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
-            tenantId: string;
+            status: string;
             batchId: string;
             labTestId: string | null;
             certificateNumber: string;
@@ -341,29 +341,29 @@ export declare class QualityService {
             summary: Prisma.JsonValue;
         }[];
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         vialSizeMg: number;
         vendorId: string;
         peptideId: string;
-        tenantId: string;
+        notes: string | null;
         batchCode: string;
         productId: string | null;
         manufacturedAt: Date | null;
         receivedAt: Date | null;
         quantityVials: number;
         storageCondition: string | null;
-        notes: string | null;
     }>;
     updateBatch(id: string, dto: UpdatePeptraceBatchDto, user: AuthenticatedClientUser): Promise<{
         certificates: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
-            tenantId: string;
+            status: string;
             batchId: string;
             labTestId: string | null;
             certificateNumber: string;
@@ -373,29 +373,29 @@ export declare class QualityService {
             summary: Prisma.JsonValue;
         }[];
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         vialSizeMg: number;
         vendorId: string;
         peptideId: string;
-        tenantId: string;
+        notes: string | null;
         batchCode: string;
         productId: string | null;
         manufacturedAt: Date | null;
         receivedAt: Date | null;
         quantityVials: number;
         storageCondition: string | null;
-        notes: string | null;
     }>;
     archiveBatch(id: string, user: AuthenticatedClientUser): Promise<{
         certificates: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
-            tenantId: string;
+            status: string;
             batchId: string;
             labTestId: string | null;
             certificateNumber: string;
@@ -405,46 +405,46 @@ export declare class QualityService {
             summary: Prisma.JsonValue;
         }[];
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         vialSizeMg: number;
         vendorId: string;
         peptideId: string;
-        tenantId: string;
+        notes: string | null;
         batchCode: string;
         productId: string | null;
         manufacturedAt: Date | null;
         receivedAt: Date | null;
         quantityVials: number;
         storageCondition: string | null;
-        notes: string | null;
     }>;
     listCertificates(query: ListQualityQueryDto, user: AuthenticatedClientUser): Promise<({
         batch: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             vialSizeMg: number;
             vendorId: string;
             peptideId: string;
-            tenantId: string;
+            notes: string | null;
             batchCode: string;
             productId: string | null;
             manufacturedAt: Date | null;
             receivedAt: Date | null;
             quantityVials: number;
             storageCondition: string | null;
-            notes: string | null;
         };
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        tenantId: string;
+        status: string;
         batchId: string;
         labTestId: string | null;
         certificateNumber: string;
@@ -455,28 +455,28 @@ export declare class QualityService {
     })[]>;
     getCertificate(idOrNumber: string, user: AuthenticatedClientUser): Promise<{
         batch: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             vialSizeMg: number;
             vendorId: string;
             peptideId: string;
-            tenantId: string;
+            notes: string | null;
             batchCode: string;
             productId: string | null;
             manufacturedAt: Date | null;
             receivedAt: Date | null;
             quantityVials: number;
             storageCondition: string | null;
-            notes: string | null;
         };
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        tenantId: string;
+        status: string;
         batchId: string;
         labTestId: string | null;
         certificateNumber: string;
@@ -487,28 +487,28 @@ export declare class QualityService {
     }>;
     createCertificate(dto: CreatePeptraceCertificateDto, user: AuthenticatedClientUser): Promise<{
         batch: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             vialSizeMg: number;
             vendorId: string;
             peptideId: string;
-            tenantId: string;
+            notes: string | null;
             batchCode: string;
             productId: string | null;
             manufacturedAt: Date | null;
             receivedAt: Date | null;
             quantityVials: number;
             storageCondition: string | null;
-            notes: string | null;
         };
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        tenantId: string;
+        status: string;
         batchId: string;
         labTestId: string | null;
         certificateNumber: string;
@@ -519,28 +519,28 @@ export declare class QualityService {
     }>;
     updateCertificateStatus(id: string, dto: UpdateQualityStatusDto, user: AuthenticatedClientUser): Promise<{
         batch: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             vialSizeMg: number;
             vendorId: string;
             peptideId: string;
-            tenantId: string;
+            notes: string | null;
             batchCode: string;
             productId: string | null;
             manufacturedAt: Date | null;
             receivedAt: Date | null;
             quantityVials: number;
             storageCondition: string | null;
-            notes: string | null;
         };
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        tenantId: string;
+        status: string;
         batchId: string;
         labTestId: string | null;
         certificateNumber: string;
@@ -551,28 +551,28 @@ export declare class QualityService {
     }>;
     updateCertificate(id: string, dto: UpdatePeptraceCertificateDto, user: AuthenticatedClientUser): Promise<{
         batch: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             vialSizeMg: number;
             vendorId: string;
             peptideId: string;
-            tenantId: string;
+            notes: string | null;
             batchCode: string;
             productId: string | null;
             manufacturedAt: Date | null;
             receivedAt: Date | null;
             quantityVials: number;
             storageCondition: string | null;
-            notes: string | null;
         };
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        tenantId: string;
+        status: string;
         batchId: string;
         labTestId: string | null;
         certificateNumber: string;
@@ -583,28 +583,28 @@ export declare class QualityService {
     }>;
     archiveCertificate(id: string, user: AuthenticatedClientUser): Promise<{
         batch: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             vialSizeMg: number;
             vendorId: string;
             peptideId: string;
-            tenantId: string;
+            notes: string | null;
             batchCode: string;
             productId: string | null;
             manufacturedAt: Date | null;
             receivedAt: Date | null;
             quantityVials: number;
             storageCondition: string | null;
-            notes: string | null;
         };
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        tenantId: string;
+        status: string;
         batchId: string;
         labTestId: string | null;
         certificateNumber: string;
@@ -616,9 +616,9 @@ export declare class QualityService {
     publicListVendors(): Promise<({
         products: {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
             vendorId: string;
             peptideId: string;
@@ -631,18 +631,18 @@ export declare class QualityService {
         }[];
     } & {
         id: string;
-        slug: string;
+        displayName: string;
         createdAt: Date;
         updatedAt: Date;
-        displayName: string;
+        slug: string;
         overallRating: number;
     })[]>;
     publicGetVendor(idOrSlug: string): Promise<{
         products: {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
             vendorId: string;
             peptideId: string;
@@ -656,17 +656,17 @@ export declare class QualityService {
         tests: ({
             peptide: {
                 id: string;
-                slug: string;
                 createdAt: Date;
                 updatedAt: Date;
+                slug: string;
                 label: string;
             };
             lab: {
                 id: string;
-                slug: string;
+                displayName: string;
                 createdAt: Date;
                 updatedAt: Date;
-                displayName: string;
+                slug: string;
                 partnerSince: Date;
             };
         } & {
@@ -685,18 +685,18 @@ export declare class QualityService {
         })[];
     } & {
         id: string;
-        slug: string;
+        displayName: string;
         createdAt: Date;
         updatedAt: Date;
-        displayName: string;
+        slug: string;
         overallRating: number;
     }>;
     publicListPeptides(): Promise<({
         products: {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
             vendorId: string;
             peptideId: string;
@@ -709,26 +709,26 @@ export declare class QualityService {
         }[];
     } & {
         id: string;
-        slug: string;
         createdAt: Date;
         updatedAt: Date;
+        slug: string;
         label: string;
     })[]>;
     publicGetPeptide(idOrSlug: string): Promise<{
         products: ({
             vendor: {
                 id: string;
-                slug: string;
+                displayName: string;
                 createdAt: Date;
                 updatedAt: Date;
-                displayName: string;
+                slug: string;
                 overallRating: number;
             };
         } & {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
             vendorId: string;
             peptideId: string;
@@ -742,18 +742,18 @@ export declare class QualityService {
         tests: ({
             vendor: {
                 id: string;
-                slug: string;
+                displayName: string;
                 createdAt: Date;
                 updatedAt: Date;
-                displayName: string;
+                slug: string;
                 overallRating: number;
             };
             lab: {
                 id: string;
-                slug: string;
+                displayName: string;
                 createdAt: Date;
                 updatedAt: Date;
-                displayName: string;
+                slug: string;
                 partnerSince: Date;
             };
         } & {
@@ -772,33 +772,33 @@ export declare class QualityService {
         })[];
     } & {
         id: string;
-        slug: string;
         createdAt: Date;
         updatedAt: Date;
+        slug: string;
         label: string;
     }>;
     publicListTests(query: ListQualityQueryDto): Promise<({
         vendor: {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             overallRating: number;
         };
         peptide: {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
         };
         lab: {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             partnerSince: Date;
         };
     } & {
@@ -817,28 +817,28 @@ export declare class QualityService {
     })[]>;
     publicVerifyCertificate(idOrNumber: string): Promise<{
         batch: {
+            tenantId: string;
             id: string;
-            status: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             vialSizeMg: number;
             vendorId: string;
             peptideId: string;
-            tenantId: string;
+            notes: string | null;
             batchCode: string;
             productId: string | null;
             manufacturedAt: Date | null;
             receivedAt: Date | null;
             quantityVials: number;
             storageCondition: string | null;
-            notes: string | null;
         };
     } & {
+        tenantId: string;
         id: string;
-        status: string;
         createdAt: Date;
         updatedAt: Date;
-        tenantId: string;
+        status: string;
         batchId: string;
         labTestId: string | null;
         certificateNumber: string;

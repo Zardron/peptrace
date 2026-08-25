@@ -56,9 +56,9 @@ export declare class SecretsController {
         items: {
             action: string;
             actor: {
+                email: string;
                 id: string;
                 displayName: string;
-                email: string;
             } | {
                 id: string;
             };
@@ -183,10 +183,10 @@ export declare class SecretsController {
         updatedAt: Date;
         user: {
             role: string;
+            email: string;
             id: string;
             displayName: string;
             isActive: boolean;
-            email: string;
         };
     }>;
     removeGrant(secret: string, userId: string, user: AuthenticatedClientUser): Promise<{

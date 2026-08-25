@@ -8,6 +8,11 @@ type AdminPanelRecord = {
     status: string;
     value: string;
 };
+type AdminPanelWorkItem = {
+    label: string;
+    detail: string;
+    priority: "High" | "Medium" | "Low";
+};
 type CompanyAccount = {
     id: string;
     displayName: string;
@@ -64,7 +69,7 @@ export declare class AdminPanelService {
         };
         company: Omit<ClientCompany & {
             settings?: ClientCompany["settings"];
-        }, "monthlySpend" | "plan" | "seats" | "settings"> & {
+        }, "plan" | "seats" | "monthlySpend" | "settings"> & {
             accessStatus: string;
             enabledAccounts: number;
             operationalValue: number;
@@ -72,11 +77,7 @@ export declare class AdminPanelService {
         panel: {
             enabledModules: string[];
             primaryRecords: AdminPanelRecord[];
-            workItems: {
-                label: string;
-                detail: string;
-                priority: "High" | "Medium" | "Low";
-            }[];
+            workItems: AdminPanelWorkItem[];
             metrics: {
                 label: string;
                 value: string;
@@ -105,30 +106,30 @@ export declare class AdminPanelService {
         }[];
         apiSurfaces: never[] | {
             id: string;
-            owner: string;
             createdAt: Date;
             updatedAt: Date;
+            owner: string;
             group: string;
             routes: string[];
             readiness: string;
         }[];
         clients: (Omit<{
-            monthlySpend: number;
-            plan: string;
-            seats: number;
-            id: string;
             name: string;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             slug: string;
+            plan: string;
             status: string;
             owner: string;
+            seats: number;
+            monthlySpend: number;
             openItems: number;
             dataRegion: string;
             lastActivityAt: Date;
-            createdAt: Date;
-            updatedAt: Date;
         } & {
             settings?: ClientCompany["settings"];
-        }, "monthlySpend" | "plan" | "seats" | "settings"> & {
+        }, "plan" | "seats" | "monthlySpend" | "settings"> & {
             accessStatus: string;
             enabledAccounts: number;
             operationalValue: number;
@@ -150,10 +151,10 @@ export declare class AdminPanelService {
             }[];
         } & {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             partnerSince: Date;
         })[];
         peptides: never[] | ({
@@ -173,33 +174,33 @@ export declare class AdminPanelService {
             }[];
         } & {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
         })[];
         tests: never[] | ({
             vendor: {
                 id: string;
-                slug: string;
+                displayName: string;
                 createdAt: Date;
                 updatedAt: Date;
-                displayName: string;
+                slug: string;
                 overallRating: number;
             };
             peptide: {
                 id: string;
-                slug: string;
                 createdAt: Date;
                 updatedAt: Date;
+                slug: string;
                 label: string;
             };
             lab: {
                 id: string;
-                slug: string;
+                displayName: string;
                 createdAt: Date;
                 updatedAt: Date;
-                displayName: string;
+                slug: string;
                 partnerSince: Date;
             };
         } & {
@@ -216,12 +217,12 @@ export declare class AdminPanelService {
             purityPercent: number | null;
             labelClaimPercent: number | null;
         })[];
-        vendors: never[] | ({
+        vendors: ({
             products: {
                 id: string;
-                slug: string;
                 createdAt: Date;
                 updatedAt: Date;
+                slug: string;
                 label: string;
                 vendorId: string;
                 peptideId: string;
@@ -234,12 +235,12 @@ export declare class AdminPanelService {
             }[];
         } & {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             overallRating: number;
-        })[];
+        })[] | never[];
     }>;
     private queryData;
     private refreshData;

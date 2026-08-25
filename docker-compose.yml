@@ -1,17 +1,84 @@
 services:
-  frontend:
-    build: ./frontend
-    image: peptrace-frontend:local
-    restart: unless-stopped
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: peptrace
+      POSTGRES_USER: peptrace
+      POSTGRES_PASSWORD: peptrace
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U peptrace -d peptrace"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     ports:
-      - "${FRONTEND_HOST_PORT:-8080}:80"
+      - "5432:5432"
+    volumes:
+      - peptrace_postgres:/var/lib/postgresql/data
 
   api:
-    build: ./api
-    image: peptrace-api:local
-    restart: unless-stopped
+    build:
+      context: .
+      target: api-dev
+    command: sh -c "npm run db:push -w @peptrace/api && npm run db:seed -w @peptrace/api && npm run dev:api"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
-      PORT: ${PORT:-3000}
+      DATABASE_URL: postgresql://peptrace:peptrace@postgres:5432/peptrace?schema=public
+      DIRECT_URL: postgresql://peptrace:peptrace@postgres:5432/peptrace?schema=public
+      HOST: 0.0.0.0
+      PORT: 3000
+      CORS_ORIGIN: http://localhost:5173
+      JWT_SECRET: local-docker-development-secret
+      SUPERADMIN_EMAIL: admin@esteemedengineering.com
+      ADMIN_PASSWORD: Admin@123
     ports:
-      - "${API_HOST_PORT:-3000}:${PORT:-3000}"
+      - "3000:3000"
+    volumes:
+      - .:/workspace
+      - peptrace_node_modules:/workspace/node_modules
+
+  client-api:
+    build:
+      context: .
+      target: client-api-dev
+    command: sh -c "npm run dev:client-api"
+    depends_on:
+      api:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://peptrace:peptrace@postgres:5432/peptrace?schema=public
+      DIRECT_URL: postgresql://peptrace:peptrace@postgres:5432/peptrace?schema=public
+      HOST: 0.0.0.0
+      CLIENT_API_PORT: 3001
+      CORS_ORIGIN: http://localhost:5173
+      JWT_SECRET: local-docker-development-secret
+    ports:
+      - "3001:3001"
+    volumes:
+      - .:/workspace
+      - peptrace_node_modules:/workspace/node_modules
+
+  admin:
+    build:
+      context: .
+      target: admin-dev
+    depends_on:
+      - api
+      - client-api
+    environment:
+      VITE_SUPERADMIN_API_BASE_URL: /api
+      VITE_CLIENT_API_BASE_URL: /client-api
+      SUPERADMIN_API_PROXY_TARGET: http://api:3000
+      CLIENT_API_PROXY_TARGET: http://client-api:3001
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/workspace
+      - peptrace_node_modules:/workspace/node_modules
+
+volumes:
+  peptrace_postgres:
+  peptrace_node_modules:

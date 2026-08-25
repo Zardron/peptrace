@@ -13,9 +13,9 @@ export declare class PlatformService {
     };
     listApiSurfaces(user: AuthenticatedAdminUser): import(".prisma/client").Prisma.PrismaPromise<{
         id: string;
-        owner: string;
         createdAt: Date;
         updatedAt: Date;
+        owner: string;
         group: string;
         routes: string[];
         readiness: string;

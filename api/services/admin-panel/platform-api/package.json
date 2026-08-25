@@ -1,0 +1,48 @@
+{
+  "name": "@peptrace/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build": "npm run prisma:generate && nest build",
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate:multitenancy": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260816203000_add_multi_tenant_memberships/migration.sql",
+    "db:migrate:services": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260817120000_add_backend_services/migration.sql",
+    "db:migrate:client-domains": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260817143000_add_client_project_domains/migration.sql",
+    "db:migrate:marketplace-features": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260817170000_expand_project_marketplace_features/migration.sql",
+    "db:push": "prisma db push --schema prisma/schema.prisma",
+    "db:seed": "prisma db seed",
+    "db:setup": "npm run db:push && npm run db:seed"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/jwt": "^11.0.0",
+    "@nestjs/platform-express": "^11.1.6",
+    "@peptrace/domain": "0.1.0",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^6.13.0",
+    "bcryptjs": "^3.0.2",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "helmet": "^8.1.0",
+    "joi": "^17.13.3",
+    "mongodb": "^7.5.0",
+    "mysql2": "^3.23.3",
+    "pg": "^8.23.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.7",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.21.0",
+    "dotenv": "^16.4.7",
+    "prisma": "^6.13.0",
+    "tsx": "^4.20.3"
+  }
+}

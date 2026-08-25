@@ -6,25 +6,25 @@ export declare class TestingController {
     listTests(status?: string, vendorId?: string, peptideId?: string): import(".prisma/client").Prisma.PrismaPromise<({
         vendor: {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             overallRating: number;
         };
         peptide: {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
         };
         lab: {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             partnerSince: Date;
         };
     } & {
@@ -44,25 +44,25 @@ export declare class TestingController {
     getTest(id: string): Promise<{
         vendor: {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             overallRating: number;
         };
         peptide: {
             id: string;
-            slug: string;
             createdAt: Date;
             updatedAt: Date;
+            slug: string;
             label: string;
         };
         lab: {
             id: string;
-            slug: string;
+            displayName: string;
             createdAt: Date;
             updatedAt: Date;
-            displayName: string;
+            slug: string;
             partnerSince: Date;
         };
     } & {
