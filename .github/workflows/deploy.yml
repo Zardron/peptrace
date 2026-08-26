@@ -82,7 +82,7 @@ jobs:
           envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
-            cd ~/services/peptrace-stg
+            cd ~/services/peptrace/stg
             export FRONTEND_IMAGE="$DEPLOY_FRONTEND_IMAGE"
             export API_IMAGE="$DEPLOY_API_IMAGE"
             echo "Deploying services: $DEPLOY_SERVICES (frontend: $FRONTEND_IMAGE, api: $API_IMAGE)"
