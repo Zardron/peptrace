@@ -7,9 +7,20 @@ import Leaderboards from './components/Leaderboards/Leaderboards'
 import HomeBottom from './components/HomeBottom/HomeBottom'
 import MembershipPage from './components/MembershipPage/MembershipPage'
 import SiteFooter from './components/SiteFooter/SiteFooter'
+import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
 import { leaderboardCards } from './data/leaderboardData'
 
-const routedPaths = new Set(['/membership'])
+const accountRoutes = new Map<string, AccountView>([
+  ['/dashboard', 'dashboard'],
+  ['/account', 'profile'],
+  ['/account/security', 'security'],
+  ['/account/notifications', 'notifications'],
+  ['/account/billing', 'billing'],
+  ['/account/shipping', 'shipping'],
+  ['/account/privacy', 'privacy'],
+])
+
+const routedPaths = new Set(['/membership', ...accountRoutes.keys()])
 
 const getCurrentPagePath = () => {
   if (typeof window === 'undefined') {
@@ -70,11 +81,17 @@ function App() {
   }, [])
 
   const isMembershipPage = pagePath === '/membership'
+  const accountView = accountRoutes.get(pagePath)
 
   return (
     <div className="app">
       {isMembershipPage ? (
         <MembershipPage onSignUpClick={openAuthModal} />
+      ) : accountView ? (
+        <>
+          <HeaderBar accountMode />
+          <AccountPages view={accountView} />
+        </>
       ) : (
         <>
           <HeaderBar onSignUpClick={openAuthModal} />
