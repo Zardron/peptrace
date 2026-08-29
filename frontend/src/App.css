@@ -10,3 +10,18 @@
   flex-direction: column;
   gap: 0;
 }
+
+@media (max-width: 566px) {
+  .main.auth-page-preview .home-top-info {
+    display: none;
+  }
+
+  .main.auth-page-preview .leaderboards {
+    padding-bottom: 0;
+  }
+
+  .main.auth-page-preview .boards-grid .leaderboard-card:nth-child(n+2),
+  .main.auth-page-preview .leaderboard-card .table-row:nth-child(n+5) {
+    display: none;
+  }
+}

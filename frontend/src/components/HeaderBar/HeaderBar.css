@@ -1,5 +1,12 @@
 .header-bar {
   background: var(--bg-white);
+  box-shadow: inset 0 -1px #e6e6e6;
+  position: relative;
+  z-index: 20;
+}
+
+.header-promo-banner {
+  display: none;
 }
 
 .header-top {
@@ -8,7 +15,8 @@
   justify-content: space-between;
   max-width: 1120px;
   margin: 0 auto;
-  padding: 16px 20px;
+  min-height: 99px;
+  padding: 21px 0;
   gap: 16px;
 }
 
@@ -19,21 +27,33 @@
 }
 
 .header-logo {
-  height: 48px;
+  height: 57px;
   width: auto;
   display: block;
+}
+
+.header-navigation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .header-nav {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 6px;
 }
 
 .nav-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 33px;
+  padding: 8px;
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.84px;
+  letter-spacing: 1.96px;
+  line-height: 1;
   color: var(--text);
   text-decoration: none;
   transition: opacity 0.2s;
@@ -52,7 +72,7 @@
 .header-divider {
   display: inline-block;
   width: 1px;
-  height: 24px;
+  height: 32px;
   background: var(--border);
 }
 
@@ -60,11 +80,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 20px;
+  min-height: 33px;
+  padding: 8px 23px;
   border-radius: 999px;
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.84px;
+  letter-spacing: 1.96px;
   text-decoration: none;
   transition: background 0.2s, color 0.2s, border-color 0.2s;
   white-space: nowrap;
@@ -91,6 +112,88 @@
   border-color: var(--primary-hover);
 }
 
+.account-menu-wrap {
+  position: relative;
+}
+
+.account-button {
+  gap: 8px;
+  min-height: 36px;
+  padding-left: 23px;
+  padding-right: 6px;
+}
+
+.account-button img {
+  width: 20px;
+  height: 20px;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.account-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 136px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  z-index: 30;
+}
+
+.account-dropdown a {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 10px 20px;
+  color: #262626;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.28px;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.account-dropdown a:hover {
+  background: #f8f7f5;
+}
+
+.account-dropdown-divider {
+  display: block;
+  height: 1px;
+  width: 100%;
+  background: #e6e6e6;
+}
+
+.compact-account-wrap {
+  display: none;
+}
+
+.account-avatar-button {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  background: #d9f4fb;
+  overflow: hidden;
+}
+
+.account-avatar-button img {
+  width: 36px;
+  height: 36px;
+  display: block;
+  border-radius: 50%;
+}
+
 .menu-toggle {
   display: none;
   background: none;
@@ -111,13 +214,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 14px;
+  min-height: 33px;
+  padding: 8px;
   border-radius: 999px;
   font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.84px;
-  color: #fff;
-  background: var(--primary);
+  letter-spacing: 1.96px;
+  line-height: 1;
+  color: var(--text);
+  background: transparent;
   text-decoration: none;
 }
 
@@ -135,12 +240,53 @@
     display: none !important;
   }
 
+  .header-promo-banner {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 16px;
+    background: var(--primary);
+    color: #fff;
+    text-decoration: none;
+  }
+
+  .header-promo-banner span {
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    line-height: 1;
+  }
+
+  .header-promo-banner img {
+    width: 16.74px;
+    height: 5.19px;
+    flex: 0 0 auto;
+  }
+
   .tablet-only {
     display: inline-flex !important;
   }
 
   .header-nav-row {
     display: flex;
+  }
+
+  .compact-account-wrap {
+    height: 40px;
+    display: flex;
+    align-items: center;
+  }
+
+  .compact-account-wrap .account-dropdown {
+    top: calc(100% + 10px);
+    right: 0;
+  }
+
+  .header-top {
+    min-height: 88px;
+    padding: 15.5px 16px;
   }
 }
 
@@ -157,9 +303,16 @@
   .header-nav-row {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    padding: 20px 16px;
   }
 
   .header-nav-row.open {
     display: flex;
+  }
+
+  .account-mode .header-logo {
+    max-width: calc(100vw - 96px);
   }
 }
