@@ -2,7 +2,9 @@ name: docker
 
 on:
   push:
-    branches: [main]
+    # Feature branches build sha-tagged images so deploy-preview.yml can put
+    # them on the preview slot; `latest` stays main-only (see metadata-action).
+    branches: [main, "issue-*", "feat/**"]
     tags: ["v*.*.*"]
   workflow_dispatch:
 

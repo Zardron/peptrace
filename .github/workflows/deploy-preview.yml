@@ -1,0 +1,120 @@
+name: deploy-preview
+
+# Deploys a feature branch to the shared preview slot on the staging VPS and
+# then notifies the Software Factory Visual QA workflow (n8n) so it can
+# screenshot the deployed UI and compare it against the Figma designs.
+#
+# Fires automatically when the `docker` workflow finishes successfully on a
+# non-main branch (feature branches build sha-tagged images there).
+#
+# One-time server setup (staging VPS, same host as staging):
+#   1. Create ~/services/peptrace-preview/ with a copy of
+#      docker-compose.deploy.yml and a .env that sets
+#      PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering
+#   2. Point DNS for preview.peptrace.stg.esteemed.engineering at the VPS.
+#   3. Make sure the `staging` environment has SERVER_IP + SSH_PRIVATE_KEY
+#      (same ones deploy.yml uses).
+#
+# NOTE: the preview slot is shared — the latest feature-branch deploy wins.
+
+on:
+  workflow_run:
+    workflows: [docker]
+    types: [completed]
+
+# Single shared preview slot: serialize deploys.
+concurrency:
+  group: preview-deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  PREVIEW_URL: https://preview.peptrace.stg.esteemed.engineering
+  N8N_VISUAL_QA_WEBHOOK: https://n8n.esteemed.engineering/webhook/factory/visual-qa
+
+jobs:
+  deploy-preview:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch != 'main'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      BRANCH: ${{ github.event.workflow_run.head_branch }}
+      SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Lowercase image name
+        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+
+      - name: Extract issue number
+        id: issue
+        run: |
+          echo "SHA_SHORT=$(echo "$SHA" | cut -c1-7)" >> "$GITHUB_ENV"
+          ISSUE_NUMBER=$(echo "$BRANCH" | grep -oE "[0-9]+" | head -n1 || true)
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "Branch $BRANCH contains no issue number; skipping preview deploy."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy preview to VPS
+        if: steps.issue.outputs.skip == 'false'
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_FRONTEND_IMAGE: ${{ env.IMAGE_NAME }}-frontend:sha-${{ env.SHA_SHORT }}
+          DEPLOY_API_IMAGE: ${{ env.IMAGE_NAME }}-api:sha-${{ env.SHA_SHORT }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_PAT: ${{ secrets.PAT }}
+        with:
+          host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
+          username: github
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,GHCR_USER,GHCR_PAT
+          script: |
+            set -euo pipefail
+            cd ~/services/peptrace/preview
+            export FRONTEND_IMAGE="$DEPLOY_FRONTEND_IMAGE"
+            export API_IMAGE="$DEPLOY_API_IMAGE"
+            echo "Deploying preview (frontend: $FRONTEND_IMAGE, api: $API_IMAGE)"
+            echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker compose -f docker-compose.deploy.yml pull
+            docker compose -f docker-compose.deploy.yml up -d --remove-orphans
+            for service in frontend api; do
+              cid="$(docker compose -f docker-compose.deploy.yml ps -q "$service")"
+              for i in $(seq 1 24); do
+                status="$(docker inspect --format='{{.State.Health.Status}}' "$cid" 2>/dev/null || echo unknown)"
+                echo "$service health: $status ($i/24)"
+                [ "$status" = "healthy" ] && break
+                [ "$i" = "24" ] && { echo "$service container did not become healthy"; exit 1; }
+                sleep 5
+              done
+            done
+            docker image prune -f
+            echo "Preview deployed."
+
+      - name: Notify Visual QA workflow
+        if: steps.issue.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+        run: |
+          set -euo pipefail
+          echo "Using image tag sha-$SHA_SHORT"
+          PR_NUMBER=$(gh api "repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/pulls" \
+            -f head="${{ github.repository_owner }}:$BRANCH" -f state=open \
+            --jq '.[0].number // 0' 2>/dev/null || echo 0)
+          echo "Open PR for $BRANCH: $PR_NUMBER"
+          curl -sf -X POST "$N8N_VISUAL_QA_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"owner\": \"${{ github.repository_owner }}\",
+              \"repository\": \"${{ github.event.repository.name }}\",
+              \"branch\": \"$BRANCH\",
+              \"issueNumber\": \"$ISSUE_NUMBER\",
+              \"prNumber\": \"$PR_NUMBER\",
+              \"previewUrl\": \"$PREVIEW_URL\",
+              \"sha\": \"$SHA\"
+            }"
+          echo "Visual QA workflow notified."

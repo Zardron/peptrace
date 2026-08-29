@@ -15,6 +15,11 @@
 # keeps its plain routes like /health).
 #
 # The images are built and published by GitHub Actions (see .github/workflows/docker.yml).
+#
+# Preview slot: .github/workflows/deploy-preview.yml deploys feature branches
+# to a second copy of this stack in ~/services/peptrace-preview whose .env sets
+# PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering (see that workflow's
+# header comment for one-time setup).
 
 services:
   frontend:
