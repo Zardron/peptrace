@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import './AccountPages.css'
 import alertTriangle from '../../assets/account/alert-triangle.svg'
 import eyeOff from '../../assets/account/eye-off.svg'
@@ -22,6 +22,16 @@ export type AccountView =
 
 interface AccountPagesProps {
   view: AccountView
+}
+
+type TableColumn = string | {
+  label: string
+  mobileLabel?: string
+}
+
+type SettingsHeaderMenuProps = {
+  menuOpen: boolean
+  onMenuClick: () => void
 }
 
 const settingsNav: Array<{ id: Exclude<AccountView, 'dashboard'>; label: string; href: string }> = [
@@ -79,13 +89,21 @@ function StatusPill({ children, tone = 'success' }: { children: ReactNode; tone?
   return <span className={`account-status ${tone}`}>{children}</span>
 }
 
-function AccountTable({ columns, rows, className = '' }: { columns: string[]; rows: ReactNode[][]; className?: string }) {
+function AccountTable({ columns, rows, className = '' }: { columns: TableColumn[]; rows: ReactNode[][]; className?: string }) {
   return (
     <div className={`account-table ${className}`}>
       <div className="account-table-row account-table-head">
-        {columns.map((column) => (
-          <span key={column}>{column}</span>
-        ))}
+        {columns.map((column) => {
+          const label = typeof column === 'string' ? column : column.label
+          const mobileLabel = typeof column === 'string' ? undefined : column.mobileLabel
+
+          return (
+            <span key={label}>
+              <span className="desktop-table-label">{label}</span>
+              <span className="mobile-table-label">{mobileLabel ?? label}</span>
+            </span>
+          )
+        })}
       </div>
       {rows.map((row, index) => (
         <div className="account-table-row" key={index}>
@@ -121,14 +139,34 @@ function AccountFooter({ variant }: { variant: 'dashboard' | 'settings' }) {
   )
 }
 
-function AccountContentHeader({ title, subtitle }: { title: string; subtitle: string }) {
+function AccountContentHeader({
+  title,
+  subtitle,
+  menuOpen,
+  onMenuClick,
+}: {
+  title: string
+  subtitle: string
+  menuOpen?: boolean
+  onMenuClick?: () => void
+}) {
   return (
     <div className="account-content-header">
       <div>
         <h1>{title}</h1>
         <p>{subtitle}</p>
       </div>
-      <img src={moreAction} alt="" className="account-more-action" />
+      {onMenuClick ? (
+        <button
+          type="button"
+          className="settings-menu-trigger"
+          aria-label="Open settings menu"
+          aria-expanded={menuOpen}
+          onClick={onMenuClick}
+        >
+          <img src={moreAction} alt="" className="account-more-action" />
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -172,11 +210,17 @@ function DashboardPage() {
         <div className="dashboard-metrics" aria-label="Account metrics">
           <div>
             <strong>12</strong>
-            <span>Total Samples Sent</span>
+            <span>
+              <span className="desktop-metric-label">Total Samples Sent</span>
+              <span className="mobile-metric-label">Total Samples</span>
+            </span>
           </div>
           <div>
             <strong>98.9%</strong>
-            <span>Avg Batch Purity</span>
+            <span>
+              <span className="desktop-metric-label">Avg Batch Purity</span>
+              <span className="mobile-metric-label">Avg Purity</span>
+            </span>
           </div>
           <div>
             <strong className="metric-warn">1</strong>
@@ -192,7 +236,11 @@ function DashboardPage() {
               <h2>My Shipments</h2>
               <a href="/shipments">track shipments</a>
             </div>
-            <AccountTable columns={['Tracking ID', 'Peptide Name', 'Date Submitted', 'Status']} rows={shipmentRows} className="shipments-table" />
+            <AccountTable
+              columns={['Tracking ID', 'Peptide Name', { label: 'Date Submitted', mobileLabel: 'Date Sent' }, 'Status']}
+              rows={shipmentRows}
+              className="shipments-table"
+            />
           </section>
 
           <section className="account-card">
@@ -208,7 +256,11 @@ function DashboardPage() {
               <h2>My Supply</h2>
               <a href="/supply">manage supply</a>
             </div>
-            <AccountTable columns={['Peptide Name', 'Quantity (mg)', 'Vendor', 'Purity', 'Status']} rows={supplyRows} className="supply-table" />
+            <AccountTable
+              columns={[{ label: 'Peptide Name', mobileLabel: 'Peptide' }, { label: 'Quantity (mg)', mobileLabel: 'Qty' }, 'Vendor', 'Purity', 'Status']}
+              rows={supplyRows}
+              className="supply-table"
+            />
           </section>
         </div>
 
@@ -217,7 +269,8 @@ function DashboardPage() {
             <h2>Quick Actions</h2>
             <a href="/submit-sample" className="quick-action primary">
               <img src={plusIcon} alt="" />
-              <span>Submit New Sample</span>
+              <span className="desktop-action-label">Submit New Sample</span>
+              <span className="mobile-action-label">Submit Sample</span>
             </a>
             <a href="/results" className="quick-action outlined">
               <img src={fileIcon} alt="" />
@@ -230,7 +283,20 @@ function DashboardPage() {
           </section>
 
           <section className="account-card lab-dates">
-            <h2>Next Lab Delivery Dates</h2>
+            <h2>
+              <span className="desktop-lab-title">Next Lab Delivery Dates</span>
+              <span className="mobile-lab-title">Next Lab Deliveries</span>
+            </h2>
+            <div className="lab-delivery-list">
+              <span>
+                <strong>Aug 18, 2026</strong>
+                <small>Tirzepatide Batch T-4</small>
+              </span>
+              <span>
+                <strong>Aug 22, 2026</strong>
+                <small>Retatrutide Batch R-2</small>
+              </span>
+            </div>
           </section>
         </aside>
       </div>
@@ -238,13 +304,13 @@ function DashboardPage() {
   )
 }
 
-function SettingsSidebar({ active }: { active: Exclude<AccountView, 'dashboard'> }) {
+function SettingsSidebar({ active, onNavigate }: { active: Exclude<AccountView, 'dashboard'>; onNavigate?: () => void }) {
   return (
     <aside className="settings-sidebar">
       <p>Settings Menu</p>
       <nav aria-label="Account settings">
         {settingsNav.map((item) => (
-          <a href={item.href} className={item.id === active ? 'active' : ''} key={item.id}>
+          <a href={item.href} className={item.id === active ? 'active' : ''} key={item.id} onClick={onNavigate}>
             {item.label}
           </a>
         ))}
@@ -262,12 +328,13 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function ProfileSettings() {
+function ProfileSettings({ headerProps }: { headerProps: SettingsHeaderMenuProps }) {
   return (
     <>
       <AccountContentHeader
         title="Profile Information"
         subtitle="Update your research credentials, contact details, and organization profile."
+        {...headerProps}
       />
       <div className="profile-picture-row">
         <img src={profilePhoto} alt="" />
@@ -279,30 +346,32 @@ function ProfileSettings() {
           </span>
         </div>
       </div>
-      <div className="settings-form-grid">
-        <Field label="Full Name">
-          <input defaultValue="Dr. John Doe" />
+      <div className="settings-form-stack">
+        <div className="settings-form-grid">
+          <Field label="Full Name">
+            <input defaultValue="Dr. John Doe" />
+          </Field>
+          <Field label="Email Address">
+            <input defaultValue="john.doe@example.com" type="email" />
+          </Field>
+          <Field label="Institution/Organization">
+            <input defaultValue="University of Melbourne" />
+          </Field>
+          <Field label="Role">
+            <select defaultValue="Researcher">
+              <option>Researcher</option>
+              <option>Lab Manager</option>
+              <option>Clinician</option>
+            </select>
+          </Field>
+        </div>
+        <Field label="Phone Number">
+          <input defaultValue="+61 412 345 678" />
         </Field>
-        <Field label="Email Address">
-          <input defaultValue="john.doe@example.com" type="email" />
-        </Field>
-        <Field label="Institution/Organization">
-          <input defaultValue="University of Melbourne" />
-        </Field>
-        <Field label="Role">
-          <select defaultValue="Researcher">
-            <option>Researcher</option>
-            <option>Lab Manager</option>
-            <option>Clinician</option>
-          </select>
+        <Field label="Bio">
+          <textarea defaultValue="Peptide researcher specializing in metabolic peptides and purity analysis." />
         </Field>
       </div>
-      <Field label="Phone Number">
-        <input defaultValue="+61 412 345 678" />
-      </Field>
-      <Field label="Bio">
-        <textarea defaultValue="Peptide researcher specializing in metabolic peptides and purity analysis." />
-      </Field>
       <div className="settings-actions">
         <button type="button" className="account-pill primary">Save Changes</button>
         <button type="button" className="account-pill secondary">Cancel</button>
@@ -322,10 +391,10 @@ function PasswordField({ label }: { label: string }) {
   )
 }
 
-function SecuritySettings() {
+function SecuritySettings({ headerProps }: { headerProps: SettingsHeaderMenuProps }) {
   return (
     <>
-      <AccountContentHeader title="Security & Password" subtitle="Manage your password and account security settings." />
+      <AccountContentHeader title="Security & Password" subtitle="Manage your password and account security settings." {...headerProps} />
       <section className="settings-inner-card">
         <h2>Change Password</h2>
         <PasswordField label="Current Password" />
@@ -377,10 +446,10 @@ function ToggleRow({ label, on = true, detail }: { label: string; on?: boolean; 
   )
 }
 
-function NotificationsSettings() {
+function NotificationsSettings({ headerProps }: { headerProps: SettingsHeaderMenuProps }) {
   return (
     <>
-      <AccountContentHeader title="Notification Preferences" subtitle="Control how and when Peptrace contacts you." />
+      <AccountContentHeader title="Notification Preferences" subtitle="Control how and when Peptrace contacts you." {...headerProps} />
       <section className="settings-inner-card">
         <h2>Email Notifications</h2>
         <ToggleRow label="Test Results Ready" />
@@ -406,21 +475,57 @@ function NotificationsSettings() {
   )
 }
 
-function BillingSettings() {
+function BillingSettings({ headerProps }: { headerProps: SettingsHeaderMenuProps }) {
   const billingRows = [
-    ['15 Aug 2026', 'Researcher Premium', '$29.00', <StatusPill key="status">Paid</StatusPill>],
-    ['15 Jul 2026', 'Researcher Premium', '$29.00', <StatusPill key="status">Paid</StatusPill>],
-    ['15 Jun 2026', 'Researcher Premium', '$29.00', <StatusPill key="status">Paid</StatusPill>],
+    [
+      <span key="date">
+        <span className="desktop-billing-copy">15 Aug 2026</span>
+        <span className="mobile-billing-copy">10 Aug 2026</span>
+      </span>,
+      'Researcher Premium',
+      <span key="amount">
+        <span className="desktop-billing-copy">$29.00</span>
+        <span className="mobile-billing-copy">$29.90</span>
+      </span>,
+      <StatusPill key="status">Paid</StatusPill>,
+    ],
+    [
+      <span key="date">
+        <span className="desktop-billing-copy">15 Jul 2026</span>
+        <span className="mobile-billing-copy">10 Jul 2026</span>
+      </span>,
+      'Researcher Premium',
+      <span key="amount">
+        <span className="desktop-billing-copy">$29.00</span>
+        <span className="mobile-billing-copy">$29.90</span>
+      </span>,
+      <StatusPill key="status">Paid</StatusPill>,
+    ],
+    [
+      <span key="date">
+        <span className="desktop-billing-copy">15 Jun 2026</span>
+        <span className="mobile-billing-copy">10 Jun 2026</span>
+      </span>,
+      'Researcher Premium',
+      <span key="amount">
+        <span className="desktop-billing-copy">$29.00</span>
+        <span className="mobile-billing-copy">$29.90</span>
+      </span>,
+      <StatusPill key="status">Paid</StatusPill>,
+    ],
   ]
 
   return (
     <>
-      <AccountContentHeader title="Membership & Billing" subtitle="Manage your subscription plan and payment details." />
+      <AccountContentHeader title="Membership & Billing" subtitle="Manage your subscription plan and payment details." {...headerProps} />
       <section className="settings-inner-card subtle-card">
         <div className="plan-header">
           <span>
             <h2>Researcher Premium</h2>
-            <p>$29/month</p>
+            <p>
+              <span className="desktop-billing-copy">$29/month</span>
+              <span className="mobile-billing-copy">$30/month</span>
+            </p>
           </span>
           <p>Renews on 15 Sep 2026</p>
         </div>
@@ -443,7 +548,10 @@ function BillingSettings() {
           <strong>Visa ending in 4582</strong>
           <small>Expires 08/2028</small>
         </span>
-        <button type="button" className="account-pill secondary squared">Update Payment Method</button>
+        <button type="button" className="account-pill secondary squared">
+          <span className="desktop-billing-copy">Update Payment Method</span>
+          <span className="mobile-billing-copy">Update</span>
+        </button>
       </section>
       <section className="settings-inner-card subtle-card">
         <h2>Billing History</h2>
@@ -477,10 +585,10 @@ function AddressCard({
   )
 }
 
-function ShippingSettings() {
+function ShippingSettings({ headerProps }: { headerProps: SettingsHeaderMenuProps }) {
   return (
     <>
-      <AccountContentHeader title="Shipping Addresses" subtitle="Manage addresses for sample submissions and deliveries." />
+      <AccountContentHeader title="Shipping Addresses" subtitle="Manage addresses for sample submissions and deliveries." {...headerProps} />
       <div className="address-list">
         <AddressCard title="Primary Address">
           <p>Dr. John Doe</p>
@@ -502,10 +610,10 @@ function ShippingSettings() {
   )
 }
 
-function PrivacySettings() {
+function PrivacySettings({ headerProps }: { headerProps: SettingsHeaderMenuProps }) {
   return (
     <>
-      <AccountContentHeader title="Data & Privacy" subtitle="Control your data, privacy settings, and account deletion." />
+      <AccountContentHeader title="Data & Privacy" subtitle="Control your data, privacy settings, and account deletion." {...headerProps} />
       <section className="settings-inner-card subtle-card">
         <h2>Data Sharing</h2>
         <ToggleRow label="Share anonymized test results with community leaderboards" />
@@ -533,20 +641,61 @@ function PrivacySettings() {
 }
 
 function SettingsContent({ view }: { view: Exclude<AccountView, 'dashboard'> }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const settingsCardRef = useRef<HTMLElement>(null)
+  const headerProps = {
+    menuOpen: mobileMenuOpen,
+    onMenuClick: () => setMobileMenuOpen((open) => !open),
+  }
   const content = {
-    profile: <ProfileSettings />,
-    security: <SecuritySettings />,
-    notifications: <NotificationsSettings />,
-    billing: <BillingSettings />,
-    shipping: <ShippingSettings />,
-    privacy: <PrivacySettings />,
+    profile: <ProfileSettings headerProps={headerProps} />,
+    security: <SecuritySettings headerProps={headerProps} />,
+    notifications: <NotificationsSettings headerProps={headerProps} />,
+    billing: <BillingSettings headerProps={headerProps} />,
+    shipping: <ShippingSettings headerProps={headerProps} />,
+    privacy: <PrivacySettings headerProps={headerProps} />,
   }[view]
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [view])
+
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      return undefined
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!settingsCardRef.current?.contains(event.target as Node)) {
+        setMobileMenuOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileMenuOpen(false)
+      }
+    }
+
+    window.addEventListener('mousedown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [mobileMenuOpen])
 
   return (
     <main className="account-page-main settings-main">
       <div className="settings-layout">
         <SettingsSidebar active={view} />
-        <section className="settings-content">{content}</section>
+        <section className="settings-content" ref={settingsCardRef}>
+          <div className={`mobile-settings-popover ${mobileMenuOpen ? 'open' : ''}`}>
+            <SettingsSidebar active={view} onNavigate={() => setMobileMenuOpen(false)} />
+          </div>
+          {content}
+        </section>
       </div>
     </main>
   )

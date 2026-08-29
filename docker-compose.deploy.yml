@@ -6,13 +6,16 @@
 #
 # Usage:
 #   1. Copy this file and a filled-in .env to the server (~/services/peptrace).
-#   2. Set PEPTRACE_DOMAIN in .env (and TRAEFIK_NETWORK / TRAEFIK_CERT_RESOLVER
-#      if they differ from the defaults).
+#   2. Set PEPTRACE_DOMAIN, ADMIN_DOMAIN, DATABASE_URL, DIRECT_URL, JWT_SECRET,
+#      SECRET_ENCRYPTION_KEY, and DATABASE_CONNECTION_ENCRYPTION_KEY in .env
+#      (plus TRAEFIK_NETWORK / TRAEFIK_CERT_RESOLVER if they differ from the
+#      defaults).
 #   3. docker compose -f docker-compose.deploy.yml pull && docker compose -f docker-compose.deploy.yml up -d
 #
-# Routing: the frontend serves the domain root, the API serves /api/* (the
-# /api prefix is stripped before requests reach the container, so the API
-# keeps its plain routes like /health).
+# Routing: the frontend serves the domain root, the admin panel serves
+# ADMIN_DOMAIN, the platform API serves /api/*, and the client API serves
+# /client-api/*. The Nest services keep their global route prefixes, so Traefik
+# forwards those prefixes unchanged.
 #
 # The images are built and published by GitHub Actions (see .github/workflows/docker.yml).
 #
@@ -34,12 +37,37 @@ services:
       traefik.http.routers.peptrace.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
       traefik.http.services.peptrace.loadbalancer.server.port: 80
 
+  admin:
+    image: ${ADMIN_IMAGE:-ghcr.io/peptrace/peptrace-admin:latest}
+    restart: unless-stopped
+    networks:
+      - traefik
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.peptrace-admin.rule: "Host(`${ADMIN_DOMAIN:?set ADMIN_DOMAIN}`)"
+      traefik.http.routers.peptrace-admin.entrypoints: websecure
+      traefik.http.routers.peptrace-admin.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      traefik.http.services.peptrace-admin.loadbalancer.server.port: 80
+
   api:
     image: ${API_IMAGE:-ghcr.io/peptrace/peptrace-api:latest}
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      HOST: 0.0.0.0
       PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL:?set DIRECT_URL}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://${PEPTRACE_DOMAIN},https://${ADMIN_DOMAIN}}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-admin@esteemedengineering.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@123}
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?set SECRET_ENCRYPTION_KEY}
+      SECRET_ENCRYPTION_KEY_ID: ${SECRET_ENCRYPTION_KEY_ID:-production-v1}
+      SECRET_ENCRYPTION_PREVIOUS_KEYS: ${SECRET_ENCRYPTION_PREVIOUS_KEYS:-{}}
+      DATABASE_CONNECTION_ENCRYPTION_KEY: ${DATABASE_CONNECTION_ENCRYPTION_KEY:?set DATABASE_CONNECTION_ENCRYPTION_KEY}
+      DATABASE_CONNECTION_ENCRYPTION_KEY_ID: ${DATABASE_CONNECTION_ENCRYPTION_KEY_ID:-production-v1}
+      DATABASE_CONNECTION_ENCRYPTION_PREVIOUS_KEYS: ${DATABASE_CONNECTION_ENCRYPTION_PREVIOUS_KEYS:-{}}
     networks:
       - traefik
     labels:
@@ -48,9 +76,31 @@ services:
       traefik.http.routers.peptrace-api.priority: "100"
       traefik.http.routers.peptrace-api.entrypoints: websecure
       traefik.http.routers.peptrace-api.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
-      traefik.http.routers.peptrace-api.middlewares: peptrace-api-strip
-      traefik.http.middlewares.peptrace-api-strip.stripprefix.prefixes: "/api"
       traefik.http.services.peptrace-api.loadbalancer.server.port: 3000
+
+  client-api:
+    image: ${CLIENT_API_IMAGE:-ghcr.io/peptrace/peptrace-client-api:latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      CLIENT_API_PORT: 3001
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL:?set DIRECT_URL}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://${PEPTRACE_DOMAIN},https://${ADMIN_DOMAIN}}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?set SECRET_ENCRYPTION_KEY}
+      SECRET_ENCRYPTION_KEY_ID: ${SECRET_ENCRYPTION_KEY_ID:-production-v1}
+      SECRET_ENCRYPTION_PREVIOUS_KEYS: ${SECRET_ENCRYPTION_PREVIOUS_KEYS:-{}}
+    networks:
+      - traefik
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.peptrace-client-api.rule: "Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`) && PathPrefix(`/client-api`)"
+      traefik.http.routers.peptrace-client-api.priority: "100"
+      traefik.http.routers.peptrace-client-api.entrypoints: websecure
+      traefik.http.routers.peptrace-client-api.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      traefik.http.services.peptrace-client-api.loadbalancer.server.port: 3001
 
 networks:
   traefik:

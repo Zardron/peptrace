@@ -47,6 +47,19 @@ Docker Compose starts:
 The superadmin API route index is served at `http://localhost:3000/api`.
 The client API route index is served at `http://localhost:3001/client-api`.
 
+## Deployment Stack
+
+`docker-compose.deploy.yml` deploys the production public frontend, admin
+panel, platform API, and client API. Configure `PEPTRACE_DOMAIN` for the public
+site and `ADMIN_DOMAIN` for the admin panel. The platform API is routed at
+`https://$PEPTRACE_DOMAIN/api/*`, and the client API is routed at
+`https://$PEPTRACE_DOMAIN/client-api/*`.
+
+Production API containers require `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`,
+`SECRET_ENCRYPTION_KEY`, and `DATABASE_CONNECTION_ENCRYPTION_KEY` in the server
+environment. The Nest services keep their `/api` and `/client-api` prefixes, so
+the reverse proxy must forward those prefixes unchanged.
+
 ## Shared Admin Login
 
 The admin app now uses one shared login and one shared frontend. The legacy
@@ -84,11 +97,16 @@ multi-tenant membership backfill before starting the updated APIs:
 
 ```sh
 npm run db:migrate:multitenancy
+npm run db:migrate:services
+npm run db:migrate:client-domains
+npm run db:migrate:marketplace-features
+npm run db:migrate:shamstay-billing
 npm run db:seed
 ```
 
-The migration creates `TenantMembership`, `TenantSettings`, and
-`PlatformAuditEvent`. Authenticated admin routes expect those tables to exist.
+These migrations create the tenant membership tables, backend service catalog,
+project-domain tables, and Shamstay billing tables. Authenticated admin routes
+expect those tables to exist.
 For a fresh local/demo database, `npm run db:setup` still creates the current
 schema with `db:push` and then seeds repeatable demo data.
 

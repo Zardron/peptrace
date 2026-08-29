@@ -5,5 +5,7 @@ coverage
 .env
 .env.local
 *.tsbuildinfo
-apps/admin/dist
-apps/api/dist
+admin/dist
+api/services/admin-panel/platform-api/dist
+api/services/projects/client-api/dist
+frontend/dist

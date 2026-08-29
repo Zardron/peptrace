@@ -23,7 +23,9 @@ import { UsersModule } from "./modules/users/users.module";
         join(process.cwd(), ".env.local"),
         join(process.cwd(), ".env"),
         join(process.cwd(), "../../.env.local"),
-        join(process.cwd(), "../../.env")
+        join(process.cwd(), "../../.env"),
+        join(process.cwd(), "../../../../.env.local"),
+        join(process.cwd(), "../../../../.env")
       ],
       isGlobal: true,
       validationSchema: envValidationSchema,

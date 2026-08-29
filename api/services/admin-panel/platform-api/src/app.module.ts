@@ -23,7 +23,9 @@ import { TestingModule } from "./modules/testing/testing.module";
         join(process.cwd(), ".env.local"),
         join(process.cwd(), ".env"),
         join(process.cwd(), "../../.env.local"),
-        join(process.cwd(), "../../.env")
+        join(process.cwd(), "../../.env"),
+        join(process.cwd(), "../../../../.env.local"),
+        join(process.cwd(), "../../../../.env")
       ],
       isGlobal: true,
       validationSchema: envValidationSchema,

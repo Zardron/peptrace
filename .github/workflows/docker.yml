@@ -21,13 +21,11 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: api/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
-        working-directory: api
       - run: npm run typecheck
-        working-directory: api
       - run: npm run build
-        working-directory: api
+      - run: npm run test:multitenancy -w @peptrace/client-api
 
       - uses: actions/setup-node@v4
         with:
@@ -52,9 +50,21 @@ jobs:
       matrix:
         include:
           - context: ./frontend
+            dockerfile: ./frontend/Dockerfile
             suffix: frontend
-          - context: ./api
+            target: runtime
+          - context: .
+            dockerfile: ./Dockerfile
+            suffix: admin
+            target: admin-prod
+          - context: .
+            dockerfile: ./Dockerfile
             suffix: api
+            target: platform-api-prod
+          - context: .
+            dockerfile: ./Dockerfile
+            suffix: client-api
+            target: client-api-prod
     steps:
       - uses: actions/checkout@v4
       - name: Lowercase image name
@@ -78,6 +88,8 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           push: true
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}

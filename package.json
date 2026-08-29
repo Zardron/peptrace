@@ -23,6 +23,7 @@
     "db:migrate:services": "npm run db:migrate:services -w @peptrace/api",
     "db:migrate:client-domains": "npm run db:migrate:client-domains -w @peptrace/api",
     "db:migrate:marketplace-features": "npm run db:migrate:marketplace-features -w @peptrace/api",
+    "db:migrate:shamstay-billing": "npm run db:migrate:shamstay-billing -w @peptrace/api",
     "db:push": "npm run db:push -w @peptrace/api",
     "db:seed": "npm run db:seed -w @peptrace/api",
     "db:setup": "npm run db:setup -w @peptrace/api",

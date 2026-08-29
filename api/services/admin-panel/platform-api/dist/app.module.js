@@ -35,7 +35,9 @@ exports.AppModule = AppModule = __decorate([
                     (0, node_path_1.join)(process.cwd(), ".env.local"),
                     (0, node_path_1.join)(process.cwd(), ".env"),
                     (0, node_path_1.join)(process.cwd(), "../../.env.local"),
-                    (0, node_path_1.join)(process.cwd(), "../../.env")
+                    (0, node_path_1.join)(process.cwd(), "../../.env"),
+                    (0, node_path_1.join)(process.cwd(), "../../../../.env.local"),
+                    (0, node_path_1.join)(process.cwd(), "../../../../.env")
                 ],
                 isGlobal: true,
                 validationSchema: env_validation_1.envValidationSchema,

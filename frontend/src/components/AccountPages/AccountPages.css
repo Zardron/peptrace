@@ -1,12 +1,15 @@
 .account-page {
-  min-height: 100svh;
+  min-height: calc(100svh - 99px);
   background: #f8f7f5;
+  letter-spacing: 0;
+  overflow-x: hidden;
 }
 
 .account-page-main {
   width: min(1120px, calc(100% - 40px));
   margin: 0 auto;
   padding: 32px 0;
+  min-width: 0;
 }
 
 .dashboard-main {
@@ -142,6 +145,7 @@
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 24px;
   align-items: start;
+  min-width: 0;
 }
 
 .dashboard-primary,
@@ -149,6 +153,7 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  min-width: 0;
 }
 
 .account-card {
@@ -193,6 +198,20 @@
   overflow: hidden;
   font-size: 12px;
   line-height: normal;
+}
+
+.mobile-table-label,
+.mobile-metric-label,
+.mobile-action-label,
+.mobile-lab-title,
+.mobile-billing-copy,
+.lab-delivery-list,
+.mobile-settings-popover {
+  display: none;
+}
+
+.account-page .mobile-billing-copy {
+  display: none;
 }
 
 .account-card:has(.account-table) {
@@ -369,6 +388,7 @@
   grid-template-columns: 260px minmax(0, 1fr);
   gap: 32px;
   align-items: start;
+  min-width: 0;
 }
 
 .settings-sidebar {
@@ -422,6 +442,7 @@
   flex-direction: column;
   gap: 24px;
   padding: 32px;
+  min-width: 0;
 }
 
 .settings-content > .account-pill {
@@ -450,8 +471,19 @@
   line-height: 1;
 }
 
-.account-more-action {
+.settings-menu-trigger {
   display: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.account-more-action {
+  display: block;
   width: 20px;
   height: 20px;
   transform: rotate(90deg);
@@ -512,6 +544,10 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
+}
+
+.settings-form-stack {
+  display: contents;
 }
 
 .settings-field {
@@ -1268,6 +1304,10 @@
 }
 
 @media (max-width: 1091px) {
+  .account-page {
+    min-height: calc(100svh - 171px);
+  }
+
   .dashboard-grid,
   .settings-layout {
     grid-template-columns: 1fr;
@@ -1297,23 +1337,33 @@
 }
 
 @media (max-width: 700px) {
+  .account-page {
+    min-height: calc(100svh - 195px);
+  }
+
   .account-page-main {
     width: 100%;
+    max-width: 100%;
     padding: 0 16px 40px;
   }
 
   .dashboard-main {
-    gap: 16px;
+    gap: 24px;
+    padding-top: 0;
   }
 
   .dashboard-welcome {
+    height: 161px;
     align-items: flex-start;
     flex-direction: column;
-    padding: 24px;
+    gap: 24px;
+    padding: 20px;
   }
 
   .dashboard-user {
-    align-items: flex-start;
+    width: 100%;
+    align-items: center;
+    gap: 16px;
   }
 
   .dashboard-photo {
@@ -1326,9 +1376,24 @@
     line-height: 1.15;
   }
 
+  .dashboard-user p {
+    font-size: 13px;
+  }
+
   .dashboard-membership {
     align-items: flex-start;
     flex-direction: column;
+    gap: 6px;
+    padding-top: 0;
+  }
+
+  .dashboard-membership span {
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+
+  .dashboard-membership small {
+    font-size: 11px;
   }
 
   .dashboard-metrics {
@@ -1338,17 +1403,194 @@
   }
 
   .dashboard-metrics > div {
+    width: 80px;
     min-width: 0;
     flex: 1 1 0;
+    gap: 2px;
   }
 
   .dashboard-metrics > div + div {
-    padding-left: 12px;
-    margin-left: 12px;
+    padding-left: 0;
+    margin-left: 0;
+  }
+
+  .dashboard-metrics strong {
+    font-size: 20px;
+  }
+
+  .dashboard-metrics span {
+    font-size: 11px;
+  }
+
+  .desktop-metric-label,
+  .desktop-action-label,
+  .desktop-lab-title,
+  .desktop-billing-copy {
+    display: none;
+  }
+
+  .mobile-metric-label,
+  .mobile-action-label,
+  .mobile-lab-title {
+    display: inline;
+  }
+
+  .account-page .desktop-billing-copy {
+    display: none;
+  }
+
+  .account-page .mobile-billing-copy {
+    display: inline;
   }
 
   .dashboard-sidebar {
     display: flex;
+  }
+
+  .dashboard-main .account-card {
+    padding: 20px;
+  }
+
+  .account-card-title-row {
+    height: auto;
+    margin-bottom: 12px;
+  }
+
+  .account-card-title-row h2 {
+    font-size: 16px;
+    line-height: 16px;
+  }
+
+  .account-card-title-row a {
+    font-size: 13px;
+    line-height: 13px;
+  }
+
+  .account-table {
+    min-width: 0;
+    font-size: 13px;
+  }
+
+  .account-table-row {
+    height: auto;
+    min-height: 0;
+    padding: 12px;
+    font-size: 13px;
+    line-height: 13px;
+  }
+
+  .account-table-head {
+    height: auto;
+    min-height: 0;
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 12px;
+  }
+
+  .account-table-row span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .desktop-table-label {
+    display: none;
+  }
+
+  .mobile-table-label {
+    display: inline;
+  }
+
+  .shipments-table .account-table-row {
+    grid-template-columns: 90px minmax(0, 1fr) 90px 90px;
+  }
+
+  .shipments-table .account-table-row:nth-child(n+5),
+  .supply-table .account-table-row:nth-child(n+5) {
+    display: none;
+  }
+
+  .results-table .account-table-row {
+    grid-template-columns: minmax(0, 1fr) 100px 70px 70px;
+  }
+
+  .shipments-table .account-table-row:not(.account-table-head),
+  .results-table .account-table-row:not(.account-table-head),
+  .supply-table .account-table-row:not(.account-table-head) {
+    padding: 12px;
+  }
+
+  .results-table .account-table-row > span:nth-child(4) {
+    display: none;
+  }
+
+  .supply-table .account-table-row {
+    grid-template-columns: minmax(0, 1fr) 80px 110px 70px;
+  }
+
+  .supply-table .account-table-row > span:nth-child(5) {
+    display: none;
+  }
+
+  .account-status {
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+
+  .quick-actions {
+    gap: 8px;
+  }
+
+  .quick-actions h2 {
+    margin-bottom: 8px;
+    line-height: 15px;
+  }
+
+  .quick-action {
+    height: 40px;
+    min-height: 40px;
+    gap: 8px;
+    padding: 12px;
+    font-size: 13px;
+  }
+
+  .quick-action img {
+    width: 16px;
+    height: 16px;
+  }
+
+  .lab-dates {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .lab-dates h2 {
+    font-size: 14px;
+  }
+
+  .lab-delivery-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .lab-delivery-list span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .lab-delivery-list strong {
+    color: var(--primary);
+    font-size: 12px;
+    line-height: 12px;
+  }
+
+  .lab-delivery-list small {
+    color: #747474;
+    font-size: 11px;
+    line-height: 11px;
   }
 
   .settings-sidebar {
@@ -1357,12 +1599,15 @@
 
   .settings-main {
     padding-top: 0;
+    padding-bottom: 19px;
   }
 
   .settings-content {
     position: relative;
-    gap: 20px;
-    padding: 23px;
+    gap: 24px;
+    padding: 24px;
+    border-radius: 16px;
+    min-width: 0;
   }
 
   .settings-inner-card {
@@ -1380,7 +1625,8 @@
 
   .account-content-header {
     display: block;
-    padding-bottom: 5px;
+    padding-bottom: 0;
+    border-bottom: 1px solid #e6e6e6;
   }
 
   .account-content-header h1 {
@@ -1391,19 +1637,23 @@
     max-width: none;
     margin-top: 6px;
     font-size: 13px;
-    line-height: 1;
+    line-height: normal;
   }
 
-  .account-more-action {
-    display: block;
+  .settings-menu-trigger {
+    display: flex;
     position: absolute;
-    top: 0;
-    right: 0;
+    top: -6px;
+    right: -6px;
+    z-index: 12;
   }
 
   .account-pill {
-    min-height: 28px;
-    padding-block: 7px;
+    height: 30px;
+    min-height: 30px;
+    padding: 0 23px;
+    font-size: 12px;
+    letter-spacing: 1.68px;
   }
 
   .settings-form-grid,
@@ -1418,7 +1668,68 @@
   }
 
   .profile-picture-row {
-    align-items: flex-start;
+    height: 80px;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 0;
+  }
+
+  .profile-picture-row img {
+    width: 64px;
+    height: 64px;
+  }
+
+  .profile-picture-row strong {
+    font-size: 14px;
+  }
+
+  .settings-form-grid {
+    gap: 16px;
+  }
+
+  .settings-form-stack {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .settings-field {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .settings-field > span:first-child {
+    font-size: 12px;
+    letter-spacing: 0.48px;
+  }
+
+  .settings-field input,
+  .settings-field select {
+    height: 33px;
+    min-height: 33px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+
+  .settings-field textarea {
+    height: 80px;
+    min-height: 80px;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+    resize: none;
+  }
+
+  .settings-actions {
+    gap: 12px;
+    padding-top: 6px;
+  }
+
+  .settings-actions .account-pill.secondary {
+    padding-inline: 20px;
   }
 
   .session-row {
@@ -1486,8 +1797,8 @@
   .data-export-card .account-pill,
   .delete-card .account-pill,
   .settings-content > .account-pill {
-    height: 28px;
-    min-height: 28px;
+    height: 30px;
+    min-height: 30px;
     padding-block: 0;
     padding-inline: 0;
   }
@@ -1552,14 +1863,394 @@
     padding: 40px;
   }
 
+  .account-footer-dashboard,
   .account-footer-settings {
-    height: 240px;
+    height: auto;
+  }
+
+  .account-footer-settings {
+    width: calc(100% - 32px);
+    margin: 0 auto;
+  }
+
+  .account-view-security .settings-main,
+  .account-view-notifications .settings-main,
+  .account-view-billing .settings-main,
+  .account-view-shipping .settings-main,
+  .account-view-privacy .settings-main {
+    padding-bottom: 40px;
+  }
+
+  .account-view-security .account-footer-settings,
+  .account-view-notifications .account-footer-settings,
+  .account-view-billing .account-footer-settings,
+  .account-view-shipping .account-footer-settings,
+  .account-view-privacy .account-footer-settings {
+    width: 100%;
+    margin: 0;
+  }
+
+  .account-view-security .settings-content {
+    height: 715px;
+    gap: 20px;
+  }
+
+  .account-view-security .account-content-header {
+    height: 45px;
+  }
+
+  .account-view-security .account-content-header p {
+    white-space: nowrap;
+  }
+
+  .account-view-security .settings-inner-card {
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .account-view-security .settings-inner-card h2 {
+    font-size: 15px;
+    line-height: 15px;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(1) {
+    height: 264px;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(1) .settings-field {
+    gap: 4px;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(1) .settings-field > span:first-child {
+    font-size: 11px;
+    letter-spacing: 0.44px;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(1) .password-shell input {
+    height: 33px;
+    min-height: 33px;
+    padding: 8px 32px 8px 8px;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(1) .password-shell img {
+    right: 8px;
+    width: 16px;
+    height: 16px;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(1) > .account-pill {
+    align-self: flex-start;
+    margin-top: 4px;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(2) {
+    height: 98px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(2) p {
+    font-size: 12px;
+    line-height: 12px;
+    white-space: nowrap;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(2) .account-status {
+    font-size: 11px;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(2) .settings-inline-actions {
+    grid-column: 1 / -1;
+    gap: 12px;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(2) .account-toggle {
+    width: 40px;
+    height: 22px;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(2) .account-pill {
+    height: 30px;
+    min-height: 30px;
+    padding: 0 16px;
+    border-width: 2px;
+    font-size: 13px;
+    letter-spacing: 0;
+  }
+
+  .account-view-security .settings-inner-card:nth-of-type(3) {
+    height: 200px;
+    gap: 12px;
+  }
+
+  .account-view-security .session-row {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 16px;
+    align-items: center;
+    padding: 10px 0;
+  }
+
+  .account-view-security .session-row span {
+    gap: 2px;
+  }
+
+  .account-view-security .session-row strong {
+    font-size: 13px;
+    line-height: 13px;
+  }
+
+  .account-view-security .session-row small,
+  .account-view-security .session-row button {
+    font-size: 12px;
+    line-height: 12px;
+  }
+
+  .account-view-billing .settings-content {
+    height: 717px;
+    gap: 20px;
+  }
+
+  .account-view-billing .account-content-header {
+    height: 45px;
+  }
+
+  .account-view-billing .settings-inner-card {
+    gap: 16px;
+    padding: 20px;
+    border-radius: 12px;
+  }
+
+  .account-view-billing .settings-inner-card:nth-of-type(1) {
+    height: 227px;
+  }
+
+  .account-view-billing .settings-inner-card:nth-of-type(2) {
+    height: 101px;
+  }
+
+  .account-view-billing .settings-inner-card:nth-of-type(3) {
+    height: 236px;
+  }
+
+  .account-view-billing .plan-header,
+  .account-view-billing .payment-card,
+  .account-view-billing .settings-inline-actions {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .account-view-billing .plan-header {
+    min-height: 32px;
+  }
+
+  .account-view-billing .plan-header h2,
+  .account-view-billing .payment-card h2,
+  .account-view-billing .settings-inner-card > h2 {
+    font-size: 16px;
+    line-height: 16px;
+  }
+
+  .account-view-billing .plan-header p,
+  .account-view-billing .payment-card small {
+    font-size: 12px;
+    line-height: 12px;
+  }
+
+  .account-view-billing .plan-features {
+    gap: 10px;
+  }
+
+  .account-view-billing .plan-features li {
+    height: 16px;
+    font-size: 13px;
+    line-height: 13px;
+  }
+
+  .account-view-billing .settings-inline-actions {
+    gap: 12px;
+  }
+
+  .account-view-billing .settings-inline-actions .account-pill {
+    padding: 0 23px;
+  }
+
+  .account-view-billing .danger-link {
+    font-size: 13px;
+    line-height: 13px;
+  }
+
+  .account-view-billing .payment-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+  }
+
+  .account-view-billing .payment-card h2 {
+    grid-column: 1 / -1;
+  }
+
+  .account-view-billing .payment-card strong {
+    font-size: 13px;
+    line-height: 13px;
+  }
+
+  .account-view-billing .payment-card .account-pill.squared {
+    height: 31px;
+    min-height: 31px;
+    padding: 0 16px;
+    border-width: 1.5px;
+    font-size: 12px;
+    letter-spacing: 0;
+  }
+
+  .account-view-billing .billing-table {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    min-width: 0;
+  }
+
+  .account-view-billing .billing-table .account-table-row {
+    grid-template-columns: 80px minmax(0, 1fr) 80px 60px;
+    gap: 0;
+    height: auto;
+    min-height: 0;
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 12px;
+  }
+
+  .account-view-billing .billing-table .account-status {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .account-view-notifications .settings-content {
+    height: 800px;
+    gap: 20px;
+  }
+
+  .account-view-notifications .account-content-header {
+    height: 45px;
+  }
+
+  .account-view-notifications .account-content-header p {
+    white-space: nowrap;
+  }
+
+  .account-view-notifications .settings-inner-card {
+    padding: 16px;
+    border-radius: 12px;
+  }
+
+  .account-view-notifications .settings-inner-card:nth-of-type(1) {
+    height: 277px;
+    gap: 8px;
+  }
+
+  .account-view-notifications .settings-inner-card:nth-of-type(2) {
+    height: 185px;
+    gap: 8px;
+  }
+
+  .account-view-notifications .settings-inner-card:nth-of-type(3) {
+    height: 133px;
+    gap: 10px;
+  }
+
+  .account-view-notifications .settings-inner-card h2 {
+    font-size: 15px;
+    line-height: 15px;
+  }
+
+  .account-view-notifications .toggle-row {
+    height: 38px;
+    min-height: 38px;
+    padding: 8px 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: 13px;
+  }
+
+  .account-view-notifications .toggle-row + .toggle-row {
+    margin-top: 0;
+  }
+
+  .account-view-notifications .toggle-row:last-child {
+    height: 38px;
+    min-height: 38px;
+  }
+
+  .account-view-notifications .toggle-row span {
+    display: inline-flex;
+    max-width: none;
+    gap: 6px;
+    font-size: 13px;
+    line-height: 13px;
+  }
+
+  .account-view-notifications .toggle-row small {
+    font-size: 11px;
+    line-height: 11px;
+  }
+
+  .account-view-notifications .account-toggle {
+    width: 40px;
+    height: 22px;
+  }
+
+  .account-view-notifications .radio-row {
+    height: 18px;
+    gap: 10px;
+    font-size: 13px;
+    line-height: 13px;
+  }
+
+  .account-view-notifications .radio-row + .radio-row {
+    margin-top: 0;
+  }
+
+  .account-view-notifications .settings-content > .account-pill {
+    width: 172px;
+  }
+
+  .account-view-notifications .account-footer-settings {
+    height: 463px;
+    align-items: stretch;
+    padding-top: 39px;
+  }
+
+  .account-view-notifications .account-footer-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    height: 323px;
   }
 
   .account-footer-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
     padding: 0;
+  }
+
+  .account-footer-dashboard {
+    height: 479px;
+    align-items: stretch;
+    padding-top: 39px;
+  }
+
+  .account-footer-dashboard .account-footer-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    height: auto;
+  }
+
+  .account-footer-dashboard .account-footer-column {
+    width: 100%;
   }
 
   .account-footer-column:nth-child(1) li:nth-child(4),
@@ -1599,6 +2290,59 @@
   .account-footer-column a {
     display: block;
     white-space: nowrap;
+  }
+
+  .mobile-settings-popover.open {
+    position: absolute;
+    top: 48px;
+    right: 16px;
+    z-index: 11;
+    display: block;
+    width: 220px;
+  }
+
+  .mobile-settings-popover .settings-sidebar {
+    width: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+  }
+
+  .mobile-settings-popover .settings-sidebar > p {
+    padding: 8px 12px;
+    font-size: 11px;
+    letter-spacing: 1.32px;
+  }
+
+  .mobile-settings-popover .settings-sidebar nav {
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .mobile-settings-popover .settings-sidebar a {
+    min-height: 33px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: #747474;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .mobile-settings-popover .settings-sidebar a.active {
+    gap: 8px;
+  }
+
+  .mobile-settings-popover .settings-sidebar a.active::before {
+    display: block;
+    width: 3px;
+    height: 16px;
+    align-self: center;
   }
 }
 
