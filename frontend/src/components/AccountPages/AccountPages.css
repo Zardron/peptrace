@@ -578,6 +578,13 @@
   outline: none;
 }
 
+.settings-field select {
+  height: 42px;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 42px;
+}
+
 .settings-field textarea {
   min-height: 120px;
   resize: vertical;
@@ -1078,6 +1085,12 @@
   .account-view-profile .settings-field select {
     height: 38px;
     min-height: 38px;
+  }
+
+  .account-view-profile .settings-field select {
+    padding-top: 0;
+    padding-bottom: 0;
+    line-height: 38px;
   }
 
   .account-view-profile .settings-content > .settings-field:nth-child(4),
@@ -1711,6 +1724,12 @@
     padding: 8px 10px;
     border-radius: 8px;
     font-size: 13px;
+  }
+
+  .settings-field select {
+    padding-top: 0;
+    padding-bottom: 0;
+    line-height: 33px;
   }
 
   .settings-field textarea {
