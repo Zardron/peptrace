@@ -95,7 +95,7 @@ function App() {
       ) : (
         <>
           <HeaderBar onSignUpClick={openAuthModal} />
-          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+          <main className="main">
             <HomeTopInfo />
             <Leaderboards cards={leaderboardCards} />
             <HomeBottom />
