@@ -15,7 +15,8 @@ name: deploy-preview
 #   3. Make sure the `staging` environment has SERVER_IP + SSH_PRIVATE_KEY
 #      (same ones deploy.yml uses).
 #
-# NOTE: the preview slot is shared — the latest feature-branch deploy wins.
+# NOTE: the preview slot is shared — the latest feature-branch deploy wins. If
+# the branch name contains an issue number, the workflow also notifies visual QA.
 
 on:
   workflow_run:
@@ -26,6 +27,11 @@ on:
 concurrency:
   group: preview-deploy
   cancel-in-progress: false
+
+# Needed for the open-PR lookup in the notify step (default token is read-only
+# without pull-request access -> "Resource not accessible by integration").
+permissions:
+  pull-requests: read
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
@@ -52,36 +58,40 @@ jobs:
           echo "SHA_SHORT=$(echo "$SHA" | cut -c1-7)" >> "$GITHUB_ENV"
           ISSUE_NUMBER=$(echo "$BRANCH" | grep -oE "[0-9]+" | head -n1 || true)
           if [ -z "$ISSUE_NUMBER" ]; then
-            echo "Branch $BRANCH contains no issue number; skipping preview deploy."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Branch $BRANCH contains no issue number; preview deploy will continue without visual QA notification."
+            echo "has_issue=false" >> "$GITHUB_OUTPUT"
+            echo "number=0" >> "$GITHUB_OUTPUT"
           else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "has_issue=true" >> "$GITHUB_OUTPUT"
             echo "number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Deploy preview to VPS
-        if: steps.issue.outputs.skip == 'false'
         uses: appleboy/ssh-action@v1
         env:
           DEPLOY_FRONTEND_IMAGE: ${{ env.IMAGE_NAME }}-frontend:sha-${{ env.SHA_SHORT }}
+          DEPLOY_ADMIN_IMAGE: ${{ env.IMAGE_NAME }}-admin:sha-${{ env.SHA_SHORT }}
           DEPLOY_API_IMAGE: ${{ env.IMAGE_NAME }}-api:sha-${{ env.SHA_SHORT }}
+          DEPLOY_CLIENT_API_IMAGE: ${{ env.IMAGE_NAME }}-client-api:sha-${{ env.SHA_SHORT }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
         with:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: github
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,GHCR_USER,GHCR_PAT
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_ADMIN_IMAGE,DEPLOY_API_IMAGE,DEPLOY_CLIENT_API_IMAGE,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
             cd ~/services/peptrace/preview
             export FRONTEND_IMAGE="$DEPLOY_FRONTEND_IMAGE"
+            export ADMIN_IMAGE="$DEPLOY_ADMIN_IMAGE"
             export API_IMAGE="$DEPLOY_API_IMAGE"
-            echo "Deploying preview (frontend: $FRONTEND_IMAGE, api: $API_IMAGE)"
+            export CLIENT_API_IMAGE="$DEPLOY_CLIENT_API_IMAGE"
+            echo "Deploying preview (frontend: $FRONTEND_IMAGE, admin: $ADMIN_IMAGE, api: $API_IMAGE, client-api: $CLIENT_API_IMAGE)"
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             docker compose -f docker-compose.deploy.yml pull
             docker compose -f docker-compose.deploy.yml up -d --remove-orphans
-            for service in frontend api; do
+            for service in frontend admin api client-api; do
               cid="$(docker compose -f docker-compose.deploy.yml ps -q "$service")"
               for i in $(seq 1 24); do
                 status="$(docker inspect --format='{{.State.Health.Status}}' "$cid" 2>/dev/null || echo unknown)"
@@ -95,16 +105,19 @@ jobs:
             echo "Preview deployed."
 
       - name: Notify Visual QA workflow
-        if: steps.issue.outputs.skip == 'false'
+        if: steps.issue.outputs.has_issue == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           set -euo pipefail
           echo "Using image tag sha-$SHA_SHORT"
+          # Look up the open PR for this branch; any failure degrades to "0"
+          # (the n8n workflow treats that as "no PR to comment on").
           PR_NUMBER=$(gh api "repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/pulls" \
             -f head="${{ github.repository_owner }}:$BRANCH" -f state=open \
-            --jq '.[0].number // 0' 2>/dev/null || echo 0)
+            --jq '.[0].number // empty' 2>/dev/null || true)
+          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || PR_NUMBER=0
           echo "Open PR for $BRANCH: $PR_NUMBER"
           curl -sf -X POST "$N8N_VISUAL_QA_WEBHOOK" \
             -H "Content-Type: application/json" \
