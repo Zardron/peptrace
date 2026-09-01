@@ -7,7 +7,6 @@
     "sourceMap": true,
     "outDir": "dist",
     "rootDir": "src",
-    "baseUrl": ".",
     "paths": {
       "@peptrace/domain": ["../domain/src/index.ts"]
     }

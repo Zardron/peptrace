@@ -8,6 +8,9 @@ Public base path: `/client-api/public/real-estate`
 
 Admin base path: `/client-api/real-estate`
 
+Staging origin: `https://peptrace.stg.esteemed.engineering`. Prefix every path
+below with that origin when testing staging.
+
 Admin auth:
 
 - Requires Sham Real Estate Hub client JWT.

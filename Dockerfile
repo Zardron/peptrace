@@ -18,6 +18,10 @@ RUN npm run prisma:generate -w @peptrace/api
 FROM base AS build
 RUN npm run build
 
+FROM base AS db-init-prod
+WORKDIR /workspace/api/services/admin-panel/platform-api
+CMD ["npm", "run", "db:setup"]
+
 FROM node:24-alpine AS service-runtime
 
 WORKDIR /workspace

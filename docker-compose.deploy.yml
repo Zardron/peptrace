@@ -20,9 +20,11 @@
 # The images are built and published by GitHub Actions (see .github/workflows/docker.yml).
 #
 # Preview slot: .github/workflows/deploy-preview.yml deploys feature branches
-# to a second copy of this stack in ~/services/peptrace-preview whose .env sets
+# to a second copy of this stack in ~/services/peptrace/preview whose .env sets
 # PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering (see that workflow's
 # header comment for one-time setup).
+# Set a unique TRAEFIK_ROUTER_PREFIX in every stack sharing one Traefik host
+# (for example, peptrace-stg and peptrace-preview).
 
 services:
   frontend:
@@ -31,11 +33,12 @@ services:
     networks:
       - traefik
     labels:
-      traefik.enable: "true"
-      traefik.http.routers.peptrace.rule: "Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`)"
-      traefik.http.routers.peptrace.entrypoints: websecure
-      traefik.http.routers.peptrace.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
-      traefik.http.services.peptrace.loadbalancer.server.port: 80
+      - traefik.enable=true
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-frontend.rule=Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`)
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-frontend.entrypoints=websecure
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-frontend.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-frontend.service=${TRAEFIK_ROUTER_PREFIX:-peptrace}-frontend
+      - traefik.http.services.${TRAEFIK_ROUTER_PREFIX:-peptrace}-frontend.loadbalancer.server.port=80
 
   admin:
     image: ${ADMIN_IMAGE:-ghcr.io/peptrace/peptrace-admin:latest}
@@ -43,11 +46,12 @@ services:
     networks:
       - traefik
     labels:
-      traefik.enable: "true"
-      traefik.http.routers.peptrace-admin.rule: "Host(`${ADMIN_DOMAIN:?set ADMIN_DOMAIN}`)"
-      traefik.http.routers.peptrace-admin.entrypoints: websecure
-      traefik.http.routers.peptrace-admin.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
-      traefik.http.services.peptrace-admin.loadbalancer.server.port: 80
+      - traefik.enable=true
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-admin.rule=Host(`${ADMIN_DOMAIN:?set ADMIN_DOMAIN}`)
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-admin.entrypoints=websecure
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-admin.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-admin.service=${TRAEFIK_ROUTER_PREFIX:-peptrace}-admin
+      - traefik.http.services.${TRAEFIK_ROUTER_PREFIX:-peptrace}-admin.loadbalancer.server.port=80
 
   api:
     image: ${API_IMAGE:-ghcr.io/peptrace/peptrace-api:latest}
@@ -71,12 +75,13 @@ services:
     networks:
       - traefik
     labels:
-      traefik.enable: "true"
-      traefik.http.routers.peptrace-api.rule: "Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`) && PathPrefix(`/api`)"
-      traefik.http.routers.peptrace-api.priority: "100"
-      traefik.http.routers.peptrace-api.entrypoints: websecure
-      traefik.http.routers.peptrace-api.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
-      traefik.http.services.peptrace-api.loadbalancer.server.port: 3000
+      - traefik.enable=true
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-api.rule=Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`) && PathPrefix(`/api`)
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-api.priority=100
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-api.entrypoints=websecure
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-api.service=${TRAEFIK_ROUTER_PREFIX:-peptrace}-api
+      - traefik.http.services.${TRAEFIK_ROUTER_PREFIX:-peptrace}-api.loadbalancer.server.port=3000
 
   client-api:
     image: ${CLIENT_API_IMAGE:-ghcr.io/peptrace/peptrace-client-api:latest}
@@ -95,12 +100,13 @@ services:
     networks:
       - traefik
     labels:
-      traefik.enable: "true"
-      traefik.http.routers.peptrace-client-api.rule: "Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`) && PathPrefix(`/client-api`)"
-      traefik.http.routers.peptrace-client-api.priority: "100"
-      traefik.http.routers.peptrace-client-api.entrypoints: websecure
-      traefik.http.routers.peptrace-client-api.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
-      traefik.http.services.peptrace-client-api.loadbalancer.server.port: 3001
+      - traefik.enable=true
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-client-api.rule=Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`) && PathPrefix(`/client-api`)
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-client-api.priority=100
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-client-api.entrypoints=websecure
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-client-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace}-client-api.service=${TRAEFIK_ROUTER_PREFIX:-peptrace}-client-api
+      - traefik.http.services.${TRAEFIK_ROUTER_PREFIX:-peptrace}-client-api.loadbalancer.server.port=3001
 
 networks:
   traefik:

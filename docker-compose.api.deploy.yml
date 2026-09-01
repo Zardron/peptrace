@@ -1,0 +1,102 @@
+# Backend-only deployment used by the staging API server.
+#
+# The platform API keeps /api as its Nest prefix and the client API keeps
+# /client-api. Traefik must forward both prefixes unchanged.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - peptrace_postgres:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  db-init:
+    image: ${MIGRATION_IMAGE:-ghcr.io/peptrace/peptrace-db-init:latest}
+    profiles: ["tools"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: &database-environment
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:?set SUPERADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?set SECRET_ENCRYPTION_KEY}
+      SECRET_ENCRYPTION_KEY_ID: ${SECRET_ENCRYPTION_KEY_ID:-production-v1}
+      SECRET_ENCRYPTION_PREVIOUS_KEYS: ${SECRET_ENCRYPTION_PREVIOUS_KEYS:-{}}
+      DATABASE_CONNECTION_ENCRYPTION_KEY: ${DATABASE_CONNECTION_ENCRYPTION_KEY:?set DATABASE_CONNECTION_ENCRYPTION_KEY}
+      DATABASE_CONNECTION_ENCRYPTION_KEY_ID: ${DATABASE_CONNECTION_ENCRYPTION_KEY_ID:-production-v1}
+      DATABASE_CONNECTION_ENCRYPTION_PREVIOUS_KEYS: ${DATABASE_CONNECTION_ENCRYPTION_PREVIOUS_KEYS:-{}}
+    command: npm run db:setup
+    networks:
+      - backend
+
+  api:
+    image: ${API_IMAGE:-ghcr.io/peptrace/peptrace-api:latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *database-environment
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      CORS_ORIGIN: ${CORS_ORIGIN:?set CORS_ORIGIN}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+    networks:
+      - backend
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-api.rule=Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`) && PathPrefix(`/api`)
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-api.priority=100
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-api.entrypoints=websecure
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-api.service=${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-api
+      - traefik.http.services.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-api.loadbalancer.server.port=3000
+
+  client-api:
+    image: ${CLIENT_API_IMAGE:-ghcr.io/peptrace/peptrace-client-api:latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *database-environment
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      CLIENT_API_PORT: 3001
+      CORS_ORIGIN: ${CORS_ORIGIN:?set CORS_ORIGIN}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+    networks:
+      - backend
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-client-api.rule=Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`) && PathPrefix(`/client-api`)
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-client-api.priority=100
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-client-api.entrypoints=websecure
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-client-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.routers.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-client-api.service=${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-client-api
+      - traefik.http.services.${TRAEFIK_ROUTER_PREFIX:-peptrace-stg}-client-api.loadbalancer.server.port=3001
+
+volumes:
+  peptrace_postgres:
+
+networks:
+  backend:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-web}

@@ -65,6 +65,10 @@ jobs:
             dockerfile: ./Dockerfile
             suffix: client-api
             target: client-api-prod
+          - context: .
+            dockerfile: ./Dockerfile
+            suffix: db-init
+            target: db-init-prod
     steps:
       - uses: actions/checkout@v4
       - name: Lowercase image name

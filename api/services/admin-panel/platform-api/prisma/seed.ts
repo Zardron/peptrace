@@ -14,15 +14,15 @@ import {
   labs,
   peptides,
   vendors
-} from "../../../packages/domain/src/index";
+} from "../../../../../packages/domain/src/index";
 
 const configDir = dirname(fileURLToPath(import.meta.url));
 
 [
   resolve(configDir, "../.env.local"),
   resolve(configDir, "../.env"),
-  resolve(configDir, "../../../.env.local"),
-  resolve(configDir, "../../../.env")
+  resolve(configDir, "../../../../../.env.local"),
+  resolve(configDir, "../../../../../.env")
 ].forEach((path) => {
   config({ path });
 });

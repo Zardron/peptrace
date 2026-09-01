@@ -7,6 +7,10 @@ Base paths:
 - Platform API: `/api`
 - Client API: `/client-api`
 
+Staging origin: `https://peptrace.stg.esteemed.engineering`. Prefix every path
+below with that origin when testing the deployed staging API. See
+[staging-api.md](staging-api.md) for deployment and verification details.
+
 ## Health
 
 | Method | Endpoint | Purpose |
@@ -21,7 +25,7 @@ Base paths:
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `POST` | `/api/auth/login` | Platform superadmin login. |
-| `POST` | `/api/auth/register` | Register platform admin user for setup/onboarding. |
+| `POST` | `/api/auth/register` | Reserved compatibility endpoint; returns `403` because client onboarding belongs to the platform client APIs. |
 | `POST` | `/api/auth/refresh` | Refresh platform token. |
 | `GET` | `/api/auth/me` | Current platform user. |
 | `POST` | `/client-api/auth/login` | Client login. |

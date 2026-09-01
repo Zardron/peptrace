@@ -60,6 +60,20 @@ Production API containers require `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`,
 environment. The Nest services keep their `/api` and `/client-api` prefixes, so
 the reverse proxy must forward those prefixes unchanged.
 
+The live staging API server uses the backend-only
+[`docker-compose.api.deploy.yml`](docker-compose.api.deploy.yml) stack instead.
+It runs PostgreSQL, the platform API, the client API, and an on-demand `db-init`
+service. Its public endpoints are:
+
+- `https://peptrace.stg.esteemed.engineering/api`
+- `https://peptrace.stg.esteemed.engineering/client-api`
+
+The `db-init-prod` Docker target is published as
+`ghcr.io/peptrace/peptrace-db-init`. Run it through the `tools` Compose profile
+before starting updated API images so the schema and repeatable seed data match
+the release. See [docs/staging-api.md](docs/staging-api.md) for the exact server
+layout, deployment commands, and verification checks.
+
 ## Shared Admin Login
 
 The admin app now uses one shared login and one shared frontend. The legacy

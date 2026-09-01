@@ -4,9 +4,8 @@
     "jsx": "react-jsx",
     "types": ["vite/client"],
     "noEmit": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
+      "@/*": ["./src/*"],
       "@peptrace/api-client": ["../packages/api-client/src/index.ts"],
       "@peptrace/domain": ["../packages/domain/src/index.ts"]
     }

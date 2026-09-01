@@ -8,6 +8,9 @@ Public base path: `/client-api/public/shamstay`
 
 Admin base path: `/client-api/shamstay`
 
+Staging origin: `https://peptrace.stg.esteemed.engineering`. Prefix every path
+below with that origin when testing staging.
+
 Admin auth:
 
 - Requires Shamstay BnB client JWT.

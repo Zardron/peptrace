@@ -8,9 +8,10 @@ name: deploy-preview
 # non-main branch (feature branches build sha-tagged images there).
 #
 # One-time server setup (staging VPS, same host as staging):
-#   1. Create ~/services/peptrace-preview/ with a copy of
+#   1. Create ~/services/peptrace/preview/ with a copy of
 #      docker-compose.deploy.yml and a .env that sets
-#      PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering
+#      PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering and
+#      TRAEFIK_ROUTER_PREFIX=peptrace-preview
 #   2. Point DNS for preview.peptrace.stg.esteemed.engineering at the VPS.
 #   3. Make sure the `staging` environment has SERVER_IP + SSH_PRIVATE_KEY
 #      (same ones deploy.yml uses).
