@@ -167,4 +167,8 @@
     border-radius: 4px;
     margin: 0 16px;
   }
+
+  .card-table {
+    overflow-x: auto;
+  }
 }
