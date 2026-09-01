@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import './HeaderBar.css'
-import promoArrow from '../../assets/arrow-right.svg'
 import logoSvg from '../../assets/logo.svg'
 import profileIcon from '../../assets/account/profile-icon.png'
 
@@ -56,14 +55,13 @@ export default function HeaderBar({ onSignUpClick, accountMode = false }: Header
 
   return (
     <header className={`header-bar ${accountMode ? 'account-mode' : ''}`} ref={headerRef}>
-      <a href="/testing" className="header-promo-banner">
-        <span>Get your free peptide safety test</span>
-        <img src={promoArrow} alt="" />
-      </a>
-
       <div className="header-top">
         <a href="/" className="header-brand">
           <img src={logoSvg} alt="Peptrace" className="header-logo" />
+          <div className="header-brand-text">
+            <span className="header-brand-title">PEPTRACE</span>
+            <span className="header-brand-tagline">What&apos;s actually in the vial</span>
+          </div>
         </a>
 
         <div className="header-navigation desktop-only">
@@ -73,7 +71,6 @@ export default function HeaderBar({ onSignUpClick, accountMode = false }: Header
             <a href="/membership" className="nav-link">membership</a>
           </nav>
           <span className="header-divider" />
-          <a href="/vendors" className="pill-button outline">vendors</a>
           {accountMode ? (
             <div className="account-menu-wrap">
               <button

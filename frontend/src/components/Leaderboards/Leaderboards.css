@@ -92,25 +92,44 @@
   display: inline-flex;
   align-items: center;
   background: var(--bg-white);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  overflow: hidden;
+  gap: 18px;
+  padding: 2px;
 }
 
 .toggle-option {
-  padding: 8px 16px;
+  padding: 10px 12px;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.72px;
+  letter-spacing: 1.68px;
   color: var(--text);
   background: transparent;
   border: none;
   cursor: pointer;
+  border-radius: 4px;
 }
 
 .toggle-option.active {
   background: var(--primary);
   color: #fff;
+}
+
+@media (min-width: 1092px) {
+  .toggle {
+    background: transparent;
+    gap: 0;
+    padding: 0;
+  }
+
+  .toggle-option {
+    padding: 8px 16px;
+    letter-spacing: 0.72px;
+    border-radius: 0;
+  }
+
+  .toggle-option.active {
+    background: var(--primary);
+    color: #fff;
+  }
 }
 
 .boards-grid {

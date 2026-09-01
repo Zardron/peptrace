@@ -65,6 +65,7 @@
 .card-table {
   border-top: 1px solid var(--border);
   flex: 1 1 auto;
+  overflow-x: auto;
 }
 
 .table-header {

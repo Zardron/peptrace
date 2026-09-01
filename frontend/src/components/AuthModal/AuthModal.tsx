@@ -48,7 +48,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="auth-modal-header">
-          <span className="auth-modal-badge">peptrace</span>
+          <span className="auth-modal-badge">PEPTRACE</span>
           <button type="button" className="auth-close-button" aria-label="Close signup modal" onClick={onClose}>
             <img src={closeIcon} alt="" />
           </button>
