@@ -1,0 +1,47 @@
+name: Review-Driven Rebuild
+
+# Fires when a human submits a code review on a factory PR. Forwards the review
+# to the Software Factory (n8n "Factory Review Dispatcher"), which re-runs the
+# Code Builder agent on the feature branch to address every review comment.
+#
+# Only "Request changes" and plain "Comment" reviews trigger a rebuild —
+# approvals never do. Bot reviewers and fork PRs are ignored.
+#
+# NOTE: this file must be on the default branch to receive
+# pull_request_review events.
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+concurrency:
+  group: review-dispatch-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch-review:
+    if: >-
+      github.event.review.state != 'approved' &&
+      !endsWith(github.event.review.user.login, '[bot]') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract issue number and call Factory Review Dispatcher
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_ID: ${{ github.event.review.id }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+        run: |
+          ISSUE_NUMBER=$(echo "$BRANCH" | grep -oE "[0-9]+" | head -n1)
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "Branch $BRANCH contains no issue number; skipping review dispatch."
+            exit 0
+          fi
+          echo "Dispatching review $REVIEW_ID ($REVIEW_STATE) for issue #$ISSUE_NUMBER (PR #$PR_NUMBER, branch $BRANCH)"
+          curl -sf -X POST "https://n8n.esteemed.engineering/webhook/factory/review-pr" \
+            -H "Content-Type: application/json" \
+            -d "{\"owner\":\"$OWNER\",\"repository\":\"$REPO\",\"branch\":\"$BRANCH\",\"issueNumber\":\"$ISSUE_NUMBER\",\"prNumber\":\"$PR_NUMBER\",\"reviewId\":\"$REVIEW_ID\"}"
+          echo "Review dispatched."
