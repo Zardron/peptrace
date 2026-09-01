@@ -1,48 +1,79 @@
 name: Review-Driven Rebuild
 
-# Fires when a human submits a code review on a factory PR. Forwards the review to the
+# Fires on human review feedback on a factory PR. Forwards the review to the
 # Software Factory (n8n "Factory Review Dispatcher"), which re-runs the Code
 # Builder agent on the feature branch to address every review comment.
 #
-# Triggers on "Request changes" and plain "Comment" reviews — including the
-# PR author's own reviews, which GitHub always records as 'commented' since
-# authors can't approve or request changes on their own PR. Bot reviewers
-# and fork PRs are ignored.
+# Two triggers, because GitHub does NOT deliver pull_request_review workflow
+# events for a review submitted by the PR's own author (observed 2026-09:
+# COMMENTED self-review recorded, zero runs created):
+#   - pull_request_review (submitted): works for other reviewers.
+#   - pull_request_review_comment (created): fires per inline comment, also
+#     for the author's own reviews. Each comment carries the review id, so the
+#     dispatcher/builder still fetch the WHOLE review. A multi-comment review
+#     fires one event per comment; the concurrency group below cancels all but
+#     the newest dispatch run, so only one build is dispatched per burst.
 #
-# NOTE: this file must be on the default branch to receive
-# pull_request_review events.
+# NOTE: this file must be on the default branch to receive these events.
 
 on:
   pull_request_review:
     types: [submitted]
+  pull_request_review_comment:
+    types: [created]
 
 concurrency:
-  group: review-dispatch-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  # One group per review: a multi-comment review fires several events, and
+  # cancel-in-progress keeps only the newest dispatch run.
+  group: review-dispatch-${{ github.event.review.id || github.event.comment.pull_request_review_id }}
+  cancel-in-progress: true
+
+# pull-requests: read is needed to resolve the PR from a comment event
+# (pull_request_review_comment payloads carry no pull_request object).
+permissions:
+  pull-requests: read
 
 jobs:
   dispatch-review:
+    # Review events: only changes_requested/commented states. Comment events:
+    # always (they only exist when there is actual feedback). Bots filtered
+    # via the event sender, which is the reviewer/commenter in both events.
     if: >-
-      contains(fromJSON('["changes_requested","commented"]'), github.event.review.state) &&
-      !endsWith(github.event.review.user.login, '[bot]') &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.event_name == 'pull_request_review_comment' ||
+       contains(fromJSON('["changes_requested","commented"]'), github.event.review.state)) &&
+      !endsWith(github.event.sender.login, '[bot]')
     runs-on: ubuntu-latest
     steps:
-      - name: Extract issue number and call Factory Review Dispatcher
+      - name: Normalize event and call Factory Review Dispatcher
         env:
-          BRANCH: ${{ github.event.pull_request.head.ref }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REVIEW_ID: ${{ github.event.review.id }}
-          REVIEW_STATE: ${{ github.event.review.state }}
         run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request_review" ]; then
+            REVIEW_ID="${{ github.event.review.id }}"
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            BRANCH="${{ github.event.pull_request.head.ref }}"
+            HEAD_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+          else
+            REVIEW_ID="${{ github.event.comment.pull_request_review_id }}"
+            PR_NUMBER=$(basename "${{ github.event.comment.pull_request_url }}")
+            PR_JSON=$(gh api "repos/$OWNER/$REPO/pulls/$PR_NUMBER")
+            BRANCH=$(jq -r '.head.ref' <<<"$PR_JSON")
+            HEAD_REPO=$(jq -r '.head.repo.full_name' <<<"$PR_JSON")
+          fi
+          if [ "$HEAD_REPO" != "$OWNER/$REPO" ]; then
+            echo "Fork PR ($HEAD_REPO); skipping review dispatch."
+            exit 0
+          fi
           ISSUE_NUMBER=$(echo "$BRANCH" | grep -oE "[0-9]+" | head -n1)
           if [ -z "$ISSUE_NUMBER" ]; then
             echo "Branch $BRANCH contains no issue number; skipping review dispatch."
             exit 0
           fi
-          echo "Dispatching review $REVIEW_ID ($REVIEW_STATE) for issue #$ISSUE_NUMBER (PR #$PR_NUMBER, branch $BRANCH)"
+          echo "Dispatching review $REVIEW_ID (event: $EVENT_NAME) for issue #$ISSUE_NUMBER (PR #$PR_NUMBER, branch $BRANCH)"
           curl -sf -X POST "https://n8n.esteemed.engineering/webhook/factory/review-pr" \
             -H "Content-Type: application/json" \
             -d "{\"owner\":\"$OWNER\",\"repository\":\"$REPO\",\"branch\":\"$BRANCH\",\"issueNumber\":\"$ISSUE_NUMBER\",\"prNumber\":\"$PR_NUMBER\",\"reviewId\":\"$REVIEW_ID\"}"
