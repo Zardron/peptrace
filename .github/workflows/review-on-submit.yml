@@ -1,11 +1,13 @@
 name: Review-Driven Rebuild
 
-# Fires when a human submits a code review on a factory PR. Forwards the review
-# to the Software Factory (n8n "Factory Review Dispatcher"), which re-runs the
-# Code Builder agent on the feature branch to address every review comment.
+# Fires when a human submits a code review on a factory PR. Forwards the review to the
+# Software Factory (n8n "Factory Review Dispatcher"), which re-runs the Code
+# Builder agent on the feature branch to address every review comment.
 #
-# Only "Request changes" and plain "Comment" reviews trigger a rebuild —
-# approvals never do. Bot reviewers and fork PRs are ignored.
+# Triggers on "Request changes" and plain "Comment" reviews — including the
+# PR author's own reviews, which GitHub always records as 'commented' since
+# authors can't approve or request changes on their own PR. Bot reviewers
+# and fork PRs are ignored.
 #
 # NOTE: this file must be on the default branch to receive
 # pull_request_review events.
@@ -21,7 +23,7 @@ concurrency:
 jobs:
   dispatch-review:
     if: >-
-      github.event.review.state != 'approved' &&
+      contains(fromJSON('["changes_requested","commented"]'), github.event.review.state) &&
       !endsWith(github.event.review.user.login, '[bot]') &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
