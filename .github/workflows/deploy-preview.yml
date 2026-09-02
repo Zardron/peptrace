@@ -1,53 +1,136 @@
 name: deploy-preview
 
-# Deploys a feature branch to the shared preview slot on the staging VPS and
-# then notifies the Software Factory Visual QA workflow (n8n) so it can
-# screenshot the deployed UI and compare it against the Figma designs.
+# Deploys a PR to the shared preview slot on the staging VPS and then notifies
+# the Software Factory Visual QA workflow (n8n) so it can screenshot the
+# deployed UI and compare it against the Figma designs.
 #
-# Fires automatically when the `docker` workflow finishes successfully on a
-# non-main branch (feature branches build sha-tagged images there).
+# Fires on PRs targeting main. Only services whose code changed relative to
+# main are built and deployed:
+#   - changes under frontend/                     -> build + deploy frontend
+#   - changes under api/, packages/ or the root
+#     Docker build files                          -> build + deploy api, admin,
+#                                                    client-api (all built from
+#                                                    the root Dockerfile)
+# PRs that touch neither (e.g. plan-only PRs) skip the deploy entirely.
 #
 # One-time server setup (staging VPS, same host as staging):
-#   1. Create ~/services/peptrace-preview/ with a copy of
+#   1. Create ~/services/peptrace/preview/ with a copy of
 #      docker-compose.deploy.yml and a .env that sets
 #      PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering
-#   2. Point DNS for preview.peptrace.stg.esteemed.engineering at the VPS.
+#      and ADMIN_DOMAIN=preview-admin.peptrace.stg.esteemed.engineering
+#   2. Point DNS for the preview domain(s) at the VPS.
 #   3. Make sure the `staging` environment has SERVER_IP + SSH_PRIVATE_KEY
 #      (same ones deploy.yml uses).
 #
-# NOTE: the preview slot is shared — the latest feature-branch deploy wins. If
-# the branch name contains an issue number, the workflow also notifies visual QA.
+# NOTE: the preview slot is shared — the latest PR deploy wins. If the branch
+# name contains an issue number, the workflow also notifies visual QA.
 
 on:
-  workflow_run:
-    workflows: [docker]
-    types: [completed]
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
 
 # Single shared preview slot: serialize deploys.
 concurrency:
   group: preview-deploy
   cancel-in-progress: false
 
-# Needed for the open-PR lookup in the notify step (default token is read-only
-# without pull-request access -> "Resource not accessible by integration").
 permissions:
-  pull-requests: read
+  contents: read
+  packages: write
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
   PREVIEW_URL: https://preview.peptrace.stg.esteemed.engineering
   N8N_VISUAL_QA_WEBHOOK: https://n8n.esteemed.engineering/webhook/factory/visual-qa
+  BRANCH: ${{ github.event.pull_request.head.ref }}
+  SHA: ${{ github.event.pull_request.head.sha }}
+  PR_NUMBER: ${{ github.event.pull_request.number }}
 
 jobs:
-  deploy-preview:
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch != 'main'
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.detect.outputs.services }}
+      matrix: ${{ steps.detect.outputs.matrix }}
+      count: ${{ steps.detect.outputs.count }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+            backend:
+              - 'api/**'
+              - 'packages/**'
+              - 'Dockerfile'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.base.json'
+
+      - name: Detect services to deploy
+        id: detect
+        env:
+          FRONTEND_CHANGED: ${{ steps.filter.outputs.frontend }}
+          BACKEND_CHANGED: ${{ steps.filter.outputs.backend }}
+        run: |
+          set -euo pipefail
+          SERVICES=""
+          MATRIX="[]"
+          add() {
+            SERVICES="$SERVICES $1"
+            MATRIX=$(jq -c --arg s "$1" --arg c "$2" --arg d "$3" --arg t "$4" \
+              '. + [{suffix:$s, context:$c, dockerfile:$d, target:$t}]' <<<"$MATRIX")
+          }
+          [ "$FRONTEND_CHANGED" = "true" ] && add frontend ./frontend ./frontend/Dockerfile runtime
+          if [ "$BACKEND_CHANGED" = "true" ]; then
+            add api . ./Dockerfile platform-api-prod
+            add admin . ./Dockerfile admin-prod
+            add client-api . ./Dockerfile client-api-prod
+          fi
+          SERVICES=$(echo $SERVICES | xargs)
+          echo "Changed services: ${SERVICES:-none}"
+          echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "count=$(jq length <<<"$MATRIX")" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lowercase image name
+        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+      - name: Short SHA
+        run: echo "SHA_SHORT=$(echo "$SHA" | cut -c1-7)" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ env.IMAGE_NAME }}-${{ matrix.suffix }}:sha-${{ env.SHA_SHORT }}
+          cache-from: type=gha,scope=${{ matrix.suffix }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.suffix }}
+
+  deploy:
+    needs: [changes, build]
+    if: needs.changes.outputs.count != '0'
     runs-on: ubuntu-latest
     environment: staging
-    env:
-      BRANCH: ${{ github.event.workflow_run.head_branch }}
-      SHA: ${{ github.event.workflow_run.head_sha }}
     steps:
       - name: Lowercase image name
         run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
@@ -73,13 +156,14 @@ jobs:
           DEPLOY_ADMIN_IMAGE: ${{ env.IMAGE_NAME }}-admin:sha-${{ env.SHA_SHORT }}
           DEPLOY_API_IMAGE: ${{ env.IMAGE_NAME }}-api:sha-${{ env.SHA_SHORT }}
           DEPLOY_CLIENT_API_IMAGE: ${{ env.IMAGE_NAME }}-client-api:sha-${{ env.SHA_SHORT }}
+          DEPLOY_SERVICES: ${{ needs.changes.outputs.services }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
         with:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: github
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_ADMIN_IMAGE,DEPLOY_API_IMAGE,DEPLOY_CLIENT_API_IMAGE,GHCR_USER,GHCR_PAT
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_ADMIN_IMAGE,DEPLOY_API_IMAGE,DEPLOY_CLIENT_API_IMAGE,DEPLOY_SERVICES,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
             cd ~/services/peptrace/preview
@@ -87,11 +171,12 @@ jobs:
             export ADMIN_IMAGE="$DEPLOY_ADMIN_IMAGE"
             export API_IMAGE="$DEPLOY_API_IMAGE"
             export CLIENT_API_IMAGE="$DEPLOY_CLIENT_API_IMAGE"
-            echo "Deploying preview (frontend: $FRONTEND_IMAGE, admin: $ADMIN_IMAGE, api: $API_IMAGE, client-api: $CLIENT_API_IMAGE)"
+            echo "Deploying preview services: $DEPLOY_SERVICES (frontend: $FRONTEND_IMAGE, admin: $ADMIN_IMAGE, api: $API_IMAGE, client-api: $CLIENT_API_IMAGE)"
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            docker compose -f docker-compose.deploy.yml pull
-            docker compose -f docker-compose.deploy.yml up -d --remove-orphans
-            for service in frontend admin api client-api; do
+            # Only the changed services are pulled/recreated — unchanged ones keep running.
+            docker compose -f docker-compose.deploy.yml pull $DEPLOY_SERVICES
+            docker compose -f docker-compose.deploy.yml up -d --remove-orphans $DEPLOY_SERVICES
+            for service in $DEPLOY_SERVICES; do
               cid="$(docker compose -f docker-compose.deploy.yml ps -q "$service")"
               for i in $(seq 1 24); do
                 status="$(docker inspect --format='{{.State.Health.Status}}' "$cid" 2>/dev/null || echo unknown)"
@@ -107,18 +192,9 @@ jobs:
       - name: Notify Visual QA workflow
         if: steps.issue.outputs.has_issue == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
         run: |
           set -euo pipefail
-          echo "Using image tag sha-$SHA_SHORT"
-          # Look up the open PR for this branch; any failure degrades to "0"
-          # (the n8n workflow treats that as "no PR to comment on").
-          PR_NUMBER=$(gh api "repos/${{ github.repository_owner }}/${{ github.event.repository.name }}/pulls" \
-            -f head="${{ github.repository_owner }}:$BRANCH" -f state=open \
-            --jq '.[0].number // empty' 2>/dev/null || true)
-          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || PR_NUMBER=0
-          echo "Open PR for $BRANCH: $PR_NUMBER"
           curl -sf -X POST "$N8N_VISUAL_QA_WEBHOOK" \
             -H "Content-Type: application/json" \
             -d "{
