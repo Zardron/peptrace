@@ -1,0 +1,94 @@
+name: redeploy-preview
+
+# Chat-ops trigger for deploy-preview.yml: when someone comments
+# "redeploy preview" on a PR, this workflow pushes an empty commit to the
+# PR's head branch via the GitHub git database API. The push fires a
+# pull_request "synchronize" event, which starts a FRESH run of the real
+# deploy-preview on the latest code, using the current workflow definition
+# from main, and updates the PR's deploy-preview check.
+#
+# Why not `gh run rerun`: a re-run replays the original run's workflow
+# snapshot, so a run created before a workflow fix can never go green.
+# A new synchronize event is the only way to get a new, fixed run attached
+# to the PR.
+#
+# Guards:
+#   - only fires on PR comments (not plain issue comments)
+#   - only for comments by OWNER/MEMBER/COLLABORATOR (deploys cost money and
+#     push to the shared preview slot)
+#   - only while the PR is still open
+#   - only for same-repo PRs (can't push to fork branches)
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write          # needed to leave a reaction on the comment
+  pull-requests: read    # needed for `gh pr view` (repository.pullRequest)
+
+jobs:
+  redeploy:
+    if: >-
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, 'redeploy preview') &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    # PAT is an environment-scoped secret on `staging` (same as the deploy
+    # jobs); without this it resolves empty and gh has no token.
+    environment: staging
+    steps:
+      - name: Push empty commit to retrigger deploy-preview
+        env:
+          # Must be a PAT, not GITHUB_TOKEN: GITHUB_TOKEN pushes never
+          # trigger new workflow runs, and re-running runs via the API is
+          # forbidden for it entirely. The PAT needs `repo` + `workflow`
+          # scopes (classic) or Contents: read/write + Actions: read/write
+          # on this repo (fine-grained).
+          GH_TOKEN: ${{ secrets.PAT }}
+          # No checkout in this job: gh needs GH_REPO to know which
+          # repository to talk to (it would otherwise infer it from a local
+          # git remote and fail with "not a git repository").
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          set -euo pipefail
+
+          STATE=$(gh pr view "$PR_NUMBER" --json state --jq .state)
+          if [ "$STATE" != "OPEN" ]; then
+            echo "PR #$PR_NUMBER is $STATE; not redeploying."
+            exit 1
+          fi
+
+          HEAD_REPO=$(gh pr view "$PR_NUMBER" --json headRepository --jq .headRepository.nameWithOwner)
+          if [ "$HEAD_REPO" != "$GH_REPO" ]; then
+            echo "PR #$PR_NUMBER comes from fork $HEAD_REPO; cannot push a retrigger commit there."
+            exit 1
+          fi
+
+          BRANCH=$(gh pr view "$PR_NUMBER" --json headRefName --jq .headRefName)
+          HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid)
+          TREE_SHA=$(gh api "repos/$GH_REPO/git/commits/$HEAD_SHA" --jq .tree.sha)
+
+          # Empty commit: same tree as HEAD, HEAD as parent. Pushing it fires
+          # pull_request synchronize -> fresh deploy-preview run.
+          NEW_SHA=$(jq -n --arg tree "$TREE_SHA" --arg parent "$HEAD_SHA" \
+            '{
+              message: "chore: retrigger preview deploy (requested via PR comment)",
+              tree: $tree,
+              parents: [$parent],
+              author: {
+                name: "github-actions[bot]",
+                email: "41898282+github-actions[bot]@users.noreply.github.com"
+              }
+            }' | gh api "repos/$GH_REPO/git/commits" --input - --jq .sha)
+
+          jq -n --arg sha "$NEW_SHA" '{sha: $sha}' \
+            | gh api "repos/$GH_REPO/git/refs/heads/$BRANCH" -X PATCH --input - --jq .ref
+
+          echo "Pushed empty commit $NEW_SHA to $BRANCH; deploy-preview will start a fresh run."
+
+          gh api "repos/$GH_REPO/issues/comments/$COMMENT_ID/reactions" \
+            -f content=rocket --silent
