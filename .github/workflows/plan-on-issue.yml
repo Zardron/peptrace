@@ -1,0 +1,70 @@
+name: Plan on Labeled Issue
+
+# Lets humans start the Software Factory without a Figma change: open an issue
+# describing a fix/change to code already on main and tag it with one or more
+# scoping labels (frontend, api, ios, android, database). This workflow creates
+# the implementation branch and calls the n8n "Factory Planner Agent" webhook;
+# from there the normal flow runs (plan PR -> Code Builder).
+#
+# Branch creation uses GITHUB_TOKEN, which per GitHub's recursion guard does
+# NOT fire the `create` event — planner-on-branch.yml will not double-trigger.
+#
+# NOTE: this file must be on the default branch to receive `issues` events.
+
+on:
+  issues:
+    types: [opened, labeled]
+
+concurrency:
+  group: plan-issue-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  dispatch-planner:
+    if: "!endsWith(github.event.sender.login, '[bot]')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create branch and call Planner agent
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_LABELS: ${{ toJSON(github.event.issue.labels.*.name) }}
+        run: |
+          set -euo pipefail
+
+          SCOPING="frontend api ios android database"
+          MATCHED=""
+          for label in $SCOPING; do
+            if jq -e --arg l "$label" 'any(.[]; . == $l)' <<<"$ISSUE_LABELS" >/dev/null; then
+              MATCHED="$MATCHED $label"
+            fi
+          done
+          if [ -z "$MATCHED" ]; then
+            echo "Issue #$ISSUE_NUMBER has no scoping labels ($SCOPING); skipping."
+            exit 0
+          fi
+          echo "Scoping labels:$MATCHED"
+
+          SLUG=$(echo "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-40)
+          BRANCH="issue-${ISSUE_NUMBER}-${SLUG:-change}"
+          echo "Branch: $BRANCH"
+
+          if gh api "repos/$OWNER/$REPO/git/refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "Branch $BRANCH already exists; skipping (idempotent for repeated labeled events)."
+            exit 0
+          fi
+
+          MAIN_SHA=$(gh api "repos/$OWNER/$REPO/git/refs/heads/main" --jq .object.sha)
+          gh api "repos/$OWNER/$REPO/git/refs" -f "ref=refs/heads/$BRANCH" -f "sha=$MAIN_SHA" >/dev/null
+          echo "Created $BRANCH from main ($MAIN_SHA)."
+
+          curl -sf -X POST "https://n8n.esteemed.engineering/webhook/factory/plan-issue" \
+            -H "Content-Type: application/json" \
+            -d "{\"owner\":\"$OWNER\",\"repository\":\"$REPO\",\"branch\":\"$BRANCH\",\"issueNumber\":$ISSUE_NUMBER}"
+          echo "Planner agent dispatched for issue #$ISSUE_NUMBER."
