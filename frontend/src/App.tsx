@@ -86,7 +86,12 @@ function App() {
   return (
     <div className="app">
       {isMembershipPage ? (
-        <MembershipPage onSignUpClick={openAuthModal} />
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <MembershipPage />
+          </main>
+        </>
       ) : accountView ? (
         <>
           <HeaderBar accountMode />

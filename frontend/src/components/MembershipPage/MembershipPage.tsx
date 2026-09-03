@@ -4,13 +4,6 @@ import checkMuted from '../../assets/membership/check-muted.svg'
 import highlightCoa from '../../assets/membership/highlight-coa.png'
 import highlightIntelligence from '../../assets/membership/highlight-intelligence.png'
 import highlightRating from '../../assets/membership/highlight-rating.png'
-import logoIcon from '../../assets/membership/logo-icon.svg'
-import menuIcon from '../../assets/membership/menu.svg'
-import promoArrow from '../../assets/membership/promo-arrow.svg'
-
-interface MembershipPageProps {
-  onSignUpClick: () => void
-}
 
 const plans = [
   {
@@ -137,62 +130,6 @@ const footerColumns = [
   },
 ]
 
-function MembershipBrand() {
-  return (
-    <a href="/" className="membership-brand" aria-label="Peptrace home">
-      <img src={logoIcon} alt="" className="membership-brand-logo" />
-      <span className="membership-brand-copy">
-        <strong>PEPTRACE</strong>
-        <span>What's actually in the vial</span>
-      </span>
-    </a>
-  )
-}
-
-function MembershipHeader({ onSignUpClick }: MembershipPageProps) {
-  return (
-    <>
-      <header className="membership-header-desktop">
-        <MembershipBrand />
-        <nav className="membership-desktop-nav" aria-label="Membership navigation">
-          <a href="/about">about</a>
-          <a href="/news">news</a>
-          <a href="/membership" className="active">membership</a>
-          <span className="membership-nav-divider" />
-          <a href="/vendors" className="membership-pill outline">vendors</a>
-          <button type="button" className="membership-pill solid" onClick={onSignUpClick}>
-            sign up
-          </button>
-        </nav>
-      </header>
-
-      <header className="membership-header-compact">
-        <a href="/testing" className="membership-promo-banner">
-          <span>Get your free peptide safety test</span>
-          <img src={promoArrow} alt="" />
-        </a>
-
-        <div className="membership-compact-top">
-          <MembershipBrand />
-          <button type="button" className="membership-tablet-signup" onClick={onSignUpClick}>
-            sign up
-          </button>
-          <button type="button" className="membership-menu-button" aria-label="Open menu">
-            <img src={menuIcon} alt="" />
-          </button>
-        </div>
-
-        <nav className="membership-compact-nav" aria-label="Membership navigation">
-          <a href="/rankings">rankings</a>
-          <a href="/about">about</a>
-          <a href="/news">news</a>
-          <a href="/membership" className="active">membership</a>
-        </nav>
-      </header>
-    </>
-  )
-}
-
 function PricingCard({ plan }: { plan: (typeof plans)[number] }) {
   const checkIcon = plan.tone === 'muted' ? checkMuted : checkGreen
 
@@ -228,11 +165,9 @@ function PricingCard({ plan }: { plan: (typeof plans)[number] }) {
   )
 }
 
-export default function MembershipPage({ onSignUpClick }: MembershipPageProps) {
+export default function MembershipPage() {
   return (
     <div className="membership-page">
-      <MembershipHeader onSignUpClick={onSignUpClick} />
-
       <main className="membership-main">
         <section className="membership-hero">
           <span className="membership-badge">Membership</span>
