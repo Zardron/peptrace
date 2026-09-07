@@ -14,7 +14,7 @@ name: deploy-preview
 # PRs that touch neither (e.g. plan-only PRs) skip the deploy entirely.
 #
 # One-time server setup (staging VPS, same host as staging):
-#   1. Create /home/github/peptrace/preview/ with a .env that sets
+#   1. Create /home/github/services/peptrace/preview/ with a .env that sets
 #      PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering,
 #      PEPTRACE_NAME=peptrace-preview (unique Traefik router names, so the
 #      preview and staging slots don't collide on the shared Traefik) and
@@ -162,7 +162,7 @@ jobs:
           HOST: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
         run: |
           set -euo pipefail
-          DEPLOY_DIR="/home/github/peptrace/preview"
+          DEPLOY_DIR="/home/github/services/peptrace/preview"
           install -m 600 /dev/null ssh_key
           printf '%s\n' "$SSH_KEY" > ssh_key
           SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
@@ -198,7 +198,7 @@ jobs:
           envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_ADMIN_IMAGE,DEPLOY_API_IMAGE,DEPLOY_CLIENT_API_IMAGE,DEPLOY_SERVICES,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
-            cd /home/github/peptrace/preview
+            cd /home/github/services/peptrace/preview
             export FRONTEND_IMAGE="$DEPLOY_FRONTEND_IMAGE"
             export ADMIN_IMAGE="$DEPLOY_ADMIN_IMAGE"
             export API_IMAGE="$DEPLOY_API_IMAGE"

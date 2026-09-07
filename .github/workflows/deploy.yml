@@ -78,7 +78,7 @@ jobs:
           HOST: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
         run: |
           set -euo pipefail
-          DEPLOY_DIR="/home/github/peptrace/stg"
+          DEPLOY_DIR="/home/github/services/peptrace/stg"
           install -m 600 /dev/null ssh_key
           printf '%s\n' "$SSH_KEY" > ssh_key
           SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
@@ -112,7 +112,7 @@ jobs:
           script: |
             set -euo pipefail
             if [ "$DEPLOY_ENVIRONMENT" = "staging" ]; then
-              cd /home/github/peptrace/stg
+              cd /home/github/services/peptrace/stg
             else
               # Production server path is not set up yet; keep previous behavior.
               cd ~/services/peptrace/stg
