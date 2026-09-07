@@ -82,10 +82,16 @@ jobs:
           install -m 600 /dev/null ssh_key
           printf '%s\n' "$SSH_KEY" > ssh_key
           SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
+          $SSH "mkdir -p '$DEPLOY_DIR'"
+          if ! $SSH "test -f '$DEPLOY_DIR/.env'"; then
+            echo "::error::$DEPLOY_DIR/.env is missing. Create it on the server with PEPTRACE_DOMAIN and TRAEFIK_NETWORK before deploying."
+            rm -f ssh_key
+            exit 1
+          fi
           # The server has no outbound access to github.com, so it cannot
           # clone — the runner (which can) streams the source over SSH
           # instead. The slot is cleared first, except the untracked .env.
-          $SSH "mkdir -p '$DEPLOY_DIR' && find '$DEPLOY_DIR' -mindepth 1 ! -name '.env' -delete"
+          $SSH "find '$DEPLOY_DIR' -mindepth 1 ! -name '.env' -delete"
           tar --exclude=.git --exclude=ssh_key -czf - . | $SSH "tar -xzf - -C '$DEPLOY_DIR'"
           rm -f ssh_key
 
