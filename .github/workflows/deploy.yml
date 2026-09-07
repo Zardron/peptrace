@@ -67,6 +67,28 @@ jobs:
             exit 1
           fi
 
+      - name: Checkout source to sync
+        if: inputs.environment == 'staging'
+        uses: actions/checkout@v4
+
+      - name: Sync source to staging directory
+        if: inputs.environment == 'staging'
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOST: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
+        run: |
+          set -euo pipefail
+          DEPLOY_DIR="/home/github/peptrace/stg"
+          install -m 600 /dev/null ssh_key
+          printf '%s\n' "$SSH_KEY" > ssh_key
+          SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
+          # The server has no outbound access to github.com, so it cannot
+          # clone — the runner (which can) streams the source over SSH
+          # instead. The slot is cleared first, except the untracked .env.
+          $SSH "mkdir -p '$DEPLOY_DIR' && find '$DEPLOY_DIR' -mindepth 1 ! -name '.env' -delete"
+          tar --exclude=.git --exclude=ssh_key -czf - . | $SSH "tar -xzf - -C '$DEPLOY_DIR'"
+          rm -f ssh_key
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         env:
@@ -74,29 +96,17 @@ jobs:
           DEPLOY_API_IMAGE: ${{ env.IMAGE_NAME }}-api:${{ env.TAG }}
           DEPLOY_SERVICES: ${{ env.SERVICES }}
           DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
-          REPO: ${{ github.repository }}
-          TARGET_SHA: ${{ github.sha }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
         with:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: github
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,REPO,TARGET_SHA,GHCR_USER,GHCR_PAT
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
             if [ "$DEPLOY_ENVIRONMENT" = "staging" ]; then
-              # Sync the repo checkout into the deploy directory so the compose
-              # file and config come from this commit. The .env in that
-              # directory is untracked (gitignored), so reset --hard keeps it.
-              DEPLOY_DIR="/home/github/peptrace/stg"
-              REPO_URL="https://x-access-token:${GHCR_PAT}@github.com/${REPO}.git"
-              echo "Syncing $REPO@$TARGET_SHA into $DEPLOY_DIR"
-              mkdir -p "$DEPLOY_DIR"
-              [ -d "$DEPLOY_DIR/.git" ] || git -C "$DEPLOY_DIR" init -q
-              git -C "$DEPLOY_DIR" fetch -q --depth 1 "$REPO_URL" "$TARGET_SHA"
-              git -C "$DEPLOY_DIR" reset -q --hard FETCH_HEAD
-              cd "$DEPLOY_DIR"
+              cd /home/github/peptrace/stg
             else
               # Production server path is not set up yet; keep previous behavior.
               cd ~/services/peptrace/stg

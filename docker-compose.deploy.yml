@@ -5,9 +5,9 @@
 #   production — peptrace.co (separate server, not set up yet)
 #
 # Usage:
-#   1. The deploy workflows clone this repo into the slot directory on the
+#   1. The deploy workflows copy this repo into the slot directory on the
 #      server (/home/github/peptrace/stg, /home/github/peptrace/preview);
-#      this file comes from that checkout. Only the .env is placed manually.
+#      this file comes from that copy. Only the .env is placed manually.
 #   2. Set PEPTRACE_DOMAIN in .env (and TRAEFIK_NETWORK / TRAEFIK_CERT_RESOLVER
 #      if they differ from the defaults). When running more than one copy of
 #      this stack on the same Traefik (e.g. stg + preview), each copy must also

@@ -19,9 +19,9 @@ name: deploy-preview
 #      PEPTRACE_NAME=peptrace-preview (unique Traefik router names, so the
 #      preview and staging slots don't collide on the shared Traefik) and
 #      ADMIN_DOMAIN=preview-admin.peptrace.stg.esteemed.engineering.
-#      The deploy step clones the PR head commit into this directory itself
-#      (git must be installed on the server); the .env is gitignored and
-#      survives the checkout.
+#      The deploy step copies the PR's merged source into this directory over
+#      SSH (the server has no outbound access to github.com, so it cannot
+#      clone); the .env is left untouched.
 #   2. Point DNS for the preview domain(s) at the VPS.
 #   3. Make sure the `staging` environment has SERVER_IP + SSH_PRIVATE_KEY
 #      (same ones deploy.yml uses).
@@ -154,6 +154,27 @@ jobs:
             echo "number=$ISSUE_NUMBER" >> "$GITHUB_OUTPUT"
           fi
 
+      - uses: actions/checkout@v4
+
+      - name: Sync source to preview directory
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOST: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
+        run: |
+          set -euo pipefail
+          DEPLOY_DIR="/home/github/peptrace/preview"
+          install -m 600 /dev/null ssh_key
+          printf '%s\n' "$SSH_KEY" > ssh_key
+          SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
+          # The server has no outbound access to github.com, so it cannot
+          # clone — the runner (which can) streams the source over SSH
+          # instead. The slot is cleared first, except the untracked .env.
+          # checkout defaults to the PR merge commit, matching what the
+          # build job builds the images from.
+          $SSH "mkdir -p '$DEPLOY_DIR' && find '$DEPLOY_DIR' -mindepth 1 ! -name '.env' -delete"
+          tar --exclude=.git --exclude=ssh_key -czf - . | $SSH "tar -xzf - -C '$DEPLOY_DIR'"
+          rm -f ssh_key
+
       - name: Deploy preview to VPS
         uses: appleboy/ssh-action@v1
         env:
@@ -162,28 +183,16 @@ jobs:
           DEPLOY_API_IMAGE: ${{ env.IMAGE_NAME }}-api:sha-${{ env.SHA_SHORT }}
           DEPLOY_CLIENT_API_IMAGE: ${{ env.IMAGE_NAME }}-client-api:sha-${{ env.SHA_SHORT }}
           DEPLOY_SERVICES: ${{ needs.changes.outputs.services }}
-          REPO: ${{ github.repository }}
-          TARGET_SHA: ${{ env.SHA }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
         with:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: github
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_ADMIN_IMAGE,DEPLOY_API_IMAGE,DEPLOY_CLIENT_API_IMAGE,DEPLOY_SERVICES,REPO,TARGET_SHA,GHCR_USER,GHCR_PAT
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_ADMIN_IMAGE,DEPLOY_API_IMAGE,DEPLOY_CLIENT_API_IMAGE,DEPLOY_SERVICES,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
-            # Sync the PR head commit into the preview slot so the compose file
-            # and config come from the PR. The .env in that directory is
-            # untracked (gitignored), so reset --hard keeps it.
-            DEPLOY_DIR="/home/github/peptrace/preview"
-            REPO_URL="https://x-access-token:${GHCR_PAT}@github.com/${REPO}.git"
-            echo "Syncing $REPO@$TARGET_SHA into $DEPLOY_DIR"
-            mkdir -p "$DEPLOY_DIR"
-            [ -d "$DEPLOY_DIR/.git" ] || git -C "$DEPLOY_DIR" init -q
-            git -C "$DEPLOY_DIR" fetch -q --depth 1 "$REPO_URL" "$TARGET_SHA"
-            git -C "$DEPLOY_DIR" reset -q --hard FETCH_HEAD
-            cd "$DEPLOY_DIR"
+            cd /home/github/peptrace/preview
             export FRONTEND_IMAGE="$DEPLOY_FRONTEND_IMAGE"
             export ADMIN_IMAGE="$DEPLOY_ADMIN_IMAGE"
             export API_IMAGE="$DEPLOY_API_IMAGE"
