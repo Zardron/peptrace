@@ -7,9 +7,10 @@ import profileIcon from '../../assets/account/profile-icon.png'
 interface HeaderBarProps {
   onSignUpClick?: () => void
   accountMode?: boolean
+  activeRoute?: string
 }
 
-export default function HeaderBar({ onSignUpClick, accountMode = false }: HeaderBarProps) {
+export default function HeaderBar({ onSignUpClick, accountMode = false, activeRoute }: HeaderBarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const headerRef = useRef<HTMLElement>(null)
@@ -68,9 +69,9 @@ export default function HeaderBar({ onSignUpClick, accountMode = false }: Header
 
         <div className="header-navigation desktop-only">
           <nav className="header-nav">
-            <a href="/about" className="nav-link">about</a>
-            <a href="/news" className="nav-link">news</a>
-            <a href="/membership" className="nav-link">membership</a>
+            <a href="/about" className={`nav-link ${activeRoute === '/about' ? 'active' : ''}`}>about</a>
+            <a href="/news" className={`nav-link ${activeRoute === '/news' ? 'active' : ''}`}>news</a>
+            <a href="/membership" className={`nav-link ${activeRoute === '/membership' ? 'active' : ''}`}>membership</a>
           </nav>
           <span className="header-divider" />
           <a href="/vendors" className="pill-button outline">vendors</a>
@@ -128,10 +129,10 @@ export default function HeaderBar({ onSignUpClick, accountMode = false }: Header
       </div>
 
       <nav className={`header-nav-row ${mobileOpen ? 'open' : ''}`}>
-        <a href="/rankings" className="nav-pill">rankings</a>
-        <a href="/about" className="nav-link">about</a>
-        <a href="/news" className="nav-link">news</a>
-        <a href="/membership" className="nav-link">membership</a>
+        <a href="/rankings" className={`nav-pill ${activeRoute === '/rankings' ? 'active' : ''}`}>rankings</a>
+        <a href="/about" className={`nav-link ${activeRoute === '/about' ? 'active' : ''}`}>about</a>
+        <a href="/news" className={`nav-link ${activeRoute === '/news' ? 'active' : ''}`}>news</a>
+        <a href="/membership" className={`nav-link ${activeRoute === '/membership' ? 'active' : ''}`}>membership</a>
       </nav>
     </header>
   )
