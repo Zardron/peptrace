@@ -6,7 +6,7 @@
 #
 # Usage:
 #   1. The deploy workflows clone this repo into the slot directory on the
-#      server (/home/services/peptrace/stg, /home/services/peptrace/preview);
+#      server (/home/github/peptrace/stg, /home/github/peptrace/preview);
 #      this file comes from that checkout. Only the .env is placed manually.
 #   2. Set PEPTRACE_DOMAIN in .env (and TRAEFIK_NETWORK / TRAEFIK_CERT_RESOLVER
 #      if they differ from the defaults). When running more than one copy of

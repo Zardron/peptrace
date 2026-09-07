@@ -14,7 +14,7 @@ name: deploy-preview
 # PRs that touch neither (e.g. plan-only PRs) skip the deploy entirely.
 #
 # One-time server setup (staging VPS, same host as staging):
-#   1. Create /home/services/peptrace/preview/ with a .env that sets
+#   1. Create /home/github/peptrace/preview/ with a .env that sets
 #      PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering,
 #      PEPTRACE_NAME=peptrace-preview (unique Traefik router names, so the
 #      preview and staging slots don't collide on the shared Traefik) and
@@ -176,7 +176,7 @@ jobs:
             # Sync the PR head commit into the preview slot so the compose file
             # and config come from the PR. The .env in that directory is
             # untracked (gitignored), so reset --hard keeps it.
-            DEPLOY_DIR="/home/services/peptrace/preview"
+            DEPLOY_DIR="/home/github/peptrace/preview"
             REPO_URL="https://x-access-token:${GHCR_PAT}@github.com/${REPO}.git"
             echo "Syncing $REPO@$TARGET_SHA into $DEPLOY_DIR"
             mkdir -p "$DEPLOY_DIR"

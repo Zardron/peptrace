@@ -89,7 +89,7 @@ jobs:
               # Sync the repo checkout into the deploy directory so the compose
               # file and config come from this commit. The .env in that
               # directory is untracked (gitignored), so reset --hard keeps it.
-              DEPLOY_DIR="/home/services/peptrace/stg"
+              DEPLOY_DIR="/home/github/peptrace/stg"
               REPO_URL="https://x-access-token:${GHCR_PAT}@github.com/${REPO}.git"
               echo "Syncing $REPO@$TARGET_SHA into $DEPLOY_DIR"
               mkdir -p "$DEPLOY_DIR"
