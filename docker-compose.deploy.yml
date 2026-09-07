@@ -5,9 +5,15 @@
 #   production — peptrace.co (separate server, not set up yet)
 #
 # Usage:
-#   1. Copy this file and a filled-in .env to the server (~/services/peptrace).
+#   1. The deploy workflows clone this repo into the slot directory on the
+#      server (/home/services/peptrace/stg, /home/services/peptrace/preview);
+#      this file comes from that checkout. Only the .env is placed manually.
 #   2. Set PEPTRACE_DOMAIN in .env (and TRAEFIK_NETWORK / TRAEFIK_CERT_RESOLVER
-#      if they differ from the defaults).
+#      if they differ from the defaults). When running more than one copy of
+#      this stack on the same Traefik (e.g. stg + preview), each copy must also
+#      set a unique PEPTRACE_NAME so the Traefik router/service/middleware
+#      names don't collide — duplicates with different rules are rejected by
+#      Traefik, which then serves its default 404 for those hosts.
 #   3. docker compose -f docker-compose.deploy.yml pull && docker compose -f docker-compose.deploy.yml up -d
 #
 # Routing: the frontend serves the domain root, the API serves /api/* (the
@@ -15,11 +21,6 @@
 # keeps its plain routes like /health).
 #
 # The images are built and published by GitHub Actions (see .github/workflows/docker.yml).
-#
-# Preview slot: .github/workflows/deploy-preview.yml deploys feature branches
-# to a second copy of this stack in ~/services/peptrace-preview whose .env sets
-# PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering (see that workflow's
-# header comment for one-time setup).
 
 services:
   frontend:
@@ -28,11 +29,11 @@ services:
     networks:
       - traefik
     labels:
-      traefik.enable: "true"
-      traefik.http.routers.peptrace.rule: "Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`)"
-      traefik.http.routers.peptrace.entrypoints: websecure
-      traefik.http.routers.peptrace.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
-      traefik.http.services.peptrace.loadbalancer.server.port: 80
+      - traefik.enable=true
+      - traefik.http.routers.${PEPTRACE_NAME:-peptrace}.rule=Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`)
+      - traefik.http.routers.${PEPTRACE_NAME:-peptrace}.entrypoints=websecure
+      - traefik.http.routers.${PEPTRACE_NAME:-peptrace}.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.services.${PEPTRACE_NAME:-peptrace}.loadbalancer.server.port=80
 
   api:
     image: ${API_IMAGE:-ghcr.io/peptrace/peptrace-api:latest}
@@ -43,14 +44,14 @@ services:
     networks:
       - traefik
     labels:
-      traefik.enable: "true"
-      traefik.http.routers.peptrace-api.rule: "Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`) && PathPrefix(`/api`)"
-      traefik.http.routers.peptrace-api.priority: "100"
-      traefik.http.routers.peptrace-api.entrypoints: websecure
-      traefik.http.routers.peptrace-api.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-letsencrypt}
-      traefik.http.routers.peptrace-api.middlewares: peptrace-api-strip
-      traefik.http.middlewares.peptrace-api-strip.stripprefix.prefixes: "/api"
-      traefik.http.services.peptrace-api.loadbalancer.server.port: 3000
+      - traefik.enable=true
+      - traefik.http.routers.${PEPTRACE_NAME:-peptrace}-api.rule=Host(`${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN}`) && PathPrefix(`/api`)
+      - traefik.http.routers.${PEPTRACE_NAME:-peptrace}-api.priority=100
+      - traefik.http.routers.${PEPTRACE_NAME:-peptrace}-api.entrypoints=websecure
+      - traefik.http.routers.${PEPTRACE_NAME:-peptrace}-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.routers.${PEPTRACE_NAME:-peptrace}-api.middlewares=${PEPTRACE_NAME:-peptrace}-api-strip
+      - traefik.http.middlewares.${PEPTRACE_NAME:-peptrace}-api-strip.stripprefix.prefixes=/api
+      - traefik.http.services.${PEPTRACE_NAME:-peptrace}-api.loadbalancer.server.port=3000
 
 networks:
   traefik:
