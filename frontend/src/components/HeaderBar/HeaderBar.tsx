@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import './HeaderBar.css'
 import promoArrow from '../../assets/arrow-right.svg'
-import logoSvg from '../../assets/logo.svg'
+import logoIconSvg from '../../assets/logo-icon.svg'
 import profileIcon from '../../assets/account/profile-icon.png'
 
 interface HeaderBarProps {
@@ -64,7 +64,11 @@ export default function HeaderBar({ onSignUpClick, accountMode = false, activeRo
 
       <div className="header-top">
         <a href="/" className="header-brand">
-          <img src={logoSvg} alt="Peptrace" className="header-logo" />
+          <img src={logoIconSvg} alt="" className="header-logo-icon" />
+          <span className="header-logo-text">
+            <span className="header-logo-title">PEPTRACE</span>
+            <span className="header-logo-tagline">What’s actually in the vial</span>
+          </span>
         </a>
 
         <div className="header-navigation desktop-only">

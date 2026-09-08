@@ -23,13 +23,40 @@
 .header-brand {
   display: flex;
   align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.header-logo-icon {
+  width: 57px;
+  height: 57px;
+  display: block;
   flex-shrink: 0;
 }
 
-.header-logo {
-  height: 57px;
-  width: auto;
-  display: block;
+.header-logo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.header-logo-title {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: 3.78px;
+  line-height: 1;
+  color: #010101;
+}
+
+.header-logo-tagline {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1.54px;
+  line-height: 1;
+  color: #7e7e7e;
 }
 
 .header-navigation {
@@ -335,7 +362,7 @@
     display: flex;
   }
 
-  .account-mode .header-logo {
+  .account-mode .header-brand {
     max-width: calc(100vw - 96px);
   }
 }

@@ -10,6 +10,7 @@ import settingsIcon from '../../assets/account/settings.svg'
 import toggleOff from '../../assets/account/toggle-off.svg'
 import toggleOn from '../../assets/account/toggle-on.svg'
 import checkGreen from '../../assets/membership/check-green.svg'
+import SiteFooter from '../SiteFooter/SiteFooter'
 
 export type AccountView =
   | 'dashboard'
@@ -33,48 +34,6 @@ const settingsNav: Array<{ id: Exclude<AccountView, 'dashboard'>; label: string;
   { id: 'privacy', label: 'Data & Privacy', href: '/account/privacy' },
 ]
 
-const footerColumns = [
-  {
-    title: 'Explore',
-    links: [
-      'Products',
-      'Vendors',
-      'Vendor Support',
-      'Blog',
-      'Partner Testing Labs',
-      'Testing Methodology',
-      'Corrections',
-      'Company',
-      'Customer Support',
-    ],
-  },
-  {
-    title: 'Testing',
-    links: [
-      'Submit your sample',
-      'Test Retatrutide',
-      'Test Tirzipatide',
-      'Test Melatonin',
-      'Test BPC-157',
-      'Test Ipamoreline',
-      'Test NAD+',
-      'Test another product',
-    ],
-  },
-  {
-    title: 'Legal',
-    links: [
-      'Verify COA',
-      'Testing Status',
-      'Terms of Service',
-      'Privacy Policy',
-      'Refund Policy',
-      'Partner Service Terms',
-      'Data Deletion',
-    ],
-  },
-]
-
 function StatusPill({ children, tone = 'success' }: { children: ReactNode; tone?: 'success' | 'warning' | 'info' | 'danger' }) {
   return <span className={`account-status ${tone}`}>{children}</span>
 }
@@ -95,29 +54,6 @@ function AccountTable({ columns, rows, className = '' }: { columns: string[]; ro
         </div>
       ))}
     </div>
-  )
-}
-
-function AccountFooter({ variant }: { variant: 'dashboard' | 'settings' }) {
-  return (
-    <footer className={`account-footer account-footer-${variant}`}>
-      <div className="account-footer-grid">
-        {footerColumns.map((column) => (
-          <div className="account-footer-column" key={column.title}>
-            <h2>{column.title}</h2>
-            <ul>
-              {column.links.map((link) => (
-                <li key={link}>
-                  <a href={`/${link.toLowerCase().replace(/\s+/g, '-')}`}>{link}</a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-      <span className="account-footer-rule" />
-      <p>&copy;2026 Peptrace</p>
-    </footer>
   )
 }
 
@@ -556,7 +492,7 @@ export default function AccountPages({ view }: AccountPagesProps) {
   return (
     <div className={`account-page account-view-${view}`}>
       {view === 'dashboard' ? <DashboardPage /> : <SettingsContent view={view} />}
-      <AccountFooter variant={view === 'dashboard' ? 'dashboard' : 'settings'} />
+      <SiteFooter />
     </div>
   )
 }
