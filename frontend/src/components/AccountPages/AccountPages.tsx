@@ -76,7 +76,11 @@ const footerColumns = [
 ]
 
 function StatusPill({ children, tone = 'success' }: { children: ReactNode; tone?: 'success' | 'warning' | 'info' | 'danger' }) {
-  return <span className={`account-status ${tone}`}>{children}</span>
+  return (
+    <span className="status-pill-frame">
+      <span className={`account-status ${tone}`}>{children}</span>
+    </span>
+  )
 }
 
 function AccountTable({ columns, rows, className = '' }: { columns: string[]; rows: ReactNode[][]; className?: string }) {
@@ -158,29 +162,31 @@ function DashboardPage() {
   return (
     <main className="account-page-main dashboard-main">
       <section className="dashboard-welcome">
-        <div className="dashboard-user">
-          <img src={profilePhoto} alt="" className="dashboard-photo" />
-          <div>
-            <h1>Welcome back, Dr. John Doe</h1>
-            <p>john.doe@example.com</p>
-            <div className="dashboard-membership">
-              <span>Researcher Premium</span>
-              <small>Member since Oct 2025</small>
+        <div className="welcome-profile">
+          <div className="dashboard-user">
+            <img src={profilePhoto} alt="" className="dashboard-photo" />
+            <div>
+              <h1>Welcome back, Dr. John Doe</h1>
+              <p>john.doe@example.com</p>
+              <div className="dashboard-membership">
+                <span>Researcher Premium</span>
+                <small>Member since Oct 2025</small>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="dashboard-metrics" aria-label="Account metrics">
-          <div>
-            <strong>12</strong>
-            <span>Total Samples Sent</span>
-          </div>
-          <div>
-            <strong>98.9%</strong>
-            <span>Avg Batch Purity</span>
-          </div>
-          <div>
-            <strong className="metric-warn">1</strong>
-            <span>Active Analysis</span>
+          <div className="dashboard-metrics" aria-label="Account metrics">
+            <div>
+              <strong>12</strong>
+              <span>Total Samples Sent</span>
+            </div>
+            <div>
+              <strong>98.9%</strong>
+              <span>Avg Batch Purity</span>
+            </div>
+            <div>
+              <strong className="metric-warn">1</strong>
+              <span>Active Analysis</span>
+            </div>
           </div>
         </div>
       </section>
@@ -216,15 +222,21 @@ function DashboardPage() {
           <section className="account-card quick-actions">
             <h2>Quick Actions</h2>
             <a href="/submit-sample" className="quick-action primary">
-              <img src={plusIcon} alt="" />
+              <span className="quick-action-icon-wrap">
+                <img src={plusIcon} alt="" />
+              </span>
               <span>Submit New Sample</span>
             </a>
             <a href="/results" className="quick-action outlined">
-              <img src={fileIcon} alt="" />
+              <span className="quick-action-icon-wrap">
+                <img src={fileIcon} alt="" />
+              </span>
               <span>View All Results</span>
             </a>
             <a href="/account" className="quick-action muted">
-              <img src={settingsIcon} alt="" />
+              <span className="quick-action-icon-wrap">
+                <img src={settingsIcon} alt="" />
+              </span>
               <span>Account Settings</span>
             </a>
           </section>

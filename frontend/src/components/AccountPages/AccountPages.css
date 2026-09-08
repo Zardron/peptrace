@@ -31,11 +31,14 @@
 }
 
 .dashboard-welcome {
+  padding: 24px;
+}
+
+.welcome-profile {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 24px;
 }
 
 .dashboard-user {
@@ -118,7 +121,7 @@
 }
 
 .dashboard-metrics > div + div {
-  border-left: 1px solid #d9d9d9;
+  border-left: 1px solid #e6e6e6;
   padding-left: 32px;
 }
 
@@ -271,6 +274,11 @@
   font-weight: 700;
 }
 
+.status-pill-frame {
+  display: inline-flex;
+  align-items: center;
+}
+
 .account-status {
   display: inline-flex;
   align-items: center;
@@ -331,6 +339,13 @@
   color: #2c2c2c;
   font-size: 15px;
   font-weight: 700;
+}
+
+.quick-action-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
 }
 
 .quick-action img {
@@ -907,7 +922,7 @@
   border-top: 1px solid var(--border);
 }
 
-@media (min-width: 701px) {
+@media (min-width: 592px) {
   .settings-sidebar,
   .settings-content,
   .settings-inner-card {
@@ -1274,8 +1289,8 @@
   }
 
   .dashboard-sidebar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
+    display: flex;
+    flex-direction: column;
   }
 
   .settings-sidebar {
@@ -1294,9 +1309,59 @@
   .settings-sidebar a {
     border-radius: 0;
   }
+
+  .account-footer {
+    gap: 24px;
+    padding: 40px;
+  }
+
+  .account-footer-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    padding: 0;
+  }
+
+  .account-footer-column:nth-child(1) li:nth-child(4),
+  .account-footer-column:nth-child(1) li:nth-child(n+6),
+  .account-footer-column:nth-child(2) li:nth-child(4),
+  .account-footer-column:nth-child(2) li:nth-child(n+6),
+  .account-footer-column:nth-child(3) li:nth-child(2),
+  .account-footer-column:nth-child(3) li:nth-child(n+6) {
+    display: none;
+  }
+
+  .account-footer-column h2 {
+    font-size: 13px;
+    letter-spacing: 1.3px;
+  }
+
+  .account-footer-column {
+    gap: 12px;
+  }
+
+  .account-footer-column ul {
+    gap: 8px;
+  }
+
+  .account-footer-column li {
+    height: 12px;
+    line-height: 12px;
+  }
+
+  .account-footer-column a,
+  .account-footer p {
+    font-size: 12px;
+    letter-spacing: 0;
+    line-height: 1;
+  }
+
+  .account-footer-column a {
+    display: block;
+    white-space: nowrap;
+  }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 591px) {
   .account-page-main {
     width: 100%;
     padding: 0 16px 40px;
@@ -1307,9 +1372,13 @@
   }
 
   .dashboard-welcome {
+    padding: 24px;
+  }
+
+  .welcome-profile {
     align-items: flex-start;
     flex-direction: column;
-    padding: 24px;
+    width: 100%;
   }
 
   .dashboard-user {

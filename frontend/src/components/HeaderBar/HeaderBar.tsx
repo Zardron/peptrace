@@ -48,7 +48,7 @@ export default function HeaderBar({ onSignUpClick, accountMode = false, activeRo
 
   const accountMenu = (
     <div className="account-dropdown" role="menu">
-      <a href="/dashboard" role="menuitem" onClick={() => setAccountOpen(false)}>Dashboard</a>
+      <a href="/dashboard" className={activeRoute === '/dashboard' ? 'active' : ''} role="menuitem" onClick={() => setAccountOpen(false)}>Dashboard</a>
       <a href="/dashboard#shipments" role="menuitem" onClick={() => setAccountOpen(false)}>My Shipments</a>
       <span className="account-dropdown-divider" />
       <a href="/" role="menuitem" onClick={() => setAccountOpen(false)}>Sign out</a>
