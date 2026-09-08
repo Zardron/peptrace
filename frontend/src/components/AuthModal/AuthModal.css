@@ -207,6 +207,12 @@
   box-shadow: 0 0 0 3px rgba(16, 110, 86, 0.12);
 }
 
+.auth-error {
+  color: #ef4444;
+  font-size: 12px;
+  line-height: 1;
+}
+
 .auth-submit-button {
   height: 43px;
   display: inline-flex;

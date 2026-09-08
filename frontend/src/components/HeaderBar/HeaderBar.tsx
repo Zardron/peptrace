@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
 import './HeaderBar.css'
 import promoArrow from '../../assets/arrow-right.svg'
 import logoIconSvg from '../../assets/logo-icon.svg'
@@ -6,11 +7,11 @@ import profileIcon from '../../assets/account/profile-icon.png'
 
 interface HeaderBarProps {
   onSignUpClick?: () => void
-  accountMode?: boolean
   activeRoute?: string
 }
 
-export default function HeaderBar({ onSignUpClick, accountMode = false, activeRoute }: HeaderBarProps) {
+export default function HeaderBar({ onSignUpClick, activeRoute }: HeaderBarProps) {
+  const { user, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const headerRef = useRef<HTMLElement>(null)
@@ -51,12 +52,12 @@ export default function HeaderBar({ onSignUpClick, accountMode = false, activeRo
       <a href="/dashboard" role="menuitem" onClick={() => setAccountOpen(false)}>Dashboard</a>
       <a href="/dashboard#shipments" role="menuitem" onClick={() => setAccountOpen(false)}>My Shipments</a>
       <span className="account-dropdown-divider" />
-      <a href="/" role="menuitem" onClick={() => setAccountOpen(false)}>Sign out</a>
+      <a href="/" role="menuitem" onClick={() => { setAccountOpen(false); logout(); }}>Sign out</a>
     </div>
   )
 
   return (
-    <header className={`header-bar ${accountMode ? 'account-mode' : ''}`} ref={headerRef}>
+    <header className={`header-bar ${user ? 'account-mode' : ''}`} ref={headerRef}>
       <a href="/testing" className="header-promo-banner">
         <span>Get your free peptide safety test</span>
         <img src={promoArrow} alt="" />
@@ -79,7 +80,10 @@ export default function HeaderBar({ onSignUpClick, accountMode = false, activeRo
           </nav>
           <span className="header-divider" />
           <a href="/vendors" className="pill-button outline">vendors</a>
-          {accountMode ? (
+        </div>
+
+        <div className="header-actions non-mobile">
+          {user ? (
             <div className="account-menu-wrap">
               <button
                 type="button"
@@ -98,8 +102,8 @@ export default function HeaderBar({ onSignUpClick, accountMode = false, activeRo
           )}
         </div>
 
-        {accountMode ? (
-          <div className="account-menu-wrap compact-account-wrap">
+        {user ? (
+          <div className="account-menu-wrap compact-account-wrap mobile-only">
             <button
               type="button"
               className="account-avatar-button"
@@ -126,10 +130,6 @@ export default function HeaderBar({ onSignUpClick, accountMode = false, activeRo
             </svg>
           </button>
         )}
-
-        {!accountMode ? (
-          <button type="button" className="pill-button solid tablet-only" onClick={handleSignUpClick}>sign up</button>
-        ) : null}
       </div>
 
       <nav className={`header-nav-row ${mobileOpen ? 'open' : ''}`}>

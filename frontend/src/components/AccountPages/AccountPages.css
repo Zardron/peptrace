@@ -320,6 +320,32 @@
   margin-bottom: 0;
 }
 
+.lab-date-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.lab-date-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lab-date-item strong {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lab-date-item span {
+  color: #747474;
+  font-size: 11px;
+  line-height: 1;
+}
+
 .quick-action {
   height: 48px;
   min-height: 48px;
@@ -1331,6 +1357,11 @@
 
   .supply-table .account-table-row {
     grid-template-columns: 1fr 80px 120px 80px;
+  }
+
+  .account-table-row {
+    height: auto;
+    min-height: 48px;
   }
 
   .settings-sidebar {

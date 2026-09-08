@@ -167,6 +167,16 @@ function DashboardPage() {
 
           <section className="account-card lab-dates">
             <h2>Next Lab Delivery Dates</h2>
+            <div className="lab-date-list">
+              <div className="lab-date-item">
+                <strong>Aug 18, 2026</strong>
+                <span>Tirzepatide Batch T-4</span>
+              </div>
+              <div className="lab-date-item">
+                <strong>Aug 22, 2026</strong>
+                <span>Retatrutide Batch R-2</span>
+              </div>
+            </div>
           </section>
         </aside>
       </div>
