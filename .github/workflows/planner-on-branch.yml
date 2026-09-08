@@ -7,6 +7,10 @@ name: Trigger Planner Agent
 on:
   create
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   dispatch-planner:
     if: github.event.ref_type == 'branch' && github.ref_name != 'main'
@@ -14,6 +18,7 @@ jobs:
     steps:
       - name: Extract issue number and call Planner agent
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ github.ref_name }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
@@ -23,6 +28,19 @@ jobs:
             echo "Branch $BRANCH contains no issue number; skipping Planner agent."
             exit 0
           fi
+
+          # Dedupe: plan-on-issue.yml may already own this issue (it creates an
+          # issue-<N>-* branch and dispatches the Planner itself), or a plan PR
+          # may already be open. Two plan PRs for one issue is never useful.
+          if gh api "repos/$OWNER/$REPO/git/matching-refs/heads/issue-$ISSUE_NUMBER-" --jq '.[].ref' | grep -q .; then
+            echo "An issue-$ISSUE_NUMBER-* branch already exists (plan-on-issue owns this issue); skipping."
+            exit 0
+          fi
+          if gh pr list --repo "$OWNER/$REPO" --state open --search "\"Implementation plan for issue #$ISSUE_NUMBER\" in:title" --json number --jq 'length' | grep -qE '^[1-9]'; then
+            echo "A plan PR for issue #$ISSUE_NUMBER is already open; skipping."
+            exit 0
+          fi
+
           echo "Dispatching Planner agent for issue #$ISSUE_NUMBER (branch $BRANCH)"
           curl -sf -X POST "https://n8n.esteemed.engineering/webhook/factory/plan-issue" \
             -H "Content-Type: application/json" \

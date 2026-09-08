@@ -21,6 +21,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   dispatch-planner:
@@ -57,6 +58,14 @@ jobs:
 
           if gh api "repos/$OWNER/$REPO/git/refs/heads/$BRANCH" >/dev/null 2>&1; then
             echo "Branch $BRANCH already exists; skipping (idempotent for repeated labeled events)."
+            exit 0
+          fi
+
+          # Dedupe: a plan PR may already be open for this issue (e.g. someone
+          # created a feat branch with the issue number and planner-on-branch
+          # already dispatched the Planner). Two plan PRs is never useful.
+          if gh pr list --repo "$OWNER/$REPO" --state open --search "\"Implementation plan for issue #$ISSUE_NUMBER\" in:title" --json number --jq 'length' | grep -qE '^[1-9]'; then
+            echo "A plan PR for issue #$ISSUE_NUMBER is already open; skipping."
             exit 0
           fi
 
