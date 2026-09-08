@@ -157,8 +157,8 @@ function DashboardPage() {
 
   return (
     <main className="account-page-main dashboard-main">
-      <section className="dashboard-welcome">
-        <div className="dashboard-user">
+      <section className="dashboard-welcome welcome-profile">
+        <div className="dashboard-user user-profile">
           <img src={profilePhoto} alt="" className="dashboard-photo" />
           <div>
             <h1>Welcome back, Dr. John Doe</h1>
@@ -169,7 +169,7 @@ function DashboardPage() {
             </div>
           </div>
         </div>
-        <div className="dashboard-metrics" aria-label="Account metrics">
+        <div className="dashboard-metrics user-metrics" aria-label="Account metrics">
           <div>
             <strong>12</strong>
             <span>Total Samples Sent</span>

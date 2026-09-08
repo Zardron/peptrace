@@ -95,19 +95,34 @@ export default function HeaderBar({ onSignUpClick, accountMode = false, activeRo
         </div>
 
         {accountMode ? (
-          <div className="account-menu-wrap compact-account-wrap">
-            <button
-              type="button"
-              className="account-avatar-button"
-              aria-label="Open account menu"
-              aria-haspopup="menu"
-              aria-expanded={accountOpen}
-              onClick={() => setAccountOpen((open) => !open)}
-            >
-              <img src={profileIcon} alt="" />
-            </button>
-            {accountOpen ? accountMenu : null}
-          </div>
+          <>
+            <div className="account-menu-wrap tablet-only">
+              <button
+                type="button"
+                className="pill-button solid account-button"
+                aria-haspopup="menu"
+                aria-expanded={accountOpen}
+                onClick={() => setAccountOpen((open) => !open)}
+              >
+                <span>my account</span>
+                <img src={profileIcon} alt="" />
+              </button>
+              {accountOpen ? accountMenu : null}
+            </div>
+            <div className="account-menu-wrap compact-account-wrap">
+              <button
+                type="button"
+                className="account-avatar-button"
+                aria-label="Open account menu"
+                aria-haspopup="menu"
+                aria-expanded={accountOpen}
+                onClick={() => setAccountOpen((open) => !open)}
+              >
+                <img src={profileIcon} alt="" />
+              </button>
+              {accountOpen ? accountMenu : null}
+            </div>
+          </>
         ) : (
           <button
             type="button"
