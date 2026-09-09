@@ -51,7 +51,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
     setSubmitting(true)
     setError('')
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim() }),

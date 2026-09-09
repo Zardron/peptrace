@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import './HeaderBar.css'
 import promoArrow from '../../assets/arrow-right.svg'
-import logoIconSvg from '../../assets/logo-icon.svg'
+import logoSvg from '../../assets/logo.svg'
 import profileIcon from '../../assets/account/profile-icon.png'
 
 interface HeaderBarProps {
@@ -65,11 +65,7 @@ export default function HeaderBar({ onSignUpClick, activeRoute }: HeaderBarProps
 
       <div className="header-top">
         <a href="/" className="header-brand">
-          <img src={logoIconSvg} alt="" className="header-logo-icon" />
-          <span className="header-logo-text">
-            <span className="header-logo-title">PEPTRACE</span>
-            <span className="header-logo-tagline">What’s actually in the vial</span>
-          </span>
+          <img src={logoSvg} alt="Peptrace" className="header-logo" />
         </a>
 
         <div className="header-navigation desktop-only">
@@ -78,11 +74,15 @@ export default function HeaderBar({ onSignUpClick, activeRoute }: HeaderBarProps
             <a href="/news" className={`nav-link ${activeRoute === '/news' ? 'active' : ''}`}>news</a>
             <a href="/membership" className={`nav-link ${activeRoute === '/membership' ? 'active' : ''}`}>membership</a>
           </nav>
-          <span className="header-divider" />
-          <a href="/vendors" className="pill-button outline">vendors</a>
         </div>
 
         <div className="header-actions non-mobile">
+          {!user && (
+            <>
+              <span className="header-divider" />
+              <a href="/vendors" className="pill-button outline">vendors</a>
+            </>
+          )}
           {user ? (
             <div className="account-menu-wrap">
               <button
