@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
 import './AuthModal.css'
 import closeIcon from '../../assets/auth/close.svg'
 import facebookIcon from '../../assets/auth/facebook.png'
@@ -12,9 +13,19 @@ interface AuthModalProps {
   onClose: () => void
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+
 export default function AuthModal({ open, onClose }: AuthModalProps) {
+  const { login } = useAuth()
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
   useEffect(() => {
     if (!open) {
+      setEmail('')
+      setError('')
+      setSubmitting(false)
       return undefined
     }
 
@@ -33,6 +44,30 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [onClose, open])
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!email.trim()) return
+    setSubmitting(true)
+    setError('')
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      if (!res.ok) {
+        throw new Error('Login failed')
+      }
+      const data = await res.json()
+      login(data.token)
+      onClose()
+    } catch {
+      setError('Could not log in. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   if (!open) {
     return null
@@ -84,7 +119,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
           <span />
         </div>
 
-        <form className="auth-email-form" onSubmit={(event) => event.preventDefault()}>
+        <form className="auth-email-form" onSubmit={handleSubmit}>
           <label htmlFor="auth-email">Email address</label>
           <input
             id="auth-email"
@@ -92,8 +127,12 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
             type="email"
             placeholder="you@example.com"
             autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={submitting}
           />
-          <button type="submit" className="auth-submit-button">
+          {error ? <p className="auth-error">{error}</p> : null}
+          <button type="submit" className="auth-submit-button" disabled={submitting}>
             <span>Continue</span>
             <img src={playIcon} alt="" />
           </button>

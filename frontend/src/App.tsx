@@ -8,6 +8,7 @@ import HomeBottom from './components/HomeBottom/HomeBottom'
 import MembershipPage from './components/MembershipPage/MembershipPage'
 import SiteFooter from './components/SiteFooter/SiteFooter'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
+import { useAuth } from './context/AuthContext'
 import { leaderboardCards } from './data/leaderboardData'
 
 const accountRoutes = new Map<string, AccountView>([
@@ -41,6 +42,7 @@ const getModalSourcePath = () => {
 }
 
 function App() {
+  const { user, isLoading } = useAuth()
   const [pagePath, setPagePath] = useState(getCurrentPagePath)
   const [authOpen, setAuthOpen] = useState(() => (
     typeof window !== 'undefined' && window.location.pathname === '/signup'
@@ -82,6 +84,17 @@ function App() {
 
   const isMembershipPage = pagePath === '/membership'
   const accountView = accountRoutes.get(pagePath)
+  const isAccountRoute = Boolean(accountView)
+
+  useEffect(() => {
+    if (isAccountRoute && !isLoading && !user) {
+      setAuthOpen(true)
+    }
+  }, [isAccountRoute, isLoading, user])
+
+  if (isLoading) {
+    return <div className="app" />
+  }
 
   return (
     <div className="app">
@@ -90,10 +103,20 @@ function App() {
           <HeaderBar onSignUpClick={openAuthModal} activeRoute="/membership" />
           <MembershipPage />
         </>
-      ) : accountView ? (
+      ) : accountView && user ? (
         <>
-          <HeaderBar accountMode activeRoute={pagePath} />
+          <HeaderBar activeRoute={pagePath} />
           <AccountPages view={accountView} />
+        </>
+      ) : accountView && !user ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute={pagePath} />
+          <main className="main auth-page-preview">
+            <HomeTopInfo />
+            <Leaderboards cards={leaderboardCards} />
+            <HomeBottom />
+          </main>
+          <SiteFooter />
         </>
       ) : (
         <>
