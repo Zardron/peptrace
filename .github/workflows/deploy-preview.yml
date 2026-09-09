@@ -6,19 +6,15 @@ name: deploy-preview
 #
 # Fires on PRs targeting main. Only services whose code changed relative to
 # main are built and deployed:
-#   - changes under frontend/                     -> build + deploy frontend
-#   - changes under api/, packages/ or the root
-#     Docker build files                          -> build + deploy api, admin,
-#                                                    client-api (all built from
-#                                                    the root Dockerfile)
+#   - changes under frontend/ -> build + deploy frontend (frontend/Dockerfile)
+#   - changes under api/      -> build + deploy api (api/Dockerfile)
 # PRs that touch neither (e.g. plan-only PRs) skip the deploy entirely.
 #
 # One-time server setup (staging VPS, same host as staging):
 #   1. Create /home/github/services/peptrace/preview/ with a .env that sets
 #      PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering,
 #      PEPTRACE_NAME=peptrace-preview (unique Traefik router names, so the
-#      preview and staging slots don't collide on the shared Traefik) and
-#      ADMIN_DOMAIN=preview-admin.peptrace.stg.esteemed.engineering.
+#      preview and staging slots don't collide on the shared Traefik).
 #      The deploy step copies the PR's merged source into this directory over
 #      SSH (the server has no outbound access to github.com, so it cannot
 #      clone); the .env is left untouched.
@@ -68,11 +64,6 @@ jobs:
               - 'frontend/**'
             backend:
               - 'api/**'
-              - 'packages/**'
-              - 'Dockerfile'
-              - 'package.json'
-              - 'package-lock.json'
-              - 'tsconfig.base.json'
 
       - name: Detect services to deploy
         id: detect
@@ -89,11 +80,7 @@ jobs:
               '. + [{suffix:$s, context:$c, dockerfile:$d, target:$t}]' <<<"$MATRIX")
           }
           [ "$FRONTEND_CHANGED" = "true" ] && add frontend ./frontend ./frontend/Dockerfile runtime
-          if [ "$BACKEND_CHANGED" = "true" ]; then
-            add api . ./Dockerfile platform-api-prod
-            add admin . ./Dockerfile admin-prod
-            add client-api . ./Dockerfile client-api-prod
-          fi
+          [ "$BACKEND_CHANGED" = "true" ] && add api ./api ./api/Dockerfile runtime
           SERVICES=$(echo $SERVICES | xargs)
           echo "Changed services: ${SERVICES:-none}"
           echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
@@ -185,9 +172,7 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           DEPLOY_FRONTEND_IMAGE: ${{ env.IMAGE_NAME }}-frontend:sha-${{ env.SHA_SHORT }}
-          DEPLOY_ADMIN_IMAGE: ${{ env.IMAGE_NAME }}-admin:sha-${{ env.SHA_SHORT }}
           DEPLOY_API_IMAGE: ${{ env.IMAGE_NAME }}-api:sha-${{ env.SHA_SHORT }}
-          DEPLOY_CLIENT_API_IMAGE: ${{ env.IMAGE_NAME }}-client-api:sha-${{ env.SHA_SHORT }}
           DEPLOY_SERVICES: ${{ needs.changes.outputs.services }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
@@ -195,15 +180,13 @@ jobs:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: github
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_ADMIN_IMAGE,DEPLOY_API_IMAGE,DEPLOY_CLIENT_API_IMAGE,DEPLOY_SERVICES,GHCR_USER,GHCR_PAT
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
             cd /home/github/services/peptrace/preview
             export FRONTEND_IMAGE="$DEPLOY_FRONTEND_IMAGE"
-            export ADMIN_IMAGE="$DEPLOY_ADMIN_IMAGE"
             export API_IMAGE="$DEPLOY_API_IMAGE"
-            export CLIENT_API_IMAGE="$DEPLOY_CLIENT_API_IMAGE"
-            echo "Deploying preview services: $DEPLOY_SERVICES (frontend: $FRONTEND_IMAGE, admin: $ADMIN_IMAGE, api: $API_IMAGE, client-api: $CLIENT_API_IMAGE)"
+            echo "Deploying preview services: $DEPLOY_SERVICES (frontend: $FRONTEND_IMAGE, api: $API_IMAGE)"
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             # Only the changed services are pulled/recreated — unchanged ones keep running.
             docker compose -f docker-compose.deploy.yml pull $DEPLOY_SERVICES
