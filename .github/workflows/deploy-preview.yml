@@ -4,8 +4,8 @@ name: deploy-preview
 # the Software Factory Visual QA workflow (n8n) so it can screenshot the
 # deployed UI and compare it against the Figma designs.
 #
-# Fires on PRs targeting main. Only services whose code changed relative to
-# main are built and deployed:
+# Fires on PRs targeting main or a feat/** branch. Only services whose code
+# changed relative to the PR base are built and deployed:
 #   - changes under frontend/ -> build + deploy frontend (frontend/Dockerfile)
 #   - changes under api/      -> build + deploy api (api/Dockerfile)
 # PRs that touch neither (e.g. plan-only PRs) skip the deploy entirely.
@@ -28,7 +28,9 @@ name: deploy-preview
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches: [main]
+    # main: feature PRs. feat/**: Visual QA fix PRs, which the factory
+    # stacks onto the feature branch being fixed (visual-qa/* -> feat/*).
+    branches: [main, 'feat/**']
 
 # Single shared preview slot: serialize deploys.
 concurrency:
