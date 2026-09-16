@@ -7,6 +7,7 @@ import Leaderboards from './components/Leaderboards/Leaderboards'
 import HomeBottom from './components/HomeBottom/HomeBottom'
 import MembershipPage from './components/MembershipPage/MembershipPage'
 import SiteFooter from './components/SiteFooter/SiteFooter'
+import VendorsList from './components/VendorsList/VendorsList'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
 import { useAuth } from './context/AuthContext'
 import { leaderboardCards } from './data/leaderboardData'
@@ -22,7 +23,7 @@ const accountRoutes = new Map<string, AccountView>([
   ['/account/privacy', 'privacy'],
 ])
 
-const routedPaths = new Set(['/membership', ...accountRoutes.keys()])
+const routedPaths = new Set(['/membership', '/vendors', ...accountRoutes.keys()])
 
 const getCurrentPagePath = () => {
   if (typeof window === 'undefined') {
@@ -119,6 +120,7 @@ function App() {
   }, [])
 
   const isMembershipPage = pagePath === '/membership'
+  const isVendorsPage = pagePath === '/vendors'
   const accountView = accountRoutes.get(pagePath)
   const isAccountRoute = Boolean(accountView)
 
@@ -151,6 +153,14 @@ function App() {
             <HomeTopInfo />
             <Leaderboards cards={leaderboardCards} />
             <HomeBottom />
+          </main>
+          <SiteFooter />
+        </>
+      ) : isVendorsPage ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/vendors" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <VendorsList />
           </main>
           <SiteFooter />
         </>

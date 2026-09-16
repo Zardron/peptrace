@@ -13,6 +13,38 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'peptrace-api' });
 });
 
+app.get('/vendors', (_req, res) => {
+  const vendors = Array.from({ length: 100 }, (_, i) => {
+    const seed = i + 1;
+    const baseCost = 0.5 + (Math.sin(seed * 9999) * 10000 - Math.floor(Math.sin(seed * 9999) * 10000)) * 5.5;
+    const cost = `$${baseCost.toFixed(2)}/mg`;
+    const score = Math.max(58, Math.round(92 - (Math.sin(seed * 7 * 9999) * 10000 - Math.floor(Math.sin(seed * 7 * 9999) * 10000)) * 40));
+    const tests = Math.floor(5 + (Math.sin(seed * 13 * 9999) * 10000 - Math.floor(Math.sin(seed * 13 * 9999) * 10000)) * 45);
+    const products = Math.floor(1 + (Math.sin(seed * 17 * 9999) * 10000 - Math.floor(Math.sin(seed * 17 * 9999) * 10000)) * 5);
+    const daysAgo = Math.floor((Math.sin(seed * 19 * 9999) * 10000 - Math.floor(Math.sin(seed * 19 * 9999) * 10000)) * 730);
+    const date = new Date('2026-08-08');
+    date.setDate(date.getDate() - daysAgo);
+    const latest = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const locations = ['China', 'US', 'UK', 'Germany', 'Hong Kong', 'Japan', 'India', 'Canada', 'Australia', '—'];
+    const location = locations[Math.floor((Math.sin(seed * 23 * 9999) * 10000 - Math.floor(Math.sin(seed * 23 * 9999) * 10000)) * locations.length)];
+    const names = [
+      'Zenith Jode Peptide ZJ',
+      'Peptide Partners',
+      'AlphaPeptides',
+      'BioSynth Labs',
+      'ChemPure Supply',
+      'Delta Peptides',
+      'Elite Research Chems',
+      'Fusion Biologics',
+      'GenX Peptides',
+      'Helix BioTech',
+    ];
+    const name = i === 0 ? names[0] : names[1 + Math.floor((Math.sin(seed * 3 * 9999) * 10000 - Math.floor(Math.sin(seed * 3 * 9999) * 10000)) * (names.length - 1))];
+    return { id: String(seed), name, score, cost, tests, products, latest, location };
+  });
+  res.json({ vendors });
+});
+
 app.get('/auth/me', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
