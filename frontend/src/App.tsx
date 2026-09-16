@@ -10,6 +10,7 @@ import SiteFooter from './components/SiteFooter/SiteFooter'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
 import { useAuth } from './context/AuthContext'
 import { leaderboardCards } from './data/leaderboardData'
+import { navigate } from './lib/navigation'
 
 const accountRoutes = new Map<string, AccountView>([
   ['/dashboard', 'dashboard'],
@@ -79,6 +80,41 @@ function App() {
 
     return () => {
       window.removeEventListener('popstate', handlePopState)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return
+      }
+
+      const anchor = (event.target as HTMLElement).closest('a')
+      const href = anchor?.getAttribute('href')
+      if (!anchor || !href || href.startsWith('#') || anchor.target || anchor.hasAttribute('download')) {
+        return
+      }
+
+      const url = new URL(href, window.location.origin)
+      if (url.origin !== window.location.origin) {
+        return
+      }
+
+      event.preventDefault()
+      navigate(url.pathname + url.search + url.hash)
+    }
+
+    document.addEventListener('click', handleClick)
+
+    return () => {
+      document.removeEventListener('click', handleClick)
     }
   }, [])
 

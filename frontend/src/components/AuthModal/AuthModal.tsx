@@ -1,29 +1,31 @@
 import { useEffect, useState } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCaretRight } from '@fortawesome/free-solid-svg-icons'
 import { useAuth } from '../../context/AuthContext'
+import { navigate } from '../../lib/navigation'
+import { supabase } from '../../lib/supabase'
 import './AuthModal.css'
 import closeIcon from '../../assets/auth/close.svg'
-import facebookIcon from '../../assets/auth/facebook.png'
 import googleIcon from '../../assets/auth/google.png'
-import playIcon from '../../assets/auth/play.svg'
-import tiktokIcon from '../../assets/auth/tiktok.png'
-import xLogoIcon from '../../assets/auth/x-logo.svg'
 
 interface AuthModalProps {
   open: boolean
   onClose: () => void
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
-
 export default function AuthModal({ open, onClose }: AuthModalProps) {
   const { login } = useAuth()
+  const [step, setStep] = useState<'email' | 'code'>('email')
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) {
+      setStep('email')
       setEmail('')
+      setCode('')
       setError('')
       setSubmitting(false)
       return undefined
@@ -45,25 +47,50 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
     }
   }, [onClose, open])
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleEmailSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!email.trim()) return
+    const trimmed = email.trim()
+    if (!trimmed) return
     setSubmitting(true)
     setError('')
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+      const { error: otpError } = await supabase.auth.signInWithOtp({
+        email: trimmed,
+        options: { shouldCreateUser: true },
       })
-      if (!res.ok) {
-        throw new Error('Login failed')
+      if (otpError) {
+        throw otpError
       }
-      const data = await res.json()
-      login(data.token)
-      onClose()
+      setStep('code')
     } catch {
-      setError('Could not log in. Please try again.')
+      setError('Could not send the sign-in code. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCodeSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const trimmed = code.trim()
+    if (!trimmed) return
+    setSubmitting(true)
+    setError('')
+    try {
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: trimmed,
+        type: 'email',
+      })
+      if (verifyError || !data.session) {
+        throw verifyError ?? new Error('No session')
+      }
+      const result = await login(data.session.access_token)
+      onClose()
+      if (result?.isNewAccount) {
+        navigate('/account')
+      }
+    } catch {
+      setError('That code did not work. Check the code and try again.')
     } finally {
       setSubmitting(false)
     }
@@ -99,18 +126,6 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
             <img src={googleIcon} alt="" />
             <span>Continue with Google</span>
           </button>
-
-          <div className="auth-social-row">
-            <button type="button" className="auth-icon-button" aria-label="Continue with Facebook">
-              <img src={facebookIcon} alt="" />
-            </button>
-            <button type="button" className="auth-icon-button" aria-label="Continue with TikTok">
-              <img src={tiktokIcon} alt="" />
-            </button>
-            <button type="button" className="auth-icon-button" aria-label="Continue with X">
-              <img src={xLogoIcon} alt="" />
-            </button>
-          </div>
         </div>
 
         <div className="auth-divider" aria-hidden="true">
@@ -119,24 +134,58 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
           <span />
         </div>
 
-        <form className="auth-email-form" onSubmit={handleSubmit}>
-          <label htmlFor="auth-email">Email address</label>
-          <input
-            id="auth-email"
-            name="email"
-            type="email"
-            placeholder="you@example.com"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={submitting}
-          />
-          {error ? <p className="auth-error">{error}</p> : null}
-          <button type="submit" className="auth-submit-button" disabled={submitting}>
-            <span>Continue</span>
-            <img src={playIcon} alt="" />
-          </button>
-        </form>
+        {step === 'email' ? (
+          <form className="auth-email-form" onSubmit={handleEmailSubmit}>
+            <label htmlFor="auth-email">Email address</label>
+            <input
+              id="auth-email"
+              name="email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={submitting}
+            />
+            {error ? <p className="auth-error">{error}</p> : null}
+            <button type="submit" className="auth-submit-button" disabled={submitting}>
+              <span>Continue</span>
+              <FontAwesomeIcon icon={faCaretRight} />
+            </button>
+          </form>
+        ) : (
+          <form className="auth-email-form" onSubmit={handleCodeSubmit}>
+            <label htmlFor="auth-code">Enter the 6-digit code sent to {email.trim()}</label>
+            <input
+              id="auth-code"
+              name="code"
+              type="text"
+              inputMode="numeric"
+              placeholder="123456"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              disabled={submitting}
+            />
+            {error ? <p className="auth-error">{error}</p> : null}
+            <button type="submit" className="auth-submit-button" disabled={submitting}>
+              <span>Verify &amp; sign in</span>
+              <FontAwesomeIcon icon={faCaretRight} />
+            </button>
+            <button
+              type="button"
+              className="auth-back-button"
+              onClick={() => {
+                setStep('email')
+                setCode('')
+                setError('')
+              }}
+              disabled={submitting}
+            >
+              Use a different email
+            </button>
+          </form>
+        )}
       </section>
     </div>
   )

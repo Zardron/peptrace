@@ -86,8 +86,7 @@
   gap: 12px;
 }
 
-.auth-provider-button,
-.auth-icon-button {
+.auth-provider-button {
   border: 1.5px solid #bcbcbc;
   border-radius: 10px;
   background: var(--bg-white);
@@ -97,14 +96,12 @@
     transform 0.2s;
 }
 
-.auth-provider-button:hover,
-.auth-icon-button:hover {
+.auth-provider-button:hover {
   border-color: var(--primary);
   box-shadow: 0 8px 18px rgba(16, 110, 86, 0.1);
 }
 
 .auth-provider-button:active,
-.auth-icon-button:active,
 .auth-submit-button:active {
   transform: translateY(1px);
 }
@@ -130,26 +127,6 @@
   font-weight: 700;
   letter-spacing: 0.28px;
   line-height: 1;
-}
-
-.auth-social-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.auth-icon-button {
-  height: 46px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-}
-
-.auth-icon-button img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
 }
 
 .auth-divider {
@@ -243,9 +220,9 @@
   line-height: 1;
 }
 
-.auth-submit-button img {
-  width: 10px;
-  height: 10px;
+.auth-submit-button svg {
+  height: 12px;
+  width: auto;
 }
 
 @media (max-width: 566px) {
@@ -280,10 +257,6 @@
   .auth-provider-button span {
     font-size: 13px;
     letter-spacing: 0.26px;
-  }
-
-  .auth-icon-button {
-    height: 40px;
   }
 
   .auth-divider strong {

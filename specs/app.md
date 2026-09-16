@@ -26,8 +26,8 @@ Goals:
 ## Users & roles
 
 - **Visitor** — browses leaderboards and vendor rankings; no account needed.
-- **Member** — registered user (auth via user-base); access to membership
-  features and account pages.
+- **Member** — registered user (auth via Supabase Auth on the Peptrace
+  project); access to membership features and account pages.
 - **Vendor** — submits products for testing; may claim/manage a vendor profile.
 - **Admin** — manages products, vendors, test results and memberships via the
   shared admin-portal.
@@ -40,14 +40,16 @@ Goals:
 | Vendor | name, pricePerMg, rating | sells many Products; ranked on Leaderboards | app DB |
 | Test (lab result) | productId, vendorId, date, result/purity, lab | belongs to Product and Vendor | app DB |
 | Leaderboard entry | productId, vendorId, rank, pricePerMg, rating | derived from Tests | app DB |
-| Membership | userId, tier, status, renewsAt | belongs to User | app DB (user ref from user-base) |
-| User | id, email, roles | owns Membership, Account | shared-services/user-base |
+| Membership | userId, tier, status, renewsAt | belongs to User | app DB (user ref from Supabase Auth) |
+| User (auth) | id, email | Supabase Auth identity; 1:1 with UserAccount | Supabase Auth (`auth.users`) |
+| UserAccount | id (= auth user id), email, createdAt, lastSignInAt | owns one UserProfile | app DB (`user_accounts`) |
+| UserProfile | accountId, fullName, organization, role, phone, bio, avatarUrl | belongs to UserAccount | app DB (`user_profiles`) |
 
 ## Shared services
 
 | Service | Used for | Integration (endpoints, env vars, credentials) |
 | ------- | -------- | ---------------------------------------------- |
-| shared-services/user-base | Sign-up/login (AuthModal), account identity, credentials for other EsteemedEngineering apps | api/ delegates auth to user-base; env: `USER_BASE_URL`, service credential |
+| Supabase Auth (Peptrace project) | Sign-up/login (AuthModal, email OTP), account identity | frontend uses `@supabase/supabase-js` directly; api/ verifies access tokens and provisions `user_accounts`/`user_profiles` rows; env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (frontend), `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (api) |
 | shared-services/admin-portal | Admin management of products, vendors, tests, memberships | admin-portal reverse-proxies to this app's api/; admin endpoints must be admin-role protected |
 
 ## API surface
@@ -55,7 +57,7 @@ Goals:
 | Route group | Purpose | Auth required |
 | ----------- | ------- | ------------- |
 | `GET /health` | Liveness check | no |
-| `/auth` | Login/signup/session via user-base | no |
+| `/auth` | Session verification; creates `user_accounts`/`user_profiles` on first login | Supabase token |
 | `/products` | List/detail peptide products with test counts | no |
 | `/leaderboards` | Per-product vendor rankings (rank, pricePerMg, rating) | no |
 | `/vendors` | Vendor profiles; product testing submissions | submission: yes |

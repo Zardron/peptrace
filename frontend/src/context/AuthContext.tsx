@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
 
 interface User {
   id: string
@@ -6,10 +7,14 @@ interface User {
   name: string
 }
 
+interface LoginResult {
+  isNewAccount: boolean
+}
+
 interface AuthContextValue {
   user: User | null
   isLoading: boolean
-  login: (token: string) => void
+  login: (token: string) => Promise<LoginResult | null>
   logout: () => void
 }
 
@@ -31,16 +36,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const logout = useCallback(() => {
-    localStorage.removeItem('peptrace_token')
+    void supabase.auth.signOut()
     setUser(null)
     setIsLoading(false)
   }, [])
 
   const login = useCallback(
-    async (token: string) => {
-      localStorage.setItem('peptrace_token', token)
+    async (token: string): Promise<LoginResult | null> => {
       try {
-        const res = await fetch(`${API_BASE}/api/auth/me`, {
+        const res = await fetch(`${API_BASE}/auth/me`, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (!res.ok) {
@@ -48,8 +52,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         const data = await res.json()
         setUser(data)
+        return { isNewAccount: Boolean(data.isNewAccount) }
       } catch {
         logout()
+        return null
       } finally {
         setIsLoading(false)
       }
@@ -58,12 +64,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   useEffect(() => {
-    const token = localStorage.getItem('peptrace_token')
-    if (token) {
-      login(token)
-    } else {
-      setIsLoading(false)
-    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        void login(session.access_token)
+      } else {
+        setIsLoading(false)
+      }
+    })
   }, [login])
 
   return (
