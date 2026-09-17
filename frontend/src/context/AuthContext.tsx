@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { getStoredToken, storeToken, clearStoredToken, isNativeToken } from '../lib/authToken'
 
 interface UserProfile {
   full_name: string | null
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const logout = useCallback(() => {
+    clearStoredToken()
     void supabase.auth.signOut()
     setUser(null)
     setIsLoading(false)
@@ -64,6 +66,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         const data = await res.json()
         setUser(data)
+        // Supabase sessions are persisted by the supabase client; native
+        // session tokens are ours to keep.
+        if (isNativeToken(token)) {
+          storeToken(token)
+        }
         return { isNewAccount: Boolean(data.isNewAccount) }
       } catch {
         logout()
@@ -76,6 +83,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   )
 
   useEffect(() => {
+    const stored = getStoredToken()
+    if (stored) {
+      void login(stored)
+      return
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         void login(session.access_token)
@@ -86,6 +98,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [login])
 
   const refresh = useCallback(async () => {
+    const stored = getStoredToken()
+    if (stored) {
+      await login(stored)
+      return
+    }
     const { data: { session } } = await supabase.auth.getSession()
     if (session) {
       await login(session.access_token)

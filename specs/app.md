@@ -26,8 +26,9 @@ Goals:
 ## Users & roles
 
 - **Visitor** — browses leaderboards and vendor rankings; no account needed.
-- **Member** — registered user (auth via Supabase Auth on the Peptrace
-  project); access to membership features and account pages.
+- **Member** — registered user (native email/password auth, or Google via
+  Supabase Auth, on the Peptrace project); access to membership features and
+  account pages.
 - **Vendor** — submits products for testing; may claim/manage a vendor profile.
 - **Admin** — manages products, vendors, test results and memberships via the
   shared admin-portal.
@@ -50,7 +51,8 @@ Goals:
 
 | Service | Used for | Integration (endpoints, env vars, credentials) |
 | ------- | -------- | ---------------------------------------------- |
-| Supabase Auth (Peptrace project) | Sign-up/login (AuthModal, email OTP), account identity | frontend uses `@supabase/supabase-js` directly; api/ verifies access tokens and provisions `user_accounts`/`user_profiles` rows; env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (frontend), `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (api) |
+| Native email/password auth | Primary sign-up/login (AuthModal): email check, register (choose password), login | api/ owns it end-to-end: scrypt password hashes in `native_credentials` (RLS-locked, service-role only), HS256 session tokens signed with `AUTH_SESSION_SECRET`/`SUPABASE_SECRET_KEY`; env: `SUPABASE_SECRET_KEY`, optional `AUTH_SESSION_SECRET` (api) |
+| Supabase Auth (Peptrace project) | Social login (Google) and legacy account identity | frontend uses `@supabase/supabase-js` directly; api/ verifies access tokens and provisions `user_accounts`/`user_profiles` rows; env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (frontend), `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (api) |
 | shared-services/admin-portal | Admin management of products, vendors, tests, memberships | admin-portal reverse-proxies to this app's api/; admin endpoints must be admin-role protected |
 
 ## API surface
@@ -58,7 +60,7 @@ Goals:
 | Route group | Purpose | Auth required |
 | ----------- | ------- | ------------- |
 | `GET /health` | Liveness check | no |
-| `/auth` | Session verification; creates `user_accounts`/`user_profiles` on first login | Supabase token |
+| `/auth` | Native register/login/check-email; session verification; creates `user_accounts`/`user_profiles` on first login | native session token or Supabase token |
 | `/products` | List/detail peptide products with test counts | no |
 | `/leaderboards` | Per-product vendor rankings (rank, pricePerMg, rating) | no |
 | `/vendors` | Vendor profiles; product testing submissions | submission: yes |

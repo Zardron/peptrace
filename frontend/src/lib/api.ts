@@ -1,17 +1,20 @@
 import { supabase } from './supabase'
+import { getStoredToken } from './authToken'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
 export const apiFetch = async (path: string, options: RequestInit = {}) => {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) {
+  const token =
+    getStoredToken() ??
+    (await supabase.auth.getSession()).data.session?.access_token
+  if (!token) {
     throw new Error('Not signed in')
   }
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
+      Authorization: `Bearer ${token}`,
       ...options.headers,
     },
   })

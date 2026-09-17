@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { supabase } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AddressModal, { type ShippingAddress } from './AddressModal'
 import './AccountPages.css'
@@ -267,14 +266,18 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-const PROFILE_PHOTOS_BUCKET = 'profile_photos'
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
-const storagePathFromUrl = (url: string) => {
-  const marker = `/object/public/${PROFILE_PHOTOS_BUCKET}/`
-  const index = url.indexOf(marker)
-  return index === -1 ? null : url.slice(index + marker.length)
-}
+const readFileAsBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      resolve(result.slice(result.indexOf(',') + 1))
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
 
 const ROLE_OPTIONS = ['Researcher', 'Lab Manager', 'Clinician']
 
@@ -295,14 +298,6 @@ function ProfileSettings() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const avatarUrl = user?.profile?.avatar_url ?? null
 
-  const saveAvatarUrl = async (url: string | null) => {
-    await apiFetch('/account/profile', {
-      method: 'PUT',
-      body: JSON.stringify({ avatar_url: url }),
-    })
-    await refresh()
-  }
-
   const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
@@ -322,23 +317,14 @@ function ProfileSettings() {
 
     setPhotoStatus('uploading')
     setPhotoError('')
-    const previousPath = avatarUrl ? storagePathFromUrl(avatarUrl) : null
     try {
       const extension = file.name.split('.').pop()?.toLowerCase() || 'png'
-      const path = `${user.id}/${crypto.randomUUID()}.${extension}`
-      const { error: uploadError } = await supabase.storage
-        .from(PROFILE_PHOTOS_BUCKET)
-        .upload(path, file, { contentType: file.type })
-      if (uploadError) {
-        throw uploadError
-      }
-      const { data: { publicUrl } } = supabase.storage
-        .from(PROFILE_PHOTOS_BUCKET)
-        .getPublicUrl(path)
-      await saveAvatarUrl(publicUrl)
-      if (previousPath && previousPath !== path) {
-        await supabase.storage.from(PROFILE_PHOTOS_BUCKET).remove([previousPath])
-      }
+      const image = await readFileAsBase64(file)
+      await apiFetch('/account/avatar', {
+        method: 'POST',
+        body: JSON.stringify({ image, contentType: file.type, extension }),
+      })
+      await refresh()
       setPhotoStatus('idle')
     } catch {
       setPhotoStatus('error')
@@ -353,11 +339,8 @@ function ProfileSettings() {
     setPhotoStatus('uploading')
     setPhotoError('')
     try {
-      const path = storagePathFromUrl(avatarUrl)
-      if (path) {
-        await supabase.storage.from(PROFILE_PHOTOS_BUCKET).remove([path])
-      }
-      await saveAvatarUrl(null)
+      await apiFetch('/account/avatar', { method: 'DELETE' })
+      await refresh()
       setPhotoStatus('idle')
     } catch {
       setPhotoStatus('error')

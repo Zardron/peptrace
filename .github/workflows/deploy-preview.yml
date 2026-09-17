@@ -163,11 +163,17 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
         run: |
           set -euo pipefail
           RELEASE_DIR="/home/github/services/peptrace/preview/releases/$SHA"
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
             echo "::error::SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (variables) and SUPABASE_ANON_KEY (secret) must be set on the 'staging' GitHub environment."
+            exit 1
+          fi
+          if [ -z "$SUPABASE_SECRET_KEY" ]; then
+            echo "::error::SUPABASE_SECRET_KEY (service-role key, needed for native auth) must be set on the 'staging' GitHub environment secrets."
             exit 1
           fi
           install -m 600 /dev/null ssh_key
@@ -190,6 +196,8 @@ jobs:
           SUPABASE_URL=$SUPABASE_URL
           SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
           SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+          SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY
+          AUTH_SESSION_SECRET=$AUTH_SESSION_SECRET
           ENVEOF
 
       - name: Deploy preview to VPS
@@ -215,7 +223,10 @@ jobs:
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             # Tear down the legacy fixed-directory stack if it is still
             # running (pre-release-dirs layout); no-op once it's gone.
-            docker compose -p preview -f /home/github/services/peptrace/preview/docker-compose.deploy.yml down --remove-orphans 2>/dev/null || true
+            # Label-based removal works even if the old slot's .env or
+            # compose file no longer evaluates.
+            legacy_ids=$(docker ps -aq --filter "label=com.docker.compose.project=preview")
+            [ -n "$legacy_ids" ] && docker rm -f $legacy_ids || true
             # Only the changed services are pulled/recreated — unchanged ones keep running.
             docker compose -f docker-compose.deploy.yml pull $DEPLOY_SERVICES
             docker compose -f docker-compose.deploy.yml up -d --remove-orphans $DEPLOY_SERVICES

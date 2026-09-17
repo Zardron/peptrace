@@ -8,7 +8,8 @@
 #   1. The deploy workflows stream the source into a per-commit release
 #      directory (<slot>/releases/<sha>) on the server and generate the .env
 #      there from GitHub environment variables/secrets (SUPABASE_URL,
-#      SUPABASE_PUBLISHABLE_KEY, SUPABASE_ANON_KEY) — no manual .env needed.
+#      SUPABASE_PUBLISHABLE_KEY, SUPABASE_ANON_KEY, SUPABASE_SECRET_KEY,
+#      AUTH_SESSION_SECRET) — no manual .env needed.
 #      COMPOSE_PROJECT_NAME is pinned in that .env so each release replaces
 #      the previous release's containers.
 #   2. PEPTRACE_DOMAIN / PEPTRACE_NAME / COMPOSE_PROJECT_NAME are also written
@@ -44,6 +45,11 @@ services:
       PORT: 3000
       SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in the slot .env}
       SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?set SUPABASE_PUBLISHABLE_KEY in the slot .env}
+      # Service-role key — required for native email/password auth (credentials
+      # table + avatar storage). Server-only; never expose to the frontend.
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?set SUPABASE_SECRET_KEY in the slot .env}
+      # Optional: signs native session tokens (falls back to SUPABASE_SECRET_KEY).
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:-}
     networks:
       - traefik
     labels:
