@@ -163,6 +163,7 @@ jobs:
           fi
           install -m 600 /dev/null ssh_key
           printf '%s\n' "$SSH_KEY" > ssh_key
+          trap 'rm -f ssh_key' EXIT
           SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
           # Each deploy gets a fresh per-commit directory — no clearing of a
           # shared slot, so no "directory not empty" failures. The server has
@@ -172,7 +173,6 @@ jobs:
           # build job builds the images from.
           $SSH "mkdir -p '$RELEASE_DIR'"
           tar --exclude=.git --exclude=ssh_key -czf - . | $SSH "tar -xzf - -C '$RELEASE_DIR'"
-          rm -f ssh_key
           # The .env is generated from GitHub environment configuration.
           $SSH "cat > '$RELEASE_DIR/.env' && chmod 600 '$RELEASE_DIR/.env'" <<ENVEOF
           PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering
