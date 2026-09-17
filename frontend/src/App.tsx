@@ -10,7 +10,6 @@ import SiteFooter from './components/SiteFooter/SiteFooter'
 import VendorsList from './components/VendorsList/VendorsList'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
 import { useAuth } from './context/AuthContext'
-import { leaderboardCards } from './data/leaderboardData'
 import { navigate } from './lib/navigation'
 
 const accountRoutes = new Map<string, AccountView>([
@@ -151,7 +150,7 @@ function App() {
           <HeaderBar onSignUpClick={openAuthModal} activeRoute={pagePath} />
           <main className="main auth-page-preview">
             <HomeTopInfo />
-            <Leaderboards cards={leaderboardCards} />
+            <Leaderboards />
             <HomeBottom />
           </main>
           <SiteFooter />
@@ -169,7 +168,7 @@ function App() {
           <HeaderBar onSignUpClick={openAuthModal} activeRoute={pagePath} />
           <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
             <HomeTopInfo />
-            <Leaderboards cards={leaderboardCards} />
+            <Leaderboards />
             <HomeBottom />
           </main>
           <SiteFooter />

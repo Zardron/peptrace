@@ -54,17 +54,21 @@ export default function LeaderboardCard({
           <span className="col-rating">Rating</span>
         </div>
         <div className="table-body">
-          {rows.map((row) => (
-            <div className="table-row" key={row.rank}>
-              <span className="col-rank rank-number">{row.rank}</span>
-              <span className="col-vendor vendor-cell">
-                <span className="vendor-avatar" />
-                <span className="vendor-name">{row.vendorName}</span>
-              </span>
-              <span className="col-price">{row.pricePerMg}</span>
-              <span className="col-rating">{row.rating}</span>
-            </div>
-          ))}
+          {rows.length === 0 ? (
+            <div className="table-empty">No vendors match this filter.</div>
+          ) : (
+            rows.map((row) => (
+              <div className="table-row" key={row.rank}>
+                <span className="col-rank rank-number">{row.rank}</span>
+                <span className="col-vendor vendor-cell">
+                  <span className="vendor-avatar" />
+                  <span className="vendor-name">{row.vendorName}</span>
+                </span>
+                <span className="col-price">{row.pricePerMg}</span>
+                <span className="col-rating">{row.rating}</span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

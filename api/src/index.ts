@@ -30,36 +30,78 @@ interface Session {
   db: ReturnType<typeof createUserClient>;
 }
 
-app.get('/vendors', (_req, res) => {
-  const vendors = Array.from({ length: 100 }, (_, i) => {
-    const seed = i + 1;
-    const baseCost = 0.5 + (Math.sin(seed * 9999) * 10000 - Math.floor(Math.sin(seed * 9999) * 10000)) * 5.5;
-    const cost = `$${baseCost.toFixed(2)}/mg`;
-    const score = Math.max(58, Math.round(92 - (Math.sin(seed * 7 * 9999) * 10000 - Math.floor(Math.sin(seed * 7 * 9999) * 10000)) * 40));
-    const tests = Math.floor(5 + (Math.sin(seed * 13 * 9999) * 10000 - Math.floor(Math.sin(seed * 13 * 9999) * 10000)) * 45);
-    const products = Math.floor(1 + (Math.sin(seed * 17 * 9999) * 10000 - Math.floor(Math.sin(seed * 17 * 9999) * 10000)) * 5);
-    const daysAgo = Math.floor((Math.sin(seed * 19 * 9999) * 10000 - Math.floor(Math.sin(seed * 19 * 9999) * 10000)) * 730);
-    const date = new Date('2026-08-08');
-    date.setDate(date.getDate() - daysAgo);
-    const latest = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    const locations = ['China', 'US', 'UK', 'Germany', 'Hong Kong', 'Japan', 'India', 'Canada', 'Australia', '—'];
-    const location = locations[Math.floor((Math.sin(seed * 23 * 9999) * 10000 - Math.floor(Math.sin(seed * 23 * 9999) * 10000)) * locations.length)];
-    const names = [
-      'Zenith Jode Peptide ZJ',
-      'Peptide Partners',
-      'AlphaPeptides',
-      'BioSynth Labs',
-      'ChemPure Supply',
-      'Delta Peptides',
-      'Elite Research Chems',
-      'Fusion Biologics',
-      'GenX Peptides',
-      'Helix BioTech',
-    ];
-    const name = i === 0 ? names[0] : names[1 + Math.floor((Math.sin(seed * 3 * 9999) * 10000 - Math.floor(Math.sin(seed * 3 * 9999) * 10000)) * (names.length - 1))];
-    return { id: String(seed), name, score, cost, tests, products, latest, location };
-  });
-  res.json({ vendors });
+app.get('/vendors', async (_req, res) => {
+  const { data, error } = await supabase
+    .from('vendors')
+    .select('id, name, score, cost_per_mg, location, tests_count, products_count, latest_tested_at')
+    .order('score', { ascending: false });
+  if (error) {
+    res.status(500).json({ error: 'Failed to load vendors' });
+    return;
+  }
+  res.json({ vendors: data });
+});
+
+// One leaderboard card per peptide, rows ranked by rating. Public catalog
+// data, read through the service client so no RLS policies on the shared
+// admin-portal tables need to change.
+app.get('/leaderboards', async (_req, res) => {
+  const { data, error } = await getServiceClient()
+    .from('VendorProduct')
+    .select(
+      'id, priceMg, rating, purityPercent, testsCount, updatedAt, peptide:Peptide(id, label, slug), vendor:Vendor(id, displayName)',
+    );
+  if (error) {
+    res.status(500).json({ error: 'Failed to load leaderboards' });
+    return;
+  }
+
+  interface ProductRow {
+    id: string;
+    priceMg: number | null;
+    rating: number | null;
+    purityPercent: number | null;
+    testsCount: number | null;
+    updatedAt: string | null;
+    peptide: { id: string; label: string; slug: string } | null;
+    vendor: { id: string; displayName: string } | null;
+  }
+
+  const byPeptide = new Map<string, { peptide: ProductRow['peptide']; products: ProductRow[] }>();
+  for (const row of (data ?? []) as unknown as ProductRow[]) {
+    if (!row.peptide || !row.vendor) {
+      continue;
+    }
+    const entry = byPeptide.get(row.peptide.id) ?? { peptide: row.peptide, products: [] };
+    entry.products.push(row);
+    byPeptide.set(row.peptide.id, entry);
+  }
+
+  const cards = [...byPeptide.values()]
+    .map(({ peptide, products }) => {
+      return {
+        peptideId: peptide!.id,
+        productName: peptide!.label,
+        slug: peptide!.slug,
+        testCount: products.reduce((sum, p) => sum + (p.testsCount ?? 0), 0),
+        vendorCount: new Set(products.map((p) => p.vendor!.id)).size,
+        lastUpdated: products
+          .map((p) => p.updatedAt ?? '')
+          .sort()
+          .at(-1) ?? null,
+        // All vendor rows are returned unranked; the client filters (purity),
+        // sorts (rating or $/mg) and ranks them.
+        rows: products.map((p) => ({
+          vendorName: p.vendor!.displayName,
+          pricePerMg: p.priceMg,
+          rating: p.rating,
+          purityPercent: p.purityPercent,
+        })),
+      };
+    })
+    .sort((a, b) => b.testCount - a.testCount);
+
+  res.json({ cards });
 });
 
 const authenticate = async (req: express.Request): Promise<Session | null> => {
