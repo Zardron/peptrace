@@ -44,6 +44,8 @@ jobs:
   publish:
     needs: test
     runs-on: ubuntu-latest
+    # Needed so the frontend image build can read the SUPABASE_* variables.
+    environment: staging
     permissions:
       contents: read
       packages: write
@@ -82,5 +84,12 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Only the frontend Dockerfile declares these ARGs; the api build
+          # ignores them (docker warns about unconsumed args, harmlessly).
+          build-args: |
+            VITE_API_BASE_URL=/api
+            VITE_SUPABASE_URL=${{ vars.SUPABASE_URL }}
+            VITE_SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+            VITE_GOOGLE_MAPS_API_KEY=${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
           cache-from: type=gha,scope=${{ matrix.suffix }}
           cache-to: type=gha,mode=max,scope=${{ matrix.suffix }}

@@ -5,15 +5,17 @@
 #   production — peptrace.co (separate server, not set up yet)
 #
 # Usage:
-#   1. The deploy workflows copy this repo into the slot directory on the
-#      server (/home/github/services/peptrace/stg, /home/github/services/peptrace/preview);
-#      this file comes from that copy. Only the .env is placed manually.
-#   2. Set PEPTRACE_DOMAIN in .env (and TRAEFIK_NETWORK / TRAEFIK_CERT_RESOLVER
-#      if they differ from the defaults). When running more than one copy of
-#      this stack on the same Traefik (e.g. stg + preview), each copy must also
-#      set a unique PEPTRACE_NAME so the Traefik router/service/middleware
-#      names don't collide — duplicates with different rules are rejected by
-#      Traefik, which then serves its default 404 for those hosts.
+#   1. The deploy workflows stream the source into a per-commit release
+#      directory (<slot>/releases/<sha>) on the server and generate the .env
+#      there from GitHub environment variables/secrets (SUPABASE_URL,
+#      SUPABASE_PUBLISHABLE_KEY, SUPABASE_ANON_KEY, SUPABASE_SECRET_KEY,
+#      AUTH_SESSION_SECRET) — no manual .env needed.
+#      COMPOSE_PROJECT_NAME is pinned in that .env so each release replaces
+#      the previous release's containers.
+#   2. PEPTRACE_DOMAIN / PEPTRACE_NAME / COMPOSE_PROJECT_NAME are also written
+#      by the workflows (unique per slot, so the preview and staging routers
+#      don't collide on the shared Traefik). Set TRAEFIK_NETWORK /
+#      TRAEFIK_CERT_RESOLVER via environment if they differ from the defaults.
 #   3. docker compose -f docker-compose.deploy.yml pull && docker compose -f docker-compose.deploy.yml up -d
 #
 # Routing: the frontend serves the domain root, the API serves /api/* (the
@@ -41,6 +43,13 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in the slot .env}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?set SUPABASE_PUBLISHABLE_KEY in the slot .env}
+      # Service-role key — required for native email/password auth (credentials
+      # table + avatar storage). Server-only; never expose to the frontend.
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?set SUPABASE_SECRET_KEY in the slot .env}
+      # Optional: signs native session tokens (falls back to SUPABASE_SECRET_KEY).
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:-}
     networks:
       - traefik
     labels:
@@ -56,4 +65,4 @@ services:
 networks:
   traefik:
     external: true
-    name: ${TRAEFIK_NETWORK:-traefik}
+    name: ${TRAEFIK_NETWORK:-web}

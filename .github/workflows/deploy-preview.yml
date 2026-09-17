@@ -10,17 +10,19 @@ name: deploy-preview
 #   - changes under api/      -> build + deploy api (api/Dockerfile)
 # PRs that touch neither (e.g. plan-only PRs) skip the deploy entirely.
 #
-# One-time server setup (staging VPS, same host as staging):
-#   1. Create /home/github/services/peptrace/preview/ with a .env that sets
-#      PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering,
-#      PEPTRACE_NAME=peptrace-preview (unique Traefik router names, so the
-#      preview and staging slots don't collide on the shared Traefik).
-#      The deploy step copies the PR's merged source into this directory over
-#      SSH (the server has no outbound access to github.com, so it cannot
-#      clone); the .env is left untouched.
-#   2. Point DNS for the preview domain(s) at the VPS.
-#   3. Make sure the `staging` environment has SERVER_IP + SSH_PRIVATE_KEY
-#      (same ones deploy.yml uses).
+# Server-side layout (staging VPS, same host as staging):
+#   /home/github/services/peptrace/preview/releases/<sha>/  — one directory per
+#   deploy, holding the PR's merged source plus a generated .env. The .env is
+#   written by this workflow from the 'staging' GitHub environment
+#   (variables: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY; secret:
+#   SUPABASE_ANON_KEY) — no manually maintained .env on the server.
+#   COMPOSE_PROJECT_NAME is pinned in the .env so a new release replaces the
+#   previous containers instead of creating a parallel stack.
+#
+# One-time server setup:
+#   1. Point DNS for the preview domain(s) at the VPS.
+#   2. Make sure the `staging` environment has SERVER_IP + SSH_PRIVATE_KEY
+#      (same ones deploy.yml uses) and the SUPABASE_* values above.
 #
 # NOTE: the preview slot is shared — the latest PR deploy wins. If the branch
 # name contains an issue number, the workflow also notifies visual QA.
@@ -93,6 +95,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.count != '0'
     runs-on: ubuntu-latest
+    # Needed so the frontend image build can read the SUPABASE_* variables.
+    environment: staging
     strategy:
       fail-fast: false
       matrix:
@@ -117,6 +121,13 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: ${{ env.IMAGE_NAME }}-${{ matrix.suffix }}:sha-${{ env.SHA_SHORT }}
+          # Only the frontend Dockerfile declares these ARGs; the api build
+          # ignores them (docker warns about unconsumed args, harmlessly).
+          build-args: |
+            VITE_API_BASE_URL=/api
+            VITE_SUPABASE_URL=${{ vars.SUPABASE_URL }}
+            VITE_SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+            VITE_GOOGLE_MAPS_API_KEY=${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
           cache-from: type=gha,scope=${{ matrix.suffix }}
           cache-to: type=gha,mode=max,scope=${{ matrix.suffix }}
 
@@ -145,30 +156,49 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Sync source to preview directory
+      - name: Sync source to preview release directory
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           HOST: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
         run: |
           set -euo pipefail
-          DEPLOY_DIR="/home/github/services/peptrace/preview"
-          install -m 600 /dev/null ssh_key
-          printf '%s\n' "$SSH_KEY" > ssh_key
-          SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
-          $SSH "mkdir -p '$DEPLOY_DIR'"
-          if ! $SSH "test -f '$DEPLOY_DIR/.env'"; then
-            echo "::error::$DEPLOY_DIR/.env is missing. Create it on the server with PEPTRACE_DOMAIN, PEPTRACE_NAME and TRAEFIK_NETWORK before deploying."
-            rm -f ssh_key
+          RELEASE_DIR="/home/github/services/peptrace/preview/releases/$SHA"
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (variables) and SUPABASE_ANON_KEY (secret) must be set on the 'staging' GitHub environment."
             exit 1
           fi
-          # The server has no outbound access to github.com, so it cannot
-          # clone — the runner (which can) streams the source over SSH
-          # instead. The slot is cleared first, except the untracked .env.
+          if [ -z "$SUPABASE_SECRET_KEY" ]; then
+            echo "::error::SUPABASE_SECRET_KEY (service-role key, needed for native auth) must be set on the 'staging' GitHub environment secrets."
+            exit 1
+          fi
+          install -m 600 /dev/null ssh_key
+          printf '%s\n' "$SSH_KEY" > ssh_key
+          trap 'rm -f ssh_key' EXIT
+          SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
+          # Each deploy gets a fresh per-commit directory — no clearing of a
+          # shared slot, so no "directory not empty" failures. The server has
+          # no outbound access to github.com, so the runner (which can)
+          # streams the source over SSH instead.
           # checkout defaults to the PR merge commit, matching what the
           # build job builds the images from.
-          $SSH "find '$DEPLOY_DIR' -mindepth 1 ! -name '.env' -delete"
-          tar --exclude=.git --exclude=ssh_key -czf - . | $SSH "tar -xzf - -C '$DEPLOY_DIR'"
-          rm -f ssh_key
+          $SSH "mkdir -p '$RELEASE_DIR'"
+          tar --exclude=.git --exclude=ssh_key -czf - . | $SSH "tar -xzf - -C '$RELEASE_DIR'"
+          # The .env is generated from GitHub environment configuration.
+          $SSH "cat > '$RELEASE_DIR/.env' && chmod 600 '$RELEASE_DIR/.env'" <<ENVEOF
+          PEPTRACE_DOMAIN=preview.peptrace.stg.esteemed.engineering
+          PEPTRACE_NAME=peptrace-preview
+          COMPOSE_PROJECT_NAME=peptrace-preview
+          SUPABASE_URL=$SUPABASE_URL
+          SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
+          SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+          SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY
+          AUTH_SESSION_SECRET=$AUTH_SESSION_SECRET
+          ENVEOF
 
       - name: Deploy preview to VPS
         uses: appleboy/ssh-action@v1
@@ -176,20 +206,27 @@ jobs:
           DEPLOY_FRONTEND_IMAGE: ${{ env.IMAGE_NAME }}-frontend:sha-${{ env.SHA_SHORT }}
           DEPLOY_API_IMAGE: ${{ env.IMAGE_NAME }}-api:sha-${{ env.SHA_SHORT }}
           DEPLOY_SERVICES: ${{ needs.changes.outputs.services }}
+          RELEASE_DIR: /home/github/services/peptrace/preview/releases/${{ env.SHA }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
         with:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: github
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,GHCR_USER,GHCR_PAT
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,RELEASE_DIR,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
-            cd /home/github/services/peptrace/preview
+            cd "$RELEASE_DIR"
             export FRONTEND_IMAGE="$DEPLOY_FRONTEND_IMAGE"
             export API_IMAGE="$DEPLOY_API_IMAGE"
             echo "Deploying preview services: $DEPLOY_SERVICES (frontend: $FRONTEND_IMAGE, api: $API_IMAGE)"
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            # Tear down the legacy fixed-directory stack if it is still
+            # running (pre-release-dirs layout); no-op once it's gone.
+            # Label-based removal works even if the old slot's .env or
+            # compose file no longer evaluates.
+            legacy_ids=$(docker ps -aq --filter "label=com.docker.compose.project=preview")
+            [ -n "$legacy_ids" ] && docker rm -f $legacy_ids || true
             # Only the changed services are pulled/recreated — unchanged ones keep running.
             docker compose -f docker-compose.deploy.yml pull $DEPLOY_SERVICES
             docker compose -f docker-compose.deploy.yml up -d --remove-orphans $DEPLOY_SERVICES
@@ -204,6 +241,9 @@ jobs:
               done
             done
             docker image prune -f
+            # Prune old release directories, keeping the current and previous.
+            cd /home/github/services/peptrace/preview/releases
+            ls -1t | tail -n +3 | xargs -r rm -rf
             echo "Preview deployed."
 
       - name: Notify Visual QA workflow

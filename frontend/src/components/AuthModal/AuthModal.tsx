@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCaretRight } from '@fortawesome/free-solid-svg-icons'
+import { faCaretRight, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { useAuth } from '../../context/AuthContext'
 import { navigate } from '../../lib/navigation'
-import { supabase } from '../../lib/supabase'
 import './AuthModal.css'
 import closeIcon from '../../assets/auth/close.svg'
 import googleIcon from '../../assets/auth/google.png'
@@ -13,19 +12,25 @@ interface AuthModalProps {
   onClose: () => void
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+
 export default function AuthModal({ open, onClose }: AuthModalProps) {
   const { login } = useAuth()
-  const [step, setStep] = useState<'email' | 'code'>('email')
+  const [step, setStep] = useState<'email' | 'password'>('email')
+  const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
-  const [code, setCode] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (!open) {
       setStep('email')
+      setMode('login')
       setEmail('')
-      setCode('')
+      setPassword('')
+      setShowPassword(false)
       setError('')
       setSubmitting(false)
       return undefined
@@ -54,43 +59,58 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
     setSubmitting(true)
     setError('')
     try {
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: trimmed,
-        options: { shouldCreateUser: true },
+      const res = await fetch(`${API_BASE}/auth/check-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmed }),
       })
-      if (otpError) {
-        throw otpError
+      if (!res.ok) {
+        throw new Error('Check failed')
       }
-      setStep('code')
+      const data = await res.json()
+      setMode(data.exists ? 'login' : 'register')
+      setStep('password')
     } catch {
-      setError('Could not send the sign-in code. Please try again.')
+      setError('Something went wrong. Please try again.')
     } finally {
       setSubmitting(false)
     }
   }
 
-  const handleCodeSubmit = async (event: React.FormEvent) => {
+  const handlePasswordSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    const trimmed = code.trim()
-    if (!trimmed) return
+    if (!password) return
     setSubmitting(true)
     setError('')
     try {
-      const { data, error: verifyError } = await supabase.auth.verifyOtp({
-        email: email.trim(),
-        token: trimmed,
-        type: 'email',
+      const res = await fetch(`${API_BASE}/auth/${mode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
       })
-      if (verifyError || !data.session) {
-        throw verifyError ?? new Error('No session')
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        if (res.status === 401) {
+          setError('Incorrect password. Please try again.')
+        } else if (res.status === 409) {
+          setError('An account with this email already exists. Sign in instead.')
+          setMode('login')
+        } else {
+          setError(data?.error ?? 'Something went wrong. Please try again.')
+        }
+        return
       }
-      const result = await login(data.session.access_token)
+      const result = await login(data.token)
+      if (!result) {
+        setError('Could not finish signing you in. Please try again.')
+        return
+      }
       onClose()
-      if (result?.isNewAccount) {
+      if (mode === 'register' || result.isNewAccount) {
         navigate('/account')
       }
     } catch {
-      setError('That code did not work. Check the code and try again.')
+      setError('Something went wrong. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -154,22 +174,38 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
             </button>
           </form>
         ) : (
-          <form className="auth-email-form" onSubmit={handleCodeSubmit}>
-            <label htmlFor="auth-code">Enter the 6-digit code sent to {email.trim()}</label>
-            <input
-              id="auth-code"
-              name="code"
-              type="text"
-              inputMode="numeric"
-              placeholder="123456"
-              autoComplete="one-time-code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              disabled={submitting}
-            />
+          <form className="auth-email-form" onSubmit={handlePasswordSubmit}>
+            <label htmlFor="auth-password">
+              {mode === 'register'
+                ? `Choose a password for ${email.trim()}`
+                : `Enter your password for ${email.trim()}`}
+            </label>
+            <div className="auth-password-field">
+              <input
+                id="auth-password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder={mode === 'register' ? 'At least 8 characters' : 'Your password'}
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={submitting}
+              />
+              <button
+                type="button"
+                className="auth-password-toggle"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowPassword((v) => !v)}
+              >
+                <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
+              </button>
+            </div>
+            {mode === 'register' ? (
+              <p className="auth-hint">No account exists for this email yet — pick a password to create one.</p>
+            ) : null}
             {error ? <p className="auth-error">{error}</p> : null}
             <button type="submit" className="auth-submit-button" disabled={submitting}>
-              <span>Verify &amp; sign in</span>
+              <span>{mode === 'register' ? 'Create account' : 'Sign in'}</span>
               <FontAwesomeIcon icon={faCaretRight} />
             </button>
             <button
@@ -177,7 +213,8 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
               className="auth-back-button"
               onClick={() => {
                 setStep('email')
-                setCode('')
+                setPassword('')
+                setShowPassword(false)
                 setError('')
               }}
               disabled={submitting}

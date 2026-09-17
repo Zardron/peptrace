@@ -10,6 +10,11 @@ if (!supabaseUrl || !supabaseKey) {
   );
 }
 
+// Service-role key (SUPABASE_SECRET_KEY or a legacy service-role JWT). Used
+// for the native_credentials table and for storage uploads on behalf of
+// native-auth users; it bypasses RLS, so it must never reach the frontend.
+const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Queries through this client run as the given user, so RLS policies apply.
@@ -18,3 +23,21 @@ export const createUserClient = (accessToken: string) =>
     global: { headers: { Authorization: `Bearer ${accessToken}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+// Privileged client for native-auth credential storage and user-scoped writes
+// the API performs itself. Throws when used without a configured service key.
+export const getServiceClient = () => {
+  if (!supabaseServiceKey) {
+    throw new Error(
+      'Missing SUPABASE_SECRET_KEY in environment (required for native auth)',
+    );
+  }
+  return createClient(supabaseUrl!, supabaseServiceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+};
+
+// Secret used to sign native session tokens. Falls back to the service key,
+// which is already a high-entropy server-only secret.
+export const sessionSecret = (): string | null =>
+  process.env.AUTH_SESSION_SECRET ?? supabaseServiceKey ?? null;

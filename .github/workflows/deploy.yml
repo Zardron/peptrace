@@ -71,29 +71,50 @@ jobs:
         if: inputs.environment == 'staging'
         uses: actions/checkout@v4
 
-      - name: Sync source to staging directory
+      - name: Sync source to staging release directory
         if: inputs.environment == 'staging'
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           HOST: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
         run: |
           set -euo pipefail
-          DEPLOY_DIR="/home/github/services/peptrace/stg"
-          install -m 600 /dev/null ssh_key
-          printf '%s\n' "$SSH_KEY" > ssh_key
-          SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
-          $SSH "mkdir -p '$DEPLOY_DIR'"
-          if ! $SSH "test -f '$DEPLOY_DIR/.env'"; then
-            echo "::error::$DEPLOY_DIR/.env is missing. Create it on the server with PEPTRACE_DOMAIN and TRAEFIK_NETWORK before deploying."
-            rm -f ssh_key
+          RELEASE_DIR="/home/github/services/peptrace/stg/releases/${{ github.sha }}"
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (variables) and SUPABASE_ANON_KEY (secret) must be set on the '${{ inputs.environment }}' GitHub environment."
             exit 1
           fi
-          # The server has no outbound access to github.com, so it cannot
-          # clone — the runner (which can) streams the source over SSH
-          # instead. The slot is cleared first, except the untracked .env.
-          $SSH "find '$DEPLOY_DIR' -mindepth 1 ! -name '.env' -delete"
-          tar --exclude=.git --exclude=ssh_key -czf - . | $SSH "tar -xzf - -C '$DEPLOY_DIR'"
-          rm -f ssh_key
+          if [ -z "$SUPABASE_SECRET_KEY" ]; then
+            echo "::error::SUPABASE_SECRET_KEY (service-role key, needed for native auth) must be set on the '${{ inputs.environment }}' GitHub environment secrets."
+            exit 1
+          fi
+          # AUTH_SESSION_SECRET is optional: the API falls back to
+          # SUPABASE_SECRET_KEY for signing native session tokens.
+          install -m 600 /dev/null ssh_key
+          printf '%s\n' "$SSH_KEY" > ssh_key
+          trap 'rm -f ssh_key' EXIT
+          SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
+          # Each deploy gets a fresh per-commit directory — no clearing of a
+          # shared slot, so no "directory not empty" failures. The server has
+          # no outbound access to github.com, so the runner (which can)
+          # streams the source over SSH instead.
+          $SSH "mkdir -p '$RELEASE_DIR'"
+          tar --exclude=.git --exclude=ssh_key -czf - . | $SSH "tar -xzf - -C '$RELEASE_DIR'"
+          # The .env is generated from GitHub environment configuration.
+          $SSH "cat > '$RELEASE_DIR/.env' && chmod 600 '$RELEASE_DIR/.env'" <<ENVEOF
+          PEPTRACE_DOMAIN=peptrace.stg.esteemed.engineering
+          PEPTRACE_NAME=peptrace
+          COMPOSE_PROJECT_NAME=peptrace
+          SUPABASE_URL=$SUPABASE_URL
+          SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY
+          SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+          SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY
+          AUTH_SESSION_SECRET=$AUTH_SESSION_SECRET
+          ENVEOF
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
@@ -102,17 +123,18 @@ jobs:
           DEPLOY_API_IMAGE: ${{ env.IMAGE_NAME }}-api:${{ env.TAG }}
           DEPLOY_SERVICES: ${{ env.SERVICES }}
           DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          RELEASE_DIR: /home/github/services/peptrace/stg/releases/${{ github.sha }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
         with:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: github
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,GHCR_USER,GHCR_PAT
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,RELEASE_DIR,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
             if [ "$DEPLOY_ENVIRONMENT" = "staging" ]; then
-              cd /home/github/services/peptrace/stg
+              cd "$RELEASE_DIR"
             else
               # Production server path is not set up yet; keep previous behavior.
               cd ~/services/peptrace/stg
@@ -121,6 +143,14 @@ jobs:
             export API_IMAGE="$DEPLOY_API_IMAGE"
             echo "Deploying services: $DEPLOY_SERVICES (frontend: $FRONTEND_IMAGE, api: $API_IMAGE)"
             echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            if [ "$DEPLOY_ENVIRONMENT" = "staging" ]; then
+              # Tear down the legacy fixed-directory stack if it is still
+              # running (pre-release-dirs layout); no-op once it's gone.
+              # Label-based removal works even if the old slot's .env or
+              # compose file no longer evaluates.
+              legacy_ids=$(docker ps -aq --filter "label=com.docker.compose.project=stg")
+              [ -n "$legacy_ids" ] && docker rm -f $legacy_ids || true
+            fi
             docker compose -f docker-compose.deploy.yml pull $DEPLOY_SERVICES
             docker compose -f docker-compose.deploy.yml up -d --remove-orphans $DEPLOY_SERVICES
             for service in $DEPLOY_SERVICES; do
@@ -134,4 +164,9 @@ jobs:
               done
             done
             docker image prune -f
+            if [ "$DEPLOY_ENVIRONMENT" = "staging" ]; then
+              # Prune old release directories, keeping the current and previous.
+              cd /home/github/services/peptrace/stg/releases
+              ls -1t | tail -n +3 | xargs -r rm -rf
+            fi
             echo "Deployed $DEPLOY_SERVICES"
