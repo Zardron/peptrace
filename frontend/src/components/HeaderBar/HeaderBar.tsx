@@ -15,6 +15,7 @@ export default function HeaderBar({ onSignUpClick, activeRoute }: HeaderBarProps
   const [mobileOpen, setMobileOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const headerRef = useRef<HTMLElement>(null)
+  const avatarUrl = user?.profile?.avatar_url ?? null
 
   useEffect(() => {
     if (!accountOpen) {
@@ -93,7 +94,7 @@ export default function HeaderBar({ onSignUpClick, activeRoute }: HeaderBarProps
                 onClick={() => setAccountOpen((open) => !open)}
               >
                 <span>my account</span>
-                <img src={profileIcon} alt="" />
+                <img src={avatarUrl ?? profileIcon} alt="" className={avatarUrl ? 'header-avatar-photo' : undefined} />
               </button>
               {accountOpen ? accountMenu : null}
             </div>
@@ -112,7 +113,7 @@ export default function HeaderBar({ onSignUpClick, activeRoute }: HeaderBarProps
               aria-expanded={accountOpen}
               onClick={() => setAccountOpen((open) => !open)}
             >
-              <img src={profileIcon} alt="" />
+              <img src={avatarUrl ?? profileIcon} alt="" className={avatarUrl ? 'header-avatar-photo' : undefined} />
             </button>
             {accountOpen ? accountMenu : null}
           </div>

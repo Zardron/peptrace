@@ -44,6 +44,7 @@ Goals:
 | User (auth) | id, email | Supabase Auth identity; 1:1 with UserAccount | Supabase Auth (`auth.users`) |
 | UserAccount | id (= auth user id), email, createdAt, lastSignInAt | owns one UserProfile | app DB (`user_accounts`) |
 | UserProfile | accountId, fullName, organization, role, phone, bio, avatarUrl | belongs to UserAccount | app DB (`user_profiles`) |
+| ShippingAddress | id, accountId, nickname, recipientName, organization, line1, line2, city, state, postalCode, country, isPrimary | belongs to UserAccount; many per user | app DB (`shipping_addresses`) |
 
 ## Shared services
 
@@ -62,7 +63,7 @@ Goals:
 | `/leaderboards` | Per-product vendor rankings (rank, pricePerMg, rating) | no |
 | `/vendors` | Vendor profiles; product testing submissions | submission: yes |
 | `/membership` | Membership tiers, subscribe/manage | yes |
-| `/account` | Current user's account pages data | yes |
+| `/account` | Current user's account pages data: profile read/save, shipping address CRUD + set-primary | yes |
 | `/admin` | Product/vendor/test/membership management (admin-portal) | admin |
 
 ## Out of scope

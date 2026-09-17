@@ -1,4 +1,8 @@
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabase'
+import { apiFetch } from '../../lib/api'
+import AddressModal, { type ShippingAddress } from './AddressModal'
 import './AccountPages.css'
 import alertTriangle from '../../assets/account/alert-triangle.svg'
 import eyeOff from '../../assets/account/eye-off.svg'
@@ -69,14 +73,53 @@ function AccountContentHeader({ title, subtitle }: { title: string; subtitle: st
   )
 }
 
+interface DashboardShipment {
+  id: string
+  tracking_id: string
+  status: string
+  created_at: string
+  peptide_name: string
+  vendor_name: string
+}
+
+interface DashboardStats {
+  totalSamples: number
+  avgBatchPurity: number | null
+  activeAnalysis: number
+}
+
+const SHIPMENT_STATUS_DISPLAY: Record<string, { label: string; tone: 'success' | 'warning' | 'info' }> = {
+  submitted: { label: 'Submitted', tone: 'info' },
+  in_transit: { label: 'In Transit', tone: 'info' },
+  testing: { label: 'Testing', tone: 'warning' },
+  delivered: { label: 'Delivered', tone: 'success' },
+}
+
+const formatShipmentDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })
+
 function DashboardPage() {
-  const shipmentRows = [
-    ['PT-8942', 'Tirzepatide (10mg)', '12 Aug 2026', <StatusPill key="status" tone="warning">Testing</StatusPill>],
-    ['PT-8891', 'Retatrutide (5mg)', '08 Aug 2026', <StatusPill key="status">Delivered</StatusPill>],
-    ['PT-8750', 'BPC-157 (10mg)', '02 Aug 2026', <StatusPill key="status" tone="info">In Transit</StatusPill>],
-    ['PT-8612', 'NAD+ (100mg)', '24 Jul 2026', <StatusPill key="status">Delivered</StatusPill>],
-    ['PT-8590', 'Ipamorelin (5mg)', '18 Jul 2026', <StatusPill key="status">Delivered</StatusPill>],
-  ]
+  const { user } = useAuth()
+  const memberSince = user?.memberSince
+    ? new Date(user.memberSince).toLocaleDateString('en-AU', { month: 'short', year: 'numeric' })
+    : null
+  const [shipments, setShipments] = useState<DashboardShipment[]>([])
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    apiFetch('/account/dashboard')
+      .then((data) => {
+        if (!cancelled) {
+          setShipments(data.shipments)
+          setStats(data.stats)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const resultRows = [
     ['Retatrutide (5mg)', 'RET-2026-08', <strong key="purity" className="metric-good">99.2%</strong>, '08 Aug 2026', <StatusPill key="status">PASS</StatusPill>],
@@ -95,27 +138,28 @@ function DashboardPage() {
     <main className="account-page-main dashboard-main">
       <section className="dashboard-welcome">
         <div className="dashboard-user">
-          <img src={profilePhoto} alt="" className="dashboard-photo" />
+          <img src={user?.profile?.avatar_url ?? profilePhoto} alt="" className="dashboard-photo" />
           <div>
-            <h1>Welcome back, Dr. John Doe</h1>
-            <p>john.doe@example.com</p>
+            <h1>Welcome back, {user?.name ?? 'there'}</h1>
             <div className="dashboard-membership">
               <span>Researcher Premium</span>
-              <small>Member since Oct 2025</small>
+              {memberSince ? <small>Member since {memberSince}</small> : null}
             </div>
           </div>
         </div>
         <div className="dashboard-metrics" aria-label="Account metrics">
           <div>
-            <strong>12</strong>
+            <strong>{stats?.totalSamples ?? '—'}</strong>
             <span>Total Samples Sent</span>
           </div>
           <div>
-            <strong>98.9%</strong>
+            <strong>{stats?.avgBatchPurity != null ? `${stats.avgBatchPurity}%` : '—'}</strong>
             <span>Avg Batch Purity</span>
           </div>
           <div>
-            <strong className="metric-warn">1</strong>
+            <strong className={stats?.activeAnalysis ? 'metric-warn' : undefined}>
+              {stats?.activeAnalysis ?? '—'}
+            </strong>
             <span>Active Analysis</span>
           </div>
         </div>
@@ -128,7 +172,22 @@ function DashboardPage() {
               <h2>My Shipments</h2>
               <a href="/shipments">track shipments</a>
             </div>
-            <AccountTable columns={['Tracking ID', 'Peptide Name', 'Date Submitted', 'Status']} rows={shipmentRows} className="shipments-table" />
+            <AccountTable
+              columns={['Tracking ID', 'Peptide Name', 'Date Submitted', 'Status']}
+              rows={shipments.map((shipment) => {
+                const status = SHIPMENT_STATUS_DISPLAY[shipment.status] ?? {
+                  label: shipment.status,
+                  tone: 'info' as const,
+                }
+                return [
+                  shipment.tracking_id,
+                  shipment.peptide_name,
+                  formatShipmentDate(shipment.created_at),
+                  <StatusPill key="status" tone={status.tone}>{status.label}</StatusPill>,
+                ]
+              })}
+              className="shipments-table"
+            />
           </section>
 
           <section className="account-card">
@@ -208,7 +267,146 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
+const PROFILE_PHOTOS_BUCKET = 'profile_photos'
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024
+
+const storagePathFromUrl = (url: string) => {
+  const marker = `/object/public/${PROFILE_PHOTOS_BUCKET}/`
+  const index = url.indexOf(marker)
+  return index === -1 ? null : url.slice(index + marker.length)
+}
+
+const ROLE_OPTIONS = ['Researcher', 'Lab Manager', 'Clinician']
+
+const emptyProfileForm = {
+  full_name: '',
+  organization: '',
+  role: 'Researcher',
+  phone: '',
+  bio: '',
+}
+
 function ProfileSettings() {
+  const { user, refresh } = useAuth()
+  const [form, setForm] = useState(emptyProfileForm)
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [photoStatus, setPhotoStatus] = useState<'idle' | 'uploading' | 'error'>('idle')
+  const [photoError, setPhotoError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const avatarUrl = user?.profile?.avatar_url ?? null
+
+  const saveAvatarUrl = async (url: string | null) => {
+    await apiFetch('/account/profile', {
+      method: 'PUT',
+      body: JSON.stringify({ avatar_url: url }),
+    })
+    await refresh()
+  }
+
+  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !user) {
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      setPhotoStatus('error')
+      setPhotoError('Please choose an image file.')
+      return
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setPhotoStatus('error')
+      setPhotoError('Photo must be smaller than 5 MB.')
+      return
+    }
+
+    setPhotoStatus('uploading')
+    setPhotoError('')
+    const previousPath = avatarUrl ? storagePathFromUrl(avatarUrl) : null
+    try {
+      const extension = file.name.split('.').pop()?.toLowerCase() || 'png'
+      const path = `${user.id}/${crypto.randomUUID()}.${extension}`
+      const { error: uploadError } = await supabase.storage
+        .from(PROFILE_PHOTOS_BUCKET)
+        .upload(path, file, { contentType: file.type })
+      if (uploadError) {
+        throw uploadError
+      }
+      const { data: { publicUrl } } = supabase.storage
+        .from(PROFILE_PHOTOS_BUCKET)
+        .getPublicUrl(path)
+      await saveAvatarUrl(publicUrl)
+      if (previousPath && previousPath !== path) {
+        await supabase.storage.from(PROFILE_PHOTOS_BUCKET).remove([previousPath])
+      }
+      setPhotoStatus('idle')
+    } catch {
+      setPhotoStatus('error')
+      setPhotoError('Could not upload the photo. Please try again.')
+    }
+  }
+
+  const handlePhotoRemove = async () => {
+    if (!avatarUrl) {
+      return
+    }
+    setPhotoStatus('uploading')
+    setPhotoError('')
+    try {
+      const path = storagePathFromUrl(avatarUrl)
+      if (path) {
+        await supabase.storage.from(PROFILE_PHOTOS_BUCKET).remove([path])
+      }
+      await saveAvatarUrl(null)
+      setPhotoStatus('idle')
+    } catch {
+      setPhotoStatus('error')
+      setPhotoError('Could not remove the photo. Please try again.')
+    }
+  }
+
+  useEffect(() => {
+    setForm({
+      full_name: user?.profile?.full_name ?? '',
+      organization: user?.profile?.organization ?? '',
+      role: user?.profile?.role ?? 'Researcher',
+      phone: user?.profile?.phone ?? '',
+      bio: user?.profile?.bio ?? '',
+    })
+    setStatus('idle')
+  }, [user])
+
+  const setField = (field: keyof typeof emptyProfileForm) =>
+    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+      setForm((current) => ({ ...current, [field]: event.target.value }))
+      setStatus('idle')
+    }
+
+  const handleSave = async () => {
+    setStatus('saving')
+    try {
+      await apiFetch('/account/profile', {
+        method: 'PUT',
+        body: JSON.stringify(form),
+      })
+      await refresh()
+      setStatus('saved')
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  const handleCancel = () => {
+    setForm({
+      full_name: user?.profile?.full_name ?? '',
+      organization: user?.profile?.organization ?? '',
+      role: user?.profile?.role ?? 'Researcher',
+      phone: user?.profile?.phone ?? '',
+      bio: user?.profile?.bio ?? '',
+    })
+    setStatus('idle')
+  }
+
   return (
     <>
       <AccountContentHeader
@@ -216,42 +414,60 @@ function ProfileSettings() {
         subtitle="Update your research credentials, contact details, and organization profile."
       />
       <div className="profile-picture-row">
-        <img src={profilePhoto} alt="" />
+        <img src={avatarUrl ?? profilePhoto} alt="" />
         <div>
           <strong>Your Profile Picture</strong>
           <span>
-            <button type="button">Change Photo</button>
-            <button type="button" className="muted">Remove</button>
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={photoStatus === 'uploading'}>
+              {photoStatus === 'uploading' ? 'Uploading…' : 'Change Photo'}
+            </button>
+            <button type="button" className="muted" onClick={handlePhotoRemove} disabled={photoStatus === 'uploading' || !avatarUrl}>
+              Remove
+            </button>
           </span>
+          {photoStatus === 'error' ? <p className="settings-feedback error">{photoError}</p> : null}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/svg+xml"
+            hidden
+            onChange={handlePhotoChange}
+          />
         </div>
       </div>
       <div className="settings-form-grid">
         <Field label="Full Name">
-          <input defaultValue="Dr. John Doe" />
+          <input value={form.full_name} onChange={setField('full_name')} disabled={status === 'saving'} />
         </Field>
         <Field label="Email Address">
-          <input defaultValue="john.doe@example.com" type="email" />
+          <input value={user?.email ?? ''} type="email" disabled />
         </Field>
         <Field label="Institution/Organization">
-          <input defaultValue="University of Melbourne" />
+          <input value={form.organization} onChange={setField('organization')} disabled={status === 'saving'} />
         </Field>
         <Field label="Role">
-          <select defaultValue="Researcher">
-            <option>Researcher</option>
-            <option>Lab Manager</option>
-            <option>Clinician</option>
+          <select value={form.role} onChange={setField('role')} disabled={status === 'saving'}>
+            {ROLE_OPTIONS.map((role) => (
+              <option key={role}>{role}</option>
+            ))}
           </select>
         </Field>
       </div>
       <Field label="Phone Number">
-        <input defaultValue="+61 412 345 678" />
+        <input value={form.phone} onChange={setField('phone')} disabled={status === 'saving'} />
       </Field>
       <Field label="Bio">
-        <textarea defaultValue="Peptide researcher specializing in metabolic peptides and purity analysis." />
+        <textarea value={form.bio} onChange={setField('bio')} disabled={status === 'saving'} />
       </Field>
+      {status === 'saved' ? <p className="settings-feedback success">Profile saved.</p> : null}
+      {status === 'error' ? <p className="settings-feedback error">Could not save your profile. Please try again.</p> : null}
       <div className="settings-actions">
-        <button type="button" className="account-pill primary">Save Changes</button>
-        <button type="button" className="account-pill secondary">Cancel</button>
+        <button type="button" className="account-pill primary" onClick={handleSave} disabled={status === 'saving'}>
+          {status === 'saving' ? 'Saving…' : 'Save Changes'}
+        </button>
+        <button type="button" className="account-pill secondary" onClick={handleCancel} disabled={status === 'saving'}>
+          Cancel
+        </button>
       </div>
     </>
   )
@@ -400,50 +616,139 @@ function BillingSettings() {
 }
 
 function AddressCard({
-  title,
-  children,
-  secondary = false,
+  address,
+  busy,
+  onEdit,
+  onRemove,
+  onSetPrimary,
 }: {
-  title: string
-  children: ReactNode
-  secondary?: boolean
+  address: ShippingAddress
+  busy: boolean
+  onEdit: () => void
+  onRemove: () => void
+  onSetPrimary: () => void
 }) {
   return (
     <article className="address-card">
       <div className="address-card-header">
-        <h2>{title}</h2>
+        <h2>
+          {address.nickname}
+          {address.is_primary ? <StatusPill>Primary</StatusPill> : null}
+        </h2>
         <span>
-          <button type="button">Edit</button>
-          <button type="button" className="muted">Remove</button>
-          {secondary ? <button type="button">Set as Primary</button> : null}
+          <button type="button" onClick={onEdit} disabled={busy}>Edit</button>
+          <button type="button" className="muted" onClick={onRemove} disabled={busy}>Remove</button>
+          {!address.is_primary ? (
+            <button type="button" onClick={onSetPrimary} disabled={busy}>Set as Primary</button>
+          ) : null}
         </span>
       </div>
-      <div className="address-copy">{children}</div>
+      <div className="address-copy">
+        <p>{address.recipient_name}</p>
+        {address.organization ? <p>{address.organization}</p> : null}
+        <p>{address.line1}</p>
+        {address.line2 ? <p>{address.line2}</p> : null}
+        <p>{address.city} {address.state} {address.postal_code}, {address.country}</p>
+      </div>
     </article>
   )
 }
 
 function ShippingSettings() {
+  const { user } = useAuth()
+  const [addresses, setAddresses] = useState<ShippingAddress[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing] = useState<ShippingAddress | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setError('')
+    try {
+      const data = await apiFetch('/account/addresses')
+      setAddresses(data.addresses)
+    } catch {
+      setError('Could not load your addresses.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      void load()
+    }
+  }, [user, load])
+
+  const handleRemove = async (id: string) => {
+    if (!window.confirm('Remove this address?')) {
+      return
+    }
+    setBusyId(id)
+    try {
+      await apiFetch(`/account/addresses/${id}`, { method: 'DELETE' })
+      await load()
+    } catch {
+      setError('Could not remove the address.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleSetPrimary = async (id: string) => {
+    setBusyId(id)
+    try {
+      await apiFetch(`/account/addresses/${id}/primary`, { method: 'POST' })
+      await load()
+    } catch {
+      setError('Could not set the primary address.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   return (
     <>
       <AccountContentHeader title="Shipping Addresses" subtitle="Manage addresses for sample submissions and deliveries." />
-      <div className="address-list">
-        <AddressCard title="Primary Address">
-          <p>Dr. John Doe</p>
-          <p>University of Melbourne</p>
-          <p>Department of Biochemistry</p>
-          <p>Level 3, 30 Flemington Rd</p>
-          <p>Parkville VIC 3052, Australia</p>
-        </AddressCard>
-        <AddressCard title="Secondary Address" secondary>
-          <p>Dr. John Doe</p>
-          <p>Home Laboratory</p>
-          <p>45 Collins Street</p>
-          <p>Apartment 12B</p>
-          <p>Melbourne VIC 3000, Australia</p>
-        </AddressCard>
-      </div>
-      <button type="button" className="account-pill primary">Add New Address</button>
+      {loading ? (
+        <p>Loading addresses…</p>
+      ) : addresses.length === 0 ? (
+        <p>You have no saved addresses yet.</p>
+      ) : (
+        <div className="address-list">
+          {addresses.map((address) => (
+            <AddressCard
+              key={address.id}
+              address={address}
+              busy={busyId === address.id}
+              onEdit={() => {
+                setEditing(address)
+                setModalOpen(true)
+              }}
+              onRemove={() => handleRemove(address.id)}
+              onSetPrimary={() => handleSetPrimary(address.id)}
+            />
+          ))}
+        </div>
+      )}
+      {error ? <p className="settings-feedback error">{error}</p> : null}
+      <button
+        type="button"
+        className="account-pill primary"
+        onClick={() => {
+          setEditing(null)
+          setModalOpen(true)
+        }}
+      >
+        Add New Address
+      </button>
+      <AddressModal
+        open={modalOpen}
+        address={editing}
+        onClose={() => setModalOpen(false)}
+        onSaved={load}
+      />
     </>
   )
 }
