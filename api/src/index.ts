@@ -62,7 +62,6 @@ app.get('/vendors', (_req, res) => {
   res.json({ vendors });
 });
 
-app.get('/auth/me', async (req, res) => {
 const authenticate = async (req: express.Request): Promise<Session | null> => {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
