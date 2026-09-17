@@ -23,7 +23,7 @@ const locations = [
 ]
 
 const vendorNames = [
-  'Zenith Jode Peptide ZJ',
+  'Zenith Jode Pep',
   'Peptide Partners',
   'AlphaPeptides',
   'BioSynth Labs',
@@ -56,7 +56,7 @@ function formatCost(seed: number): string {
   return `$${base.toFixed(2)}/mg`
 }
 
-export const vendorData: VendorRow[] = Array.from({ length: 100 }, (_, i) => {
+function generateRow(i: number): VendorRow {
   const seed = i + 1
   const name =
     i === 0
@@ -73,4 +73,22 @@ export const vendorData: VendorRow[] = Array.from({ length: 100 }, (_, i) => {
     latest: formatDate(seed * 19),
     location: locations[Math.floor(seededRandom(seed * 23) * locations.length)],
   }
-})
+}
+
+const topRows: VendorRow[] = [
+  { id: '1', name: 'Zenith Jode Pep', score: 92, cost: '$1.00/mg', tests: 18, products: 2, latest: '8 Aug 2026', location: 'China' },
+  { id: '2', name: 'Peptide Partners', score: 85, cost: '$0.70/mg', tests: 16, products: 2, latest: '8 Aug 2026', location: '—' },
+  { id: '3', name: 'Peptide Partners', score: 82, cost: '$1.00/mg', tests: 20, products: 2, latest: '5 Aug 2025', location: '—' },
+  { id: '4', name: 'Peptide Partners', score: 79, cost: '$0.60/mg', tests: 46, products: 2, latest: '4 Aug 2025', location: '—' },
+  { id: '5', name: 'Peptide Partners', score: 78, cost: '$0.60/mg', tests: 19, products: 2, latest: '4 Aug 2025', location: 'US' },
+  { id: '6', name: 'Peptide Partners', score: 75, cost: '$1.27/mg', tests: 13, products: 1, latest: '30 Jul 2025', location: 'US' },
+  { id: '7', name: 'Peptide Partners', score: 72, cost: '$1.40/mg', tests: 8, products: 1, latest: '27 Jul 2025', location: 'China' },
+  { id: '8', name: 'Peptide Partners', score: 69, cost: '$1.50/mg', tests: 16, products: 2, latest: '20 Apr 2025', location: 'China' },
+  { id: '9', name: 'Peptide Partners', score: 62, cost: '$5.50/mg', tests: 10, products: 2, latest: '20 Apr 2025', location: 'US' },
+  { id: '10', name: 'Peptide Partners', score: 58, cost: '$5.00/mg', tests: 9, products: 1, latest: '8 May 2025', location: '—' },
+]
+
+export const vendorData: VendorRow[] = [
+  ...topRows,
+  ...Array.from({ length: 90 }, (_, i) => generateRow(i + 10)),
+]

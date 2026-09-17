@@ -3,6 +3,12 @@ import searchIcon from '../../assets/vendors/search.svg'
 import chevronDown from '../../assets/vendors/chevron-down.svg'
 import { vendorData } from '../../data/vendorData'
 
+function scoreClass(score: number): string {
+  if (score >= 70) return 'score-high'
+  if (score >= 60) return 'score-mid'
+  return 'score-low'
+}
+
 export default function VendorsList() {
   return (
     <div className="vendors-list">
@@ -54,7 +60,9 @@ export default function VendorsList() {
                   <span className="vendor-name">{row.name}</span>
                 </span>
                 <span className="col-score">
-                  <span className="score-badge">{row.score}%</span>
+                  <span className={`score-badge ${scoreClass(row.score)}`}>
+                    {row.score}%
+                  </span>
                 </span>
                 <span className="col-cost">{row.cost}</span>
                 <span className="col-tests">{row.tests}</span>
