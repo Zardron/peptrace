@@ -1,0 +1,30 @@
+{
+  "issueNumber": "39",
+  "prNumber": "40",
+  "branch": "issue-39-figma-design-update-vendorslist-1398-cha",
+  "fixBranch": "visual-qa/issue-39-40be27c",
+  "previewUrl": "https://preview.peptrace.stg.esteemed.engineering",
+  "sha": "40be27cc8e111b294cab89ab1bd8765851a5ec86",
+  "generatedAt": "2026-09-17T12:20:04.335Z",
+  "comparisons": [
+    {
+      "name": "vendors-393",
+      "width": 393,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/issue-39-figma-design-update-vendorslist-1398-cha/vendors-393.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/523-2049/2399848801537421930.jpg"
+    },
+    {
+      "name": "vendors-744",
+      "width": 744,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/issue-39-figma-design-update-vendorslist-1398-cha/vendors-744.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/450-1816/2399848801537421930.jpg"
+    },
+    {
+      "name": "vendors-1440",
+      "width": 1440,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/issue-39-figma-design-update-vendorslist-1398-cha/vendors-1440.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/398-1603/2399848801537421930.jpg"
+    }
+  ],
+  "report": "**Screen \"vendors-393\" (393px):** The preview is completely blank (solid white/empty viewport). Every design element is absent: the green top announcement banner, the PEPTRACE header block with hamburger menu, the mobile text navigation row (\"rankings\", \"about\", \"news\", \"membership\"), the page heading \"Vendors\", the subtitle \"1,729 vendors · total score by Purity focus\", the search input with placeholder \"Search vendor, drug, or location\", the \"methodology →\" text link, the data table with headers (#, VENDOR, SCORE, COST, LATEST) and all row content including gray avatar placeholders and green score badges, and the SiteFooter (Explore, Testing, Legal columns). Because the DOM renders nothing, no spacing, alignment, typography, or color values can be compared.\n\n**Screen \"vendors-744\" (744px):** The preview is completely blank (solid white/empty viewport). Every design element is absent: the green top announcement banner, the PEPTRACE header with logo and \"sign up\" pill button, the navigation links (\"rankings\", \"about\", \"news\", \"membership\"), the \"Vendors\" title area, the toolbar (search input, \"Purity focus · purity 99.0%+, cbar ≥55%\" dropdown button, \"methodology →\" link), the data table with all 8 column headers (#, VENDOR, SCORE, COST, TESTS, PRODUCTS, LATEST, LOCATION) and 10 rows of data, and the 3-column SiteFooter. No layout, spacing, typography, or color properties are present in the preview.\n\n**Screen \"vendors-1440\" (1440px):** The preview is completely blank (solid off-white/empty viewport). Every design element is absent: the compact header with PEPTRACE logo, inline nav links (\"about\", \"news\", \"membership\"), the active \"vendors\" pill button, the \"sign up\" button, the \"Vendors\" heading, the subtitle, the toolbar, the full 8-column data table with 100 rows, and the SiteFooter. No content is rendered to evaluate."
+}
