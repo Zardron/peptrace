@@ -95,6 +95,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.count != '0'
     runs-on: ubuntu-latest
+    # Needed so the frontend image build can read the SUPABASE_* variables.
+    environment: staging
     strategy:
       fail-fast: false
       matrix:
@@ -119,6 +121,13 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: ${{ env.IMAGE_NAME }}-${{ matrix.suffix }}:sha-${{ env.SHA_SHORT }}
+          # Only the frontend Dockerfile declares these ARGs; the api build
+          # ignores them (docker warns about unconsumed args, harmlessly).
+          build-args: |
+            VITE_API_BASE_URL=/api
+            VITE_SUPABASE_URL=${{ vars.SUPABASE_URL }}
+            VITE_SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+            VITE_GOOGLE_MAPS_API_KEY=${{ vars.VITE_GOOGLE_MAPS_API_KEY }}
           cache-from: type=gha,scope=${{ matrix.suffix }}
           cache-to: type=gha,mode=max,scope=${{ matrix.suffix }}
 
