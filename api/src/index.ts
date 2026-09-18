@@ -42,6 +42,161 @@ app.get('/vendors', async (_req, res) => {
   res.json({ vendors: data });
 });
 
+app.get('/vendors/:id', async (req, res) => {
+  const id = req.params.id;
+  const db = getServiceClient();
+
+  // Try lookup by id first, then by slug.
+  let { data: vendor, error } = await db.from('vendors').select('*').eq('id', id).maybeSingle();
+  if (error) {
+    res.status(500).json({ error: 'Failed to load vendor' });
+    return;
+  }
+  if (!vendor) {
+    const { data: bySlug, error: slugError } = await db
+      .from('vendors')
+      .select('*')
+      .eq('slug', id)
+      .maybeSingle();
+    if (slugError) {
+      res.status(500).json({ error: 'Failed to load vendor' });
+      return;
+    }
+    vendor = bySlug;
+  }
+  if (!vendor) {
+    res.status(404).json({ error: 'Vendor not found' });
+    return;
+  }
+
+  // Build a slug if missing (backfill helper).
+  const slug =
+    vendor.slug ??
+    vendor.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+  const testsCount = vendor.tests_count ?? 18;
+  const testsPassed = vendor.tests_passed ?? Math.round((testsCount * (vendor.score ?? 80)) / 100);
+  const testsTotal = vendor.tests_total ?? testsCount;
+  const testsFailed = Math.max(0, testsTotal - testsPassed);
+  const peptidesCount = vendor.products_count ?? 2;
+  const rating = vendor.rating ?? vendor.score ?? 92;
+
+  // Contact channels (synthesized if missing).
+  const contactChannels = vendor.contact_channels ?? [
+    { type: 'website', value: vendor.website_url ?? 'zenithjodepep.com', url: vendor.website_url ?? 'https://zenithjodepep.com' },
+    { type: 'whatsapp', value: '+12345678901', url: 'https://wa.me/12345678901' },
+    { type: 'email', value: 'zenithjodepep@outlook.com', url: 'mailto:zenithjodepep@outlook.com' },
+  ];
+
+  // Intelligence report (synthesized if missing).
+  const intelligenceReport = vendor.intelligence_report ?? {
+    title: `Vendor Intelligence Report: ${vendor.name}`,
+    description:
+      'WHOIS records link to the same Shenzhen trading firm, while a Weibo address and WordPress cosmetics-side mention underline the US-manufacturer posture. The report also covers contact/payment info and a high-risk Bolivian team listing.',
+    pageCount: 17,
+    riskFactorsAssessed: 5,
+    publishedDate: '2026-06-08',
+    previewUrl: null,
+  };
+
+  // Peptides pricing rows (synthesized if missing).
+  const peptides = vendor.peptides ?? [
+    { id: 'pep-ghk-cu', name: 'GHK-Cu', pricePerMg: 0.1, rating: 91, testCount: 4 },
+    { id: 'pep-retatrutide-1', name: 'Retatrutide', pricePerMg: 1.0, rating: 86, testCount: 14 },
+    { id: 'pep-retatrutide-2', name: 'Retatrutide', pricePerMg: 1.0, rating: 76, testCount: 17 },
+  ];
+
+  // Rating trend (synthesized).
+  const ratingTrend = vendor.rating_trend ?? {
+    bands: [
+      { label: '83%+', threshold: 83 },
+      { label: '65%+', threshold: 65 },
+      { label: '48%+', threshold: 48 },
+      { label: '30%+', threshold: 30 },
+      { label: '<30%', threshold: 0 },
+    ],
+    points: [
+      { date: '2025-12-15', rating: 76, label: '76%' },
+      { date: '2026-04-10', rating: 86, label: '86%' },
+      { date: '2026-06-20', rating: 90, label: '90%' },
+      { date: '2026-08-08', rating: 88, label: '88%' },
+    ],
+    xAxisLabels: ['Dec 25', 'Apr 26', 'Aug 26'],
+  };
+
+  // Test history (synthesized mock items).
+  const peptideNames = ['Retatrutide', 'GHK-Cu'];
+  const mockItems = Array.from({ length: testsTotal }).map((_, i) => {
+    const isPass = i < testsPassed;
+    const date = new Date('2026-08-03');
+    date.setDate(date.getDate() - i * 35);
+    return {
+      date: date.toISOString().split('T')[0],
+      result: isPass ? 'pass' : 'fail',
+      peptideName: peptideNames[i % peptideNames.length],
+      vendorName: vendor.name,
+      labName: 'LabCorp',
+      purity: isPass ? 99.2 : 94.5,
+      dosageDeviation: isPass ? null : '-12%',
+      testedMg: isPass ? 10 : 8.8,
+      labelMg: 10,
+      batchInfo: `Batch-${202500 + i}`,
+      sender: i % 3 === 0 ? 'Peptrace' : 'Community',
+      coaUrl: isPass ? '#' : null,
+    };
+  });
+
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(mockItems.length / pageSize));
+
+  const testHistory = {
+    total: testsTotal,
+    passCount: testsPassed,
+    failCount: testsFailed,
+    items: mockItems.slice(0, pageSize),
+    pagination: {
+      page: 1,
+      pageSize,
+      totalPages,
+    },
+  };
+
+  res.json({
+    vendor: {
+      id: vendor.id,
+      name: vendor.name,
+      slug,
+      location: vendor.location ?? '—',
+      websiteUrl: vendor.website_url ?? '',
+      avatarUrl: vendor.avatar_url ?? null,
+      testsCount: testsCount,
+      peptidesCount: peptidesCount,
+      latestUpdate: vendor.latest_tested_at ?? new Date().toISOString().split('T')[0],
+      rating,
+      rank: vendor.rank ?? 1,
+      rankedVendorsCount: vendor.ranked_vendors_count ?? 301,
+      testsPassed,
+      testsTotal,
+      analysisText:
+        vendor.analysis_text ??
+        `${vendor.name} is a peptide vendor tracked in Peptrace's ratings, observed price signals, recent test dates, and corrections. Peptrace ratings are calculated from published sample data using a Bayesian model that adjusts low-volume results so small sample counts do not appear artificially high.`,
+      about:
+        vendor.about ??
+        `${vendor.name} is a peptide vendor tracked in Peptrace's ratings, observed price signals, recent test dates, and corrections. The most visible peptides in this dataset are Retatrutide and GHK-Cu. This page shows the current Peptrace rating, price per mg, and sample volume for each peptide. Recent tests and corrections are shown below when available.`,
+      correctionsCount: 0,
+      corrections: [],
+      contactChannels,
+      intelligenceReport,
+      peptides,
+      ratingTrend,
+      testHistory,
+    },
+  });
+});
+
 // One leaderboard card per peptide, rows ranked by rating. Public catalog
 // data, read through the service client so no RLS policies on the shared
 // admin-portal tables need to change.

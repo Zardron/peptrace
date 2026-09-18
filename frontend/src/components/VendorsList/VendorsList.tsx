@@ -215,7 +215,7 @@ export default function VendorsList() {
               <div className="vendors-table-status">No vendors match your filters.</div>
             ) : (
               rows.map((row, index) => (
-                <div key={row.id} className="vendors-table-row">
+                <a key={row.id} href={`/vendors/${row.id}`} className="vendors-table-row">
                   <span className="col-num">{index + 1}</span>
                   <span className="col-vendor">
                     <span className="vendor-avatar" />
@@ -229,7 +229,7 @@ export default function VendorsList() {
                   <span className="col-products">{row.products_count ?? '—'}</span>
                   <span className="col-latest">{formatLatest(row.latest_tested_at)}</span>
                   <span className="col-location">{row.location ?? '—'}</span>
-                </div>
+                </a>
               ))
             )}
           </div>
