@@ -1,0 +1,400 @@
+.free-peptide-testing {
+  width: 100%;
+}
+
+.fpt-hero {
+  width: 100%;
+  padding: 32px 16px 24px;
+}
+
+.fpt-hero-inner {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.fpt-hero-title {
+  font-family: var(--sans);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  line-height: 1;
+  color: var(--text);
+  margin: 0;
+}
+
+.fpt-info-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #f2f9f7;
+  border: 1px solid #b5d4cd;
+  border-radius: 0;
+}
+
+.fpt-info-icon {
+  flex: 0 0 auto;
+  width: 33px;
+  height: 33px;
+}
+
+.fpt-info-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.fpt-info-text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+}
+
+.fpt-info-title {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--text);
+  margin: 0;
+}
+
+.fpt-info-body {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.55px;
+  line-height: 1.3;
+  color: var(--text);
+  margin: 0;
+}
+
+.fpt-wizard {
+  width: 100%;
+  background: #fff;
+  border-top: 1px solid #bbbbbb;
+  border-bottom: 1px solid #bbbbbb;
+}
+
+.fpt-wizard-inner {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fpt-step-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #bbbbbb;
+}
+
+.fpt-step-label {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  color: #747474;
+}
+
+.fpt-progress-bars {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.fpt-progress-bar {
+  flex: 1 1 auto;
+  height: 4px;
+  border-radius: 2px;
+  background: #e5e7eb;
+}
+
+.fpt-progress-bar.active {
+  background: var(--primary);
+}
+
+.fpt-step-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.fpt-step-name {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--primary);
+}
+
+.fpt-step-price {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fpt-price-label {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  color: #747474;
+}
+
+.fpt-price-value {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  color: #111827;
+}
+
+.fpt-section-title {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 3px solid var(--primary);
+}
+
+.fpt-section-title span {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.36px;
+  line-height: 1;
+  color: var(--text);
+}
+
+.fpt-product-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.fpt-product-chip {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1.12px;
+  line-height: 1;
+  padding: 8px 20px;
+  border-radius: 26px;
+  border: 2px solid #000;
+  background: transparent;
+  color: #000;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.fpt-product-chip.selected {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.fpt-paid-products {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fpt-search-wrap {
+  width: 100%;
+}
+
+.fpt-search-input {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 10px 23px;
+  border-radius: 33px;
+  border: 1px solid #000;
+  background: transparent;
+  color: var(--text);
+  outline: none;
+}
+
+.fpt-search-input::placeholder {
+  color: #747474;
+}
+
+.fpt-product-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.fpt-product-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.fpt-product-row.alt {
+  background: #f3f3f3;
+}
+
+.fpt-product-row.selected {
+  background: var(--primary);
+}
+
+.fpt-product-row.selected .fpt-row-name,
+.fpt-product-row.selected .fpt-row-price {
+  color: #fff;
+}
+
+.fpt-row-name {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text);
+}
+
+.fpt-row-price {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text);
+}
+
+.fpt-wizard-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 5px;
+  border-top: 1px solid #bbbbbb;
+}
+
+.fpt-next-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px 20px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.fpt-next-button:hover {
+  background: var(--primary-hover);
+}
+
+.fpt-next-button img {
+  width: 17px;
+  height: 6px;
+  display: block;
+}
+
+@media (min-width: 567px) {
+  .fpt-hero {
+    padding: 40px 34px 32px;
+  }
+
+  .fpt-hero-title {
+    font-size: 24px;
+    letter-spacing: 1.2px;
+  }
+
+  .fpt-info-title {
+    font-size: 13px;
+  }
+
+  .fpt-info-body {
+    font-size: 11px;
+    letter-spacing: 0.55px;
+  }
+
+  .fpt-wizard-inner {
+    padding: 16px;
+  }
+
+  .fpt-section-title span {
+    font-size: 24px;
+    letter-spacing: 0.48px;
+  }
+
+  .fpt-product-select {
+    gap: 12px;
+  }
+
+  .fpt-product-chip {
+    padding: 8px 20px;
+  }
+}
+
+@media (min-width: 1092px) {
+  .fpt-hero {
+    padding: 48px 160px 40px;
+  }
+
+  .fpt-hero-title {
+    font-size: 30px;
+    letter-spacing: 1.5px;
+  }
+
+  .fpt-info-block {
+    padding: 10px;
+  }
+
+  .fpt-info-title {
+    font-size: 15px;
+  }
+
+  .fpt-info-body {
+    font-size: 12px;
+    letter-spacing: 0.6px;
+  }
+
+  .fpt-wizard-inner {
+    padding: 20px;
+    gap: 20px;
+  }
+
+  .fpt-step-header {
+    padding: 8px 12px;
+  }
+
+  .fpt-section-title {
+    padding: 9px 0;
+  }
+
+  .fpt-section-title span {
+    font-size: 24px;
+    letter-spacing: 0.48px;
+  }
+
+  .fpt-next-button {
+    width: auto;
+    padding: 15px 24px;
+    border-radius: 10px;
+  }
+}
