@@ -6,6 +6,7 @@ import HomeTopInfo from './components/HomeTopInfo/HomeTopInfo'
 import Leaderboards from './components/Leaderboards/Leaderboards'
 import HomeBottom from './components/HomeBottom/HomeBottom'
 import MembershipPage from './components/MembershipPage/MembershipPage'
+import FreePeptideTesting from './components/FreePeptideTesting/FreePeptideTesting'
 import SiteFooter from './components/SiteFooter/SiteFooter'
 import VendorsList from './components/VendorsList/VendorsList'
 import VendorDetails from './components/VendorDetails/VendorDetails'
@@ -23,7 +24,7 @@ const accountRoutes = new Map<string, AccountView>([
   ['/account/privacy', 'privacy'],
 ])
 
-const routedPaths = new Set(['/membership', '/vendors', ...accountRoutes.keys()])
+const routedPaths = new Set(['/membership', '/vendors', '/testing', ...accountRoutes.keys()])
 
 const getCurrentPagePath = () => {
   if (typeof window === 'undefined') {
@@ -125,6 +126,7 @@ function App() {
   }, [])
 
   const isMembershipPage = pagePath === '/membership'
+  const isTestingPage = pagePath === '/testing'
   const isVendorsPage = pagePath === '/vendors'
   const isVendorDetailsPage = pagePath.startsWith('/vendors/') && pagePath !== '/vendors'
   const accountView = accountRoutes.get(pagePath)
@@ -177,6 +179,15 @@ function App() {
             <VendorsList />
           </main>
           <SiteFooter />
+        </>
+      ) : isTestingPage ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/testing" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <FreePeptideTesting />
+            <HomeBottom />
+            <SiteFooter />
+          </main>
         </>
       ) : (
         <>
