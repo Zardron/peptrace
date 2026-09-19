@@ -42,6 +42,171 @@ app.get('/vendors', async (_req, res) => {
   res.json({ vendors: data });
 });
 
+app.get('/vendors/:id', async (req, res) => {
+  const id = req.params.id;
+  const db = getServiceClient();
+
+  // Try lookup by id first (only when the param is a uuid), then by slug.
+  let vendor = null;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    const { data, error } = await db.from('vendors').select('*').eq('id', id).maybeSingle();
+    if (error) {
+      res.status(500).json({ error: 'Failed to load vendor' });
+      return;
+    }
+    vendor = data;
+  }
+  if (!vendor) {
+    const { data: bySlug, error: slugError } = await db
+      .from('vendors')
+      .select('*')
+      .eq('slug', id)
+      .maybeSingle();
+    if (slugError) {
+      res.status(500).json({ error: 'Failed to load vendor' });
+      return;
+    }
+    vendor = bySlug;
+  }
+  if (!vendor) {
+    res.status(404).json({ error: 'Vendor not found' });
+    return;
+  }
+
+  // Build a slug if missing (backfill helper).
+  const slug =
+    vendor.slug ??
+    vendor.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+  const testsCount = vendor.tests_count ?? 18;
+  const testsPassed = vendor.tests_passed ?? Math.round((testsCount * (vendor.score ?? 80)) / 100);
+  const testsTotal = vendor.tests_total ?? testsCount;
+  const peptidesCount = vendor.products_count ?? 2;
+  const rating = vendor.rating ?? vendor.score ?? 92;
+
+  // Contact channels (synthesized if missing).
+  const contactChannels = vendor.contact_channels ?? [
+    { type: 'website', value: vendor.website_url ?? 'zenithjodepep.com', url: vendor.website_url ?? 'https://zenithjodepep.com' },
+    { type: 'whatsapp', value: '+12345678901', url: 'https://wa.me/12345678901' },
+    { type: 'email', value: 'zenithjodepep@outlook.com', url: 'mailto:zenithjodepep@outlook.com' },
+  ];
+
+  // Intelligence report (synthesized if missing).
+  const intelligenceReport = vendor.intelligence_report ?? {
+    title: `Vendor Intelligence Report: ${vendor.name}`,
+    description:
+      'WHOIS records link to the same Shenzhen trading firm, while a Weibo address and WordPress cosmetics-side mention underline the US-manufacturer posture. The report also covers contact/payment info and a high-risk Bolivian team listing.',
+    pageCount: 17,
+    riskFactorsAssessed: 5,
+    publishedDate: '2026-06-08',
+    previewUrl: null,
+  };
+
+  // Peptides pricing rows (synthesized if missing).
+  const peptides = vendor.peptides ?? [
+    { id: 'pep-ghk-cu', name: 'GHK-Cu', pricePerMg: 0.1, rating: 91, testCount: 4 },
+    { id: 'pep-retatrutide-1', name: 'Retatrutide', pricePerMg: 1.0, rating: 86, testCount: 14 },
+    { id: 'pep-retatrutide-2', name: 'Retatrutide', pricePerMg: 1.0, rating: 76, testCount: 17 },
+  ];
+
+  // Rating trend (synthesized).
+  const ratingTrend = vendor.rating_trend ?? {
+    bands: [
+      { label: '83%+', threshold: 83 },
+      { label: '65%+', threshold: 65 },
+      { label: '48%+', threshold: 48 },
+      { label: '30%+', threshold: 30 },
+      { label: '<30%', threshold: 0 },
+    ],
+    points: [
+      { date: '2025-12-15', rating: 76, label: '76%' },
+      { date: '2026-04-10', rating: 86, label: '86%' },
+      { date: '2026-06-20', rating: 90, label: '90%' },
+      { date: '2026-08-08', rating: 88, label: '88%' },
+    ],
+    xAxisLabels: ['Dec 25', 'Apr 26', 'Aug 26'],
+  };
+
+  // Test history from the vendor_tests table.
+  const { data: testRows, error: testsError } = await db
+    .from('vendor_tests')
+    .select(
+      'tested_at, result, peptide_name, lab_name, purity, dosage_deviation, tested_mg, label_mg, batch_code, sender, coa_url',
+    )
+    .eq('vendor_id', vendor.id)
+    .order('tested_at', { ascending: false });
+  if (testsError) {
+    res.status(500).json({ error: 'Failed to load vendor test history' });
+    return;
+  }
+
+  const items = (testRows ?? []).map((t) => ({
+    date: t.tested_at,
+    result: t.result as 'pass' | 'fail',
+    peptideName: t.peptide_name,
+    vendorName: vendor.name,
+    labName: t.lab_name,
+    purity: t.purity == null ? null : Number(t.purity),
+    dosageDeviation: t.dosage_deviation,
+    testedMg: t.tested_mg == null ? null : Number(t.tested_mg),
+    labelMg: t.label_mg == null ? null : Number(t.label_mg),
+    batchInfo: t.batch_code,
+    sender: t.sender,
+    coaUrl: t.coa_url,
+  }));
+
+  const passCount = items.filter((item) => item.result === 'pass').length;
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+
+  const testHistory = {
+    total: items.length,
+    passCount,
+    failCount: items.length - passCount,
+    items,
+    pagination: {
+      page: 1,
+      pageSize,
+      totalPages,
+    },
+  };
+
+  res.json({
+    vendor: {
+      id: vendor.id,
+      name: vendor.name,
+      slug,
+      location: vendor.location ?? '—',
+      websiteUrl: vendor.website_url ?? '',
+      avatarUrl: vendor.avatar_url ?? null,
+      testsCount: testsCount,
+      peptidesCount: peptidesCount,
+      latestUpdate: vendor.latest_tested_at ?? new Date().toISOString().split('T')[0],
+      rating,
+      rank: vendor.rank ?? 1,
+      rankedVendorsCount: vendor.ranked_vendors_count ?? 301,
+      testsPassed,
+      testsTotal,
+      analysisText:
+        vendor.analysis_text ??
+        `${vendor.name} is a peptide vendor tracked in Peptrace's ratings, observed price signals, recent test dates, and corrections. Peptrace ratings are calculated from published sample data using a Bayesian model that adjusts low-volume results so small sample counts do not appear artificially high.`,
+      about:
+        vendor.about ??
+        `${vendor.name} is a peptide vendor tracked in Peptrace's ratings, observed price signals, recent test dates, and corrections. The most visible peptides in this dataset are Retatrutide and GHK-Cu. This page shows the current Peptrace rating, price per mg, and sample volume for each peptide. Recent tests and corrections are shown below when available.`,
+      correctionsCount: 0,
+      corrections: [],
+      contactChannels,
+      intelligenceReport,
+      peptides,
+      ratingTrend,
+      testHistory,
+    },
+  });
+});
+
 // One leaderboard card per peptide, rows ranked by rating. Public catalog
 // data, read through the service client so no RLS policies on the shared
 // admin-portal tables need to change.

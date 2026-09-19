@@ -8,6 +8,7 @@ import HomeBottom from './components/HomeBottom/HomeBottom'
 import MembershipPage from './components/MembershipPage/MembershipPage'
 import SiteFooter from './components/SiteFooter/SiteFooter'
 import VendorsList from './components/VendorsList/VendorsList'
+import VendorDetails from './components/VendorDetails/VendorDetails'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
 import { useAuth } from './context/AuthContext'
 import { navigate } from './lib/navigation'
@@ -29,7 +30,10 @@ const getCurrentPagePath = () => {
     return '/'
   }
 
-  return routedPaths.has(window.location.pathname) ? window.location.pathname : '/'
+  const path = window.location.pathname
+  if (routedPaths.has(path)) return path
+  if (path.startsWith('/vendors/') && path !== '/vendors') return path
+  return '/'
 }
 
 const getModalSourcePath = () => {
@@ -38,8 +42,10 @@ const getModalSourcePath = () => {
   }
 
   const modalFrom = window.history.state?.modalFrom
-
-  return typeof modalFrom === 'string' && routedPaths.has(modalFrom) ? modalFrom : '/'
+  if (typeof modalFrom !== 'string') return '/'
+  if (routedPaths.has(modalFrom)) return modalFrom
+  if (modalFrom.startsWith('/vendors/') && modalFrom !== '/vendors') return modalFrom
+  return '/'
 }
 
 function App() {
@@ -120,6 +126,7 @@ function App() {
 
   const isMembershipPage = pagePath === '/membership'
   const isVendorsPage = pagePath === '/vendors'
+  const isVendorDetailsPage = pagePath.startsWith('/vendors/') && pagePath !== '/vendors'
   const accountView = accountRoutes.get(pagePath)
   const isAccountRoute = Boolean(accountView)
 
@@ -152,6 +159,14 @@ function App() {
             <HomeTopInfo />
             <Leaderboards />
             <HomeBottom />
+          </main>
+          <SiteFooter />
+        </>
+      ) : isVendorDetailsPage ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/vendors" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <VendorDetails vendorSlug={pagePath.replace('/vendors/', '')} />
           </main>
           <SiteFooter />
         </>
