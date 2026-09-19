@@ -46,11 +46,15 @@ app.get('/vendors/:id', async (req, res) => {
   const id = req.params.id;
   const db = getServiceClient();
 
-  // Try lookup by id first, then by slug.
-  let { data: vendor, error } = await db.from('vendors').select('*').eq('id', id).maybeSingle();
-  if (error) {
-    res.status(500).json({ error: 'Failed to load vendor' });
-    return;
+  // Try lookup by id first (only when the param is a uuid), then by slug.
+  let vendor = null;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    const { data, error } = await db.from('vendors').select('*').eq('id', id).maybeSingle();
+    if (error) {
+      res.status(500).json({ error: 'Failed to load vendor' });
+      return;
+    }
+    vendor = data;
   }
   if (!vendor) {
     const { data: bySlug, error: slugError } = await db
@@ -80,7 +84,6 @@ app.get('/vendors/:id', async (req, res) => {
   const testsCount = vendor.tests_count ?? 18;
   const testsPassed = vendor.tests_passed ?? Math.round((testsCount * (vendor.score ?? 80)) / 100);
   const testsTotal = vendor.tests_total ?? testsCount;
-  const testsFailed = Math.max(0, testsTotal - testsPassed);
   const peptidesCount = vendor.products_count ?? 2;
   const rating = vendor.rating ?? vendor.score ?? 92;
 
@@ -127,36 +130,43 @@ app.get('/vendors/:id', async (req, res) => {
     xAxisLabels: ['Dec 25', 'Apr 26', 'Aug 26'],
   };
 
-  // Test history (synthesized mock items).
-  const peptideNames = ['Retatrutide', 'GHK-Cu'];
-  const mockItems = Array.from({ length: testsTotal }).map((_, i) => {
-    const isPass = i < testsPassed;
-    const date = new Date('2026-08-03');
-    date.setDate(date.getDate() - i * 35);
-    return {
-      date: date.toISOString().split('T')[0],
-      result: isPass ? 'pass' : 'fail',
-      peptideName: peptideNames[i % peptideNames.length],
-      vendorName: vendor.name,
-      labName: 'LabCorp',
-      purity: isPass ? 99.2 : 94.5,
-      dosageDeviation: isPass ? null : '-12%',
-      testedMg: isPass ? 10 : 8.8,
-      labelMg: 10,
-      batchInfo: `Batch-${202500 + i}`,
-      sender: i % 3 === 0 ? 'Peptrace' : 'Community',
-      coaUrl: isPass ? '#' : null,
-    };
-  });
+  // Test history from the vendor_tests table.
+  const { data: testRows, error: testsError } = await db
+    .from('vendor_tests')
+    .select(
+      'tested_at, result, peptide_name, lab_name, purity, dosage_deviation, tested_mg, label_mg, batch_code, sender, coa_url',
+    )
+    .eq('vendor_id', vendor.id)
+    .order('tested_at', { ascending: false });
+  if (testsError) {
+    res.status(500).json({ error: 'Failed to load vendor test history' });
+    return;
+  }
 
+  const items = (testRows ?? []).map((t) => ({
+    date: t.tested_at,
+    result: t.result as 'pass' | 'fail',
+    peptideName: t.peptide_name,
+    vendorName: vendor.name,
+    labName: t.lab_name,
+    purity: t.purity == null ? null : Number(t.purity),
+    dosageDeviation: t.dosage_deviation,
+    testedMg: t.tested_mg == null ? null : Number(t.tested_mg),
+    labelMg: t.label_mg == null ? null : Number(t.label_mg),
+    batchInfo: t.batch_code,
+    sender: t.sender,
+    coaUrl: t.coa_url,
+  }));
+
+  const passCount = items.filter((item) => item.result === 'pass').length;
   const pageSize = 10;
-  const totalPages = Math.max(1, Math.ceil(mockItems.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
 
   const testHistory = {
-    total: testsTotal,
-    passCount: testsPassed,
-    failCount: testsFailed,
-    items: mockItems.slice(0, pageSize),
+    total: items.length,
+    passCount,
+    failCount: items.length - passCount,
+    items,
     pagination: {
       page: 1,
       pageSize,

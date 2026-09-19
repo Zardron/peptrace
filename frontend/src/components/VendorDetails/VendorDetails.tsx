@@ -247,6 +247,7 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
     let cancelled = false
     setLoading(true)
     setError('')
+    setHistoryPage(1)
     fetch(`${API_BASE}/vendors/${encodeURIComponent(vendorSlug)}`)
       .then((res) => {
         if (!res.ok) throw new Error('Vendor not found')
@@ -279,7 +280,10 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
     return (
       <div className="vendor-details">
         <div className="vendor-details-inner">
-          <div className="vd-loading">Loading vendor details…</div>
+          <div className="vd-loading">
+            <span className="vd-spinner" role="status" aria-label="Loading" />
+            <span>Loading vendor details…</span>
+          </div>
         </div>
       </div>
     )
@@ -297,7 +301,6 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
 
   const vendor = data
   const history = vendor.testHistory
-  const historyStart = (historyPage - 1) * history.pagination.pageSize + 1
   const historyEnd = Math.min(historyPage * history.pagination.pageSize, history.total)
 
   return (
@@ -610,7 +613,7 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
                 </tr>
               </thead>
               <tbody>
-                {history.items.map((item, i) => (
+                {history.items.slice(0, historyEnd).map((item, i) => (
                   <tr key={i}>
                     <td>{formatDate(item.date)}</td>
                     <td>
@@ -649,23 +652,17 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
           </div>
           <div className="vd-pagination">
             <span className="vd-pagination-range">
-              {historyStart}-{historyEnd} OF {history.total}
+              1-{historyEnd} OF {history.total}
             </span>
             <div className="vd-pagination-buttons">
-              <button
-                type="button"
-                disabled={historyPage <= 1}
-                onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
-              >
-                Newer
-              </button>
-              <button
-                type="button"
-                disabled={historyPage >= history.pagination.totalPages}
-                onClick={() => setHistoryPage((p) => Math.min(history.pagination.totalPages, p + 1))}
-              >
-                Older
-              </button>
+              {historyPage < history.pagination.totalPages ? (
+                <button
+                  type="button"
+                  onClick={() => setHistoryPage((p) => Math.min(history.pagination.totalPages, p + 1))}
+                >
+                  Load More
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
