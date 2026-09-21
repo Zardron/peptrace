@@ -10,6 +10,7 @@ import FreePeptideTesting from './components/FreePeptideTesting/FreePeptideTesti
 import SiteFooter from './components/SiteFooter/SiteFooter'
 import VendorsList from './components/VendorsList/VendorsList'
 import VendorDetails from './components/VendorDetails/VendorDetails'
+import NewsPage from './components/NewsPage/NewsPage'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
 import { useAuth } from './context/AuthContext'
 import { navigate } from './lib/navigation'
@@ -24,7 +25,7 @@ const accountRoutes = new Map<string, AccountView>([
   ['/account/privacy', 'privacy'],
 ])
 
-const routedPaths = new Set(['/membership', '/vendors', '/testing', ...accountRoutes.keys()])
+const routedPaths = new Set(['/membership', '/vendors', '/testing', '/news', ...accountRoutes.keys()])
 
 const getCurrentPagePath = () => {
   if (typeof window === 'undefined') {
@@ -127,6 +128,7 @@ function App() {
 
   const isMembershipPage = pagePath === '/membership'
   const isTestingPage = pagePath === '/testing'
+  const isNewsPage = pagePath === '/news'
   const isVendorsPage = pagePath === '/vendors'
   const isVendorDetailsPage = pagePath.startsWith('/vendors/') && pagePath !== '/vendors'
   const accountView = accountRoutes.get(pagePath)
@@ -188,6 +190,14 @@ function App() {
             <HomeBottom />
             <SiteFooter />
           </main>
+        </>
+      ) : isNewsPage ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/news" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <NewsPage />
+          </main>
+          <SiteFooter />
         </>
       ) : (
         <>
