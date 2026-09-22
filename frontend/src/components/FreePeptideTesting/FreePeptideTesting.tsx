@@ -1,28 +1,9 @@
 import { useState } from 'react'
 import './FreePeptideTesting.css'
-import arrowRight from '../../assets/arrow-right.svg'
-
-const productCards = ['Tirzepatide', 'Tirzepatide', 'Tirzepatide']
-
-const paidProducts = [
-  { name: 'Tirzepatide', price: 'FREE' },
-  { name: 'Oxytocin', price: '$238' },
-  { name: 'Oxytocin', price: '$238' },
-  { name: 'Oxytocin', price: '$238' },
-  { name: 'Oxytocin', price: '$238' },
-  { name: 'Oxytocin', price: '$238' },
-  { name: 'Oxytocin', price: '$238' },
-  { name: 'Oxytocin', price: '$238' },
-]
+import FormWizard from '../FormWizard/FormWizard'
 
 export default function FreePeptideTesting() {
-  const [selectedCard, setSelectedCard] = useState(0)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedRow, setSelectedRow] = useState<number | null>(0)
-
-  const filteredProducts = paidProducts.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const [completed, setCompleted] = useState(false)
 
   return (
     <div className="free-peptide-testing">
@@ -48,71 +29,24 @@ export default function FreePeptideTesting() {
 
       <section className="fpt-wizard">
         <div className="fpt-wizard-inner">
-          <div className="fpt-step-header">
-            <span className="fpt-step-label">Step 1 of 7</span>
-            <div className="fpt-progress-bars">
-              {Array.from({ length: 7 }).map((_, i) => (
-                <div key={i} className={`fpt-progress-bar ${i === 0 ? 'active' : ''}`} />
-              ))}
-            </div>
-            <div className="fpt-step-title-row">
-              <span className="fpt-step-name">Choose Product</span>
-              <span className="fpt-step-price">
-                <span className="fpt-price-label">Price:</span>
-                <span className="fpt-price-value">FREE</span>
-              </span>
-            </div>
-          </div>
-
-          <div className="fpt-section-title">
-            <span>What product are you sending us?</span>
-          </div>
-
-          <div className="fpt-product-select">
-            {productCards.map((name, i) => (
+          {completed ? (
+            <div className="fpt-complete">
+              <h2 className="fpt-complete-title">Shipment registered</h2>
+              <p className="fpt-complete-body">
+                Thanks — your sample has been registered. You&apos;ll receive shipping
+                instructions and updates as your test progresses.
+              </p>
               <button
-                key={i}
                 type="button"
-                className={`fpt-product-chip ${selectedCard === i ? 'selected' : ''}`}
-                onClick={() => setSelectedCard(i)}
+                className="fpt-complete-button"
+                onClick={() => setCompleted(false)}
               >
-                {name}
+                Register another sample
               </button>
-            ))}
-          </div>
-
-          <div className="fpt-paid-products">
-            <div className="fpt-search-wrap">
-              <input
-                type="text"
-                className="fpt-search-input"
-                placeholder="Search products"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
             </div>
-            <div className="fpt-product-list">
-              {filteredProducts.map((product, i) => (
-                <div
-                  key={i}
-                  className={`fpt-product-row ${selectedRow === i ? 'selected' : ''} ${i % 2 === 1 ? 'alt' : ''}`}
-                  onClick={() => setSelectedRow(i)}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <span className="fpt-row-name">{product.name}</span>
-                  <span className="fpt-row-price">{product.price}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="fpt-wizard-actions">
-            <button type="button" className="fpt-next-button">
-              <span>Next</span>
-              <img src={arrowRight} alt="" />
-            </button>
-          </div>
+          ) : (
+            <FormWizard onComplete={() => setCompleted(true)} />
+          )}
         </div>
       </section>
     </div>

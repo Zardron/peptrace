@@ -42,6 +42,18 @@ app.get('/vendors', async (_req, res) => {
   res.json({ vendors: data });
 });
 
+app.get('/peptides', async (_req, res) => {
+  const { data, error } = await supabase
+    .from('peptides')
+    .select('id, name, testing_price')
+    .order('name', { ascending: true });
+  if (error) {
+    res.status(500).json({ error: 'Failed to load peptides' });
+    return;
+  }
+  res.json({ peptides: data });
+});
+
 app.get('/vendors/:id', async (req, res) => {
   const id = req.params.id;
   const db = getServiceClient();
@@ -209,16 +221,36 @@ app.get('/vendors/:id', async (req, res) => {
 
 // One leaderboard card per peptide, rows ranked by rating. Public catalog
 // data, read through the service client so no RLS policies on the shared
-// admin-portal tables need to change.
-app.get('/leaderboards', async (_req, res) => {
+// admin-portal tables need to change. The query is the slowest in the app,
+// so results are cached in memory for 24 hours; the in-flight promise is
+// cached too so concurrent cold-cache requests share one database read.
+const LEADERBOARDS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+interface LeaderboardsCard {
+  peptideId: string;
+  productName: string;
+  slug: string;
+  testCount: number;
+  vendorCount: number;
+  lastUpdated: string | null;
+  rows: {
+    vendorName: string;
+    pricePerMg: number | null;
+    rating: number | null;
+    purityPercent: number | null;
+  }[];
+}
+
+let leaderboardsCache: { expiresAt: number; promise: Promise<LeaderboardsCard[]> } | null = null;
+
+const loadLeaderboardsCards = async (): Promise<LeaderboardsCard[]> => {
   const { data, error } = await getServiceClient()
     .from('VendorProduct')
     .select(
       'id, priceMg, rating, purityPercent, testsCount, updatedAt, peptide:Peptide(id, label, slug), vendor:Vendor(id, displayName)',
     );
   if (error) {
-    res.status(500).json({ error: 'Failed to load leaderboards' });
-    return;
+    throw new Error(error.message);
   }
 
   interface ProductRow {
@@ -242,7 +274,7 @@ app.get('/leaderboards', async (_req, res) => {
     byPeptide.set(row.peptide.id, entry);
   }
 
-  const cards = [...byPeptide.values()]
+  return [...byPeptide.values()]
     .map(({ peptide, products }) => {
       return {
         peptideId: peptide!.id,
@@ -265,8 +297,28 @@ app.get('/leaderboards', async (_req, res) => {
       };
     })
     .sort((a, b) => b.testCount - a.testCount);
+};
 
-  res.json({ cards });
+const getLeaderboardsCards = (): Promise<LeaderboardsCard[]> => {
+  if (!leaderboardsCache || leaderboardsCache.expiresAt <= Date.now()) {
+    leaderboardsCache = {
+      expiresAt: Date.now() + LEADERBOARDS_CACHE_TTL_MS,
+      promise: loadLeaderboardsCards().catch((err) => {
+        leaderboardsCache = null;
+        throw err;
+      }),
+    };
+  }
+  return leaderboardsCache.promise;
+};
+
+app.get('/leaderboards', async (_req, res) => {
+  try {
+    const cards = await getLeaderboardsCards();
+    res.json({ cards });
+  } catch {
+    res.status(500).json({ error: 'Failed to load leaderboards' });
+  }
 });
 
 const authenticate = async (req: express.Request): Promise<Session | null> => {
@@ -609,6 +661,98 @@ app.delete('/account/avatar', async (req, res) => {
   res.json({ avatar_url: null });
 });
 
+const FORM_UPLOADS_BUCKET = 'form-uploads';
+const FORM_UPLOAD_TYPES = ['batch-id-proof', 'coa', 'purchase-proof'] as const;
+const MAX_FORM_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+let formBucketReady: Promise<void> | null = null;
+
+// The wizard renders previews straight from the public object URL, so the
+// bucket must exist and allow public reads.
+const ensureFormUploadsBucket = (): Promise<void> => {
+  formBucketReady ??= (async () => {
+    const storage = getServiceClient().storage;
+    const { data, error } = await storage.getBucket(FORM_UPLOADS_BUCKET);
+    if (error || !data) {
+      const { error: createError } = await storage.createBucket(FORM_UPLOADS_BUCKET, {
+        public: true,
+      });
+      if (createError && !/already exists/i.test(createError.message)) {
+        throw createError;
+      }
+      return;
+    }
+    if (!data.public) {
+      const { error: updateError } = await storage.updateBucket(FORM_UPLOADS_BUCKET, {
+        public: true,
+      });
+      if (updateError) {
+        throw updateError;
+      }
+    }
+  })().catch((err) => {
+    formBucketReady = null;
+    throw err;
+  });
+  return formBucketReady;
+};
+
+app.post('/uploads/form', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const { file, contentType, extension, uploadType } = req.body ?? {};
+  if (
+    typeof uploadType !== 'string' ||
+    !(FORM_UPLOAD_TYPES as readonly string[]).includes(uploadType)
+  ) {
+    res.status(400).json({ error: 'A valid upload type is required' });
+    return;
+  }
+  if (
+    typeof file !== 'string' ||
+    typeof contentType !== 'string' ||
+    !(contentType.startsWith('image/') || contentType === 'application/pdf')
+  ) {
+    res.status(400).json({ error: 'An image or PDF file is required' });
+    return;
+  }
+  const buffer = Buffer.from(file, 'base64');
+  if (buffer.length === 0 || buffer.length > MAX_FORM_UPLOAD_BYTES) {
+    res.status(400).json({ error: 'File must be smaller than 5 MB' });
+    return;
+  }
+  const ext =
+    typeof extension === 'string' && /^[a-z0-9]{1,5}$/.test(extension)
+      ? extension
+      : contentType === 'application/pdf'
+        ? 'pdf'
+        : 'png';
+
+  try {
+    await ensureFormUploadsBucket();
+  } catch {
+    res.status(500).json({ error: 'Storage is not available' });
+    return;
+  }
+
+  const path = `${uploadType}/${crypto.randomUUID()}.${ext}`;
+  const storage = getServiceClient().storage.from(FORM_UPLOADS_BUCKET);
+  const { error: uploadError } = await storage.upload(path, buffer, { contentType });
+  if (uploadError) {
+    res.status(500).json({ error: 'Could not upload the file' });
+    return;
+  }
+  const {
+    data: { publicUrl },
+  } = storage.getPublicUrl(path);
+
+  res.json({ url: publicUrl, path, contentType });
+});
+
 const ADDRESS_SELECT =
   'id, nickname, recipient_name, organization, line1, line2, city, state, postal_code, country, is_primary, created_at';
 const REQUIRED_ADDRESS_FIELDS = ['nickname', 'recipient_name', 'line1', 'city', 'state', 'postal_code'] as const;
@@ -811,6 +955,157 @@ app.post('/account/addresses/:id/primary', async (req, res) => {
   res.json({ address: data });
 });
 
+interface ShipmentSampleInput {
+  peptideId?: unknown;
+  vendor?: unknown;
+  formFactor?: unknown;
+  batchId?: unknown;
+  batchProofFile?: unknown;
+  quantityMg?: unknown;
+  lab?: unknown;
+  addons?: unknown;
+  vendorProvidedCOA?: unknown;
+  coaWhen?: unknown;
+  coaOtherText?: unknown;
+  coaMatch?: unknown;
+  coaUrl?: unknown;
+  coaFile?: unknown;
+  proofFile?: unknown;
+  orderId?: unknown;
+  orderDate?: unknown;
+  numVials?: unknown;
+  pricePerVial?: unknown;
+  priceCurrency?: unknown;
+  samplePrice?: unknown;
+}
+
+const textOrNull = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+};
+
+const boolOrNull = (value: unknown): boolean | null =>
+  typeof value === 'boolean' ? value : null;
+
+const numberOrNull = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/[^0-9.\-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const intOrNull = (value: unknown): number | null => {
+  const num = numberOrNull(value);
+  return num === null ? null : Math.trunc(num);
+};
+
+app.post('/shipments', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const { samples, newsletterOptIn } = req.body ?? {};
+  if (!Array.isArray(samples) || samples.length === 0 || samples.length > 20) {
+    res.status(400).json({ error: 'At least one sample is required' });
+    return;
+  }
+  for (const s of samples as ShipmentSampleInput[]) {
+    if (typeof s?.peptideId !== 'string' || s.peptideId === '') {
+      res.status(400).json({ error: 'Each sample needs a product' });
+      return;
+    }
+  }
+
+  // The wizard collects the vendor as a free-text name; link it to a catalog
+  // vendor when one exists, otherwise keep the name only.
+  const vendorNames = [
+    ...new Set(
+      (samples as ShipmentSampleInput[])
+        .map((s) => textOrNull(s.vendor))
+        .filter((v): v is string => v !== null),
+    ),
+  ];
+  const vendorIdByName = new Map<string, string>();
+  if (vendorNames.length > 0) {
+    const { data: vendorRows } = await getServiceClient()
+      .from('vendors')
+      .select('id, name')
+      .in('name', vendorNames);
+    for (const v of vendorRows ?? []) {
+      vendorIdByName.set(v.name, v.id);
+    }
+  }
+
+  // One shipment per submission (single tracking ID); one shipment_samples
+  // row per sample added in the wizard.
+  const db = getServiceClient();
+  const trackingId = `PT-${Math.floor(1000 + Math.random() * 9000)}`;
+  const { data: shipment, error: shipmentError } = await db
+    .from('shipments')
+    .insert({
+      account_id: session.userId,
+      tracking_id: trackingId,
+      status: 'submitted',
+      newsletter_opt_in: newsletterOptIn === true,
+    })
+    .select('id')
+    .single();
+  if (shipmentError || !shipment) {
+    res.status(500).json({ error: 'Failed to register the shipment' });
+    return;
+  }
+
+  const sampleRows = (samples as ShipmentSampleInput[]).map((s) => {
+    const vendorName = textOrNull(s.vendor);
+    return {
+      shipment_id: shipment.id,
+      peptide_id: s.peptideId as string,
+      vendor_id: vendorName ? (vendorIdByName.get(vendorName) ?? null) : null,
+      vendor_name: vendorName,
+      form_factor: textOrNull(s.formFactor),
+      batch_id: textOrNull(s.batchId),
+      batch_proof_url: textOrNull(s.batchProofFile),
+      quantity_mg: numberOrNull(s.quantityMg),
+      lab: textOrNull(s.lab),
+      addons: Array.isArray(s.addons) ? s.addons.filter((a) => typeof a === 'string') : [],
+      vendor_provided_coa: boolOrNull(s.vendorProvidedCOA),
+      coa_when: textOrNull(s.coaWhen),
+      coa_other_text: textOrNull(s.coaOtherText),
+      coa_match: boolOrNull(s.coaMatch),
+      coa_url: textOrNull(s.coaUrl),
+      coa_file_url: textOrNull(s.coaFile),
+      proof_file_url: textOrNull(s.proofFile),
+      order_id: textOrNull(s.orderId),
+      order_date: textOrNull(s.orderDate),
+      num_vials: intOrNull(s.numVials),
+      price_per_vial: numberOrNull(s.pricePerVial),
+      price_currency: textOrNull(s.priceCurrency),
+      sample_price: numberOrNull(s.samplePrice),
+    };
+  });
+
+  const { data: inserted, error } = await db
+    .from('shipment_samples')
+    .insert(sampleRows)
+    .select('id');
+  if (error) {
+    await db.from('shipments').delete().eq('id', shipment.id);
+    res.status(500).json({ error: 'Failed to register the shipment' });
+    return;
+  }
+
+  res.json({
+    id: shipment.id,
+    trackingId,
+    sampleIds: (inserted ?? []).map((r) => r.id),
+  });
+});
+
 app.get('/account/dashboard', async (req, res) => {
   const session = await authenticate(req);
   if (!session) {
@@ -818,10 +1113,34 @@ app.get('/account/dashboard', async (req, res) => {
     return;
   }
   const userDb = session.db;
+
+  interface TestResultRow {
+    purity: number;
+    outcome: string | null;
+    tested_at: string | null;
+  }
+  interface ShipmentJoinRow {
+    peptide: { name: string } | null;
+    shipment_samples: { peptide: { name: string } | null }[] | null;
+  }
+
+  const peptideNamesFor = (row: ShipmentJoinRow): string[] => {
+    const sampleNames = (row.shipment_samples ?? [])
+      .map((s) => s.peptide?.name)
+      .filter((n): n is string => !!n);
+    // Legacy rows (pre shipment_samples) carry the peptide on the shipment.
+    return sampleNames.length > 0 ? sampleNames : row.peptide?.name ? [row.peptide.name] : [];
+  };
+
+  const latestResult = (results: TestResultRow[]): TestResultRow | null =>
+    results.length === 0
+      ? null
+      : [...results].sort((a, b) => (b.tested_at ?? '').localeCompare(a.tested_at ?? ''))[0];
+
   const { data, error } = await userDb
     .from('shipments')
     .select(
-      'id, tracking_id, status, created_at, peptide:peptides(name), vendor:vendors(name), test_results(purity)',
+      'id, tracking_id, status, created_at, peptide:peptides(name), vendor:vendors(name), shipment_samples(peptide:peptides(name)), test_results(purity, outcome, tested_at)',
     )
     .eq('account_id', session.userId)
     .order('created_at', { ascending: false });
@@ -831,15 +1150,94 @@ app.get('/account/dashboard', async (req, res) => {
     return;
   }
 
-  const shipments = (data ?? []).map((row) => ({
+  const shipments = (data ?? []).map((row) => {
+    const join = row as unknown as ShipmentJoinRow;
+    const peptideNames = peptideNamesFor(join);
+    const results = (row.test_results as TestResultRow[]) ?? [];
+    return {
+      id: row.id,
+      tracking_id: row.tracking_id,
+      status: row.status,
+      created_at: row.created_at,
+      peptide_names: peptideNames,
+      vendor_name: (row.vendor as unknown as { name: string } | null)?.name ?? '',
+      sample_count: peptideNames.length > 0 ? peptideNames.length : 1,
+      purities: results.map((r) => Number(r.purity)),
+    };
+  });
+
+  // Recent Test Results: latest test outcomes across this account's shipments.
+  const { data: resultsData } = await userDb
+    .from('test_results')
+    .select(
+      'id, batch_code, purity, outcome, tested_at, shipment:shipments!inner(account_id, peptide:peptides(name), shipment_samples(peptide:peptides(name)))',
+    )
+    .eq('shipment.account_id', session.userId)
+    .order('tested_at', { ascending: false })
+    .limit(5);
+
+  const recentResults = (resultsData ?? []).map((row) => ({
     id: row.id,
-    tracking_id: row.tracking_id,
-    status: row.status,
-    created_at: row.created_at,
-    peptide_name: (row.peptide as unknown as { name: string } | null)?.name ?? '',
-    vendor_name: (row.vendor as unknown as { name: string } | null)?.name ?? '',
-    purities: (row.test_results as { purity: number }[]).map((r) => Number(r.purity)),
+    peptide_names: peptideNamesFor(row.shipment as unknown as ShipmentJoinRow),
+    batch_code: row.batch_code,
+    purity: row.purity === null ? null : Number(row.purity),
+    outcome: row.outcome,
+    tested_at: row.tested_at,
   }));
+
+  // My Supply: every sample the user has registered, with its latest test
+  // outcome. Status is derived: 0 mg left -> reorder, otherwise the latest
+  // test result decides verified/failed/pending.
+  const supplyStatus = (quantityMg: number | null, latest: TestResultRow | null): string => {
+    if (quantityMg === 0) return 'reorder';
+    if (!latest) return 'pending';
+    return latest.outcome === 'pass' ? 'verified' : 'failed';
+  };
+
+  const { data: samplesData } = await userDb
+    .from('shipment_samples')
+    .select(
+      'id, quantity_mg, vendor_name, created_at, peptide:peptides(name), vendor:vendors(name), shipment:shipments!inner(account_id, test_results(purity, outcome, tested_at))',
+    )
+    .eq('shipment.account_id', session.userId)
+    .order('created_at', { ascending: false });
+
+  const sampleSupplies = (samplesData ?? []).map((row) => {
+    const shipment = row.shipment as unknown as { test_results: TestResultRow[] | null };
+    const latest = latestResult(shipment.test_results ?? []);
+    const quantityMg = row.quantity_mg === null ? null : Number(row.quantity_mg);
+    return {
+      id: row.id,
+      peptide_name: (row.peptide as unknown as { name: string } | null)?.name ?? '',
+      quantity_mg: quantityMg,
+      vendor_name:
+        (row.vendor as unknown as { name: string } | null)?.name ?? row.vendor_name ?? '',
+      purity: latest ? Number(latest.purity) : null,
+      status: supplyStatus(quantityMg, latest),
+      created_at: row.created_at,
+    };
+  });
+
+  // Legacy shipments without shipment_samples still count as supply.
+  const legacySupplies = (data ?? [])
+    .filter((row) => peptideNamesFor(row as unknown as ShipmentJoinRow).length > 0)
+    .filter(
+      (row) =>
+        ((row.shipment_samples as unknown as unknown[] | null) ?? []).length === 0,
+    )
+    .map((row) => {
+      const results = (row.test_results as TestResultRow[]) ?? [];
+      const latest = latestResult(results);
+      return {
+        id: row.id,
+        peptide_name: (row.peptide as unknown as { name: string } | null)?.name ?? '',
+        quantity_mg: null,
+        vendor_name: (row.vendor as unknown as { name: string } | null)?.name ?? '',
+        purity: latest ? Number(latest.purity) : null,
+        status: supplyStatus(null, latest),
+        created_at: row.created_at,
+      };
+    });
 
   const allPurities = shipments.flatMap((s) => s.purities);
   const avgBatchPurity =
@@ -849,8 +1247,10 @@ app.get('/account/dashboard', async (req, res) => {
 
   res.json({
     shipments: shipments.map(({ purities: _purities, ...shipment }) => shipment),
+    recentResults,
+    supplies: [...sampleSupplies, ...legacySupplies],
     stats: {
-      totalSamples: shipments.length,
+      totalSamples: shipments.reduce((sum, s) => sum + s.sample_count, 0),
       avgBatchPurity,
       activeAnalysis: shipments.filter((s) => s.status === 'testing').length,
     },

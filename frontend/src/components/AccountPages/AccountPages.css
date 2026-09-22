@@ -271,6 +271,16 @@
   font-weight: 700;
 }
 
+.shipment-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.shipment-link:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
 .account-status {
   display: inline-flex;
   align-items: center;
