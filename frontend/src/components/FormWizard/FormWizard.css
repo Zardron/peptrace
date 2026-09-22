@@ -132,6 +132,37 @@
   display: block;
 }
 
+.fw-nav-item-right {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: inherit;
+  opacity: 0.75;
+}
+
+.fw-nav-item-delete {
+  flex: 0 0 auto;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.fw-nav-item-delete:hover {
+  opacity: 1;
+  color: #c0392b;
+}
+
+.fw-nav-item:hover .fw-nav-item-delete,
+.fw-nav-item.active .fw-nav-item-delete {
+  display: inline-flex;
+}
+
 .fw-cart-progress {
   display: flex;
   align-items: center;
@@ -152,6 +183,23 @@
   font-size: 16px;
   font-weight: 700;
   color: var(--text);
+}
+
+.fw-sidebar-samples {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.fw-sidebar-samples-label {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.96px;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 /* Content area */
@@ -394,6 +442,89 @@
   color: var(--text-muted);
 }
 
+.fw-upload.drag-over {
+  border-color: var(--primary);
+  background: #f0f7f2;
+}
+
+.fw-upload.uploading {
+  cursor: wait;
+}
+
+.fw-upload-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: fw-upload-spin 0.8s linear infinite;
+}
+
+@keyframes fw-upload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fw-upload-error {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: #c0392b;
+}
+
+.fw-upload-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f9f9f9;
+}
+
+.fw-upload-preview-image {
+  max-width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.fw-upload-preview-pdf {
+  width: 100%;
+  height: 260px;
+  border: none;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.fw-upload-preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fw-upload-preview-link {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary);
+}
+
+.fw-upload-preview-remove {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: #c0392b;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
 /* Form factor options */
 .fw-form-factors {
   display: flex;
@@ -423,6 +554,12 @@
   width: 20px;
   height: 20px;
   align-self: flex-end;
+}
+
+.fw-form-factor-image {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
 }
 
 .fw-form-factor-label {
@@ -555,6 +692,30 @@
   background: var(--primary-hover);
 }
 
+.fw-btn-delete-sample {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-right: auto;
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: var(--bg-white);
+  color: #c0392b;
+  border: 1px solid #c0392b;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+}
+
+.fw-btn-delete-sample:hover {
+  background: #fdf0ee;
+}
+
 /* Ship step specifics */
 .fw-ship-summary {
   display: flex;
@@ -617,6 +778,59 @@
 .fw-payment-total {
   font-weight: 700;
   color: var(--text);
+}
+
+.fw-payment-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 480px;
+}
+
+.fw-payment-note {
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.fw-payment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f9f9f9;
+}
+
+.fw-payment-form .fw-input {
+  background: #fff;
+  color: var(--text-muted);
+}
+
+.fw-payment-form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.fw-payment-form-row .fw-field {
+  flex: 1;
+}
+
+.fw-payment-screen-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.fw-payment-screen-actions .fw-btn-back,
+.fw-payment-screen-actions .fw-btn-next {
+  width: auto;
 }
 
 .fw-warning-banner {
@@ -713,7 +927,8 @@
 
   .fw-btn-next,
   .fw-btn-back,
-  .fw-btn-skip {
+  .fw-btn-skip,
+  .fw-btn-delete-sample {
     padding: 12px 24px;
     border-radius: 10px;
     font-size: 15px;
@@ -735,4 +950,44 @@
     padding: 32px;
     gap: 24px;
   }
+}
+
+.fw-auth-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 64px 24px;
+  text-align: center;
+}
+
+.fw-auth-gate-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.fw-auth-gate-body {
+  max-width: 440px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.fw-auth-gate-button {
+  margin-top: 8px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.fw-auth-gate-button:hover {
+  background: var(--primary-hover);
 }

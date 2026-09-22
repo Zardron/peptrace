@@ -5,7 +5,7 @@ interface HomeTopInfoProps {
   href?: string
 }
 
-export default function HomeTopInfo({ href = '/test' }: HomeTopInfoProps) {
+export default function HomeTopInfo({ href = '/testing' }: HomeTopInfoProps) {
   return (
     <section className="home-top-info">
       <a href={href} className="top-info-banner">

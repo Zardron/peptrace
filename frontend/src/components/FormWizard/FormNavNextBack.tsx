@@ -8,6 +8,7 @@ interface FormNavNextBackProps {
   nextLabel?: string
   showSkip?: boolean
   onSkip?: () => void
+  onDeleteSample?: () => void
 }
 
 export default function FormNavNextBack({
@@ -16,9 +17,15 @@ export default function FormNavNextBack({
   nextLabel = 'Next',
   showSkip = false,
   onSkip,
+  onDeleteSample,
 }: FormNavNextBackProps) {
   return (
     <div className="fw-nav-actions">
+      {onDeleteSample && (
+        <button type="button" className="fw-btn-delete-sample" onClick={onDeleteSample}>
+          <span>Delete Sample</span>
+        </button>
+      )}
       {onBack && (
         <button type="button" className="fw-btn-back" onClick={onBack}>
           <img src={arrowLeft} alt="" width={10} height={8} />

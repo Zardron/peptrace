@@ -77,7 +77,7 @@ interface DashboardShipment {
   tracking_id: string
   status: string
   created_at: string
-  peptide_name: string
+  peptide_names: string[]
   vendor_name: string
 }
 
@@ -85,6 +85,31 @@ interface DashboardStats {
   totalSamples: number
   avgBatchPurity: number | null
   activeAnalysis: number
+}
+
+interface DashboardResult {
+  id: string
+  peptide_names: string[]
+  batch_code: string | null
+  purity: number | null
+  outcome: string | null
+  tested_at: string | null
+}
+
+interface DashboardSupply {
+  id: string
+  peptide_name: string
+  quantity_mg: number | null
+  vendor_name: string
+  purity: number | null
+  status: 'verified' | 'pending' | 'failed' | 'reorder'
+}
+
+const SUPPLY_STATUS_DISPLAY: Record<string, { label: string; tone: 'success' | 'warning' | 'danger' }> = {
+  verified: { label: 'Verified', tone: 'success' },
+  pending: { label: 'Pending Test', tone: 'warning' },
+  failed: { label: 'Failed', tone: 'danger' },
+  reorder: { label: 'Reorder', tone: 'warning' },
 }
 
 const SHIPMENT_STATUS_DISPLAY: Record<string, { label: string; tone: 'success' | 'warning' | 'info' }> = {
@@ -104,6 +129,8 @@ function DashboardPage() {
     : null
   const [shipments, setShipments] = useState<DashboardShipment[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [recentResults, setRecentResults] = useState<DashboardResult[]>([])
+  const [supplies, setSupplies] = useState<DashboardSupply[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -112,6 +139,8 @@ function DashboardPage() {
         if (!cancelled) {
           setShipments(data.shipments)
           setStats(data.stats)
+          setRecentResults(data.recentResults ?? [])
+          setSupplies(data.supplies ?? [])
         }
       })
       .catch(() => {})
@@ -120,18 +149,38 @@ function DashboardPage() {
     }
   }, [])
 
-  const resultRows = [
-    ['Retatrutide (5mg)', 'RET-2026-08', <strong key="purity" className="metric-good">99.2%</strong>, '08 Aug 2026', <StatusPill key="status">PASS</StatusPill>],
-    ['NAD+ (100mg)', 'NAD-992-B4', <strong key="purity" className="metric-good">98.7%</strong>, '26 Jul 2026', <StatusPill key="status">PASS</StatusPill>],
-    ['Ipamorelin (5mg)', 'IPA-771-C1', <strong key="purity" className="metric-warn">94.1%</strong>, '20 Jul 2026', <StatusPill key="status" tone="warning">FAIL</StatusPill>],
-  ]
+  const resultRows = recentResults.map((result) => [
+    result.peptide_names.join(', '),
+    result.batch_code ?? '—',
+    result.purity != null ? (
+      <strong key="purity" className={result.purity >= 95 ? 'metric-good' : 'metric-warn'}>
+        {result.purity.toFixed(1)}%
+      </strong>
+    ) : (
+      '—'
+    ),
+    result.tested_at ? formatShipmentDate(result.tested_at) : '—',
+    <StatusPill key="status" tone={result.outcome === 'pass' ? 'success' : 'warning'}>
+      {result.outcome === 'pass' ? 'PASS' : 'FAIL'}
+    </StatusPill>,
+  ])
 
-  const supplyRows = [
-    ['Tirzepatide (10mg)', '100mg', 'Zenith Jode', <strong key="purity" className="metric-good">99.2%</strong>, <StatusPill key="status">Verified</StatusPill>],
-    ['Retatrutide (5mg)', '50mg', 'Peptide Partners', <strong key="purity" className="metric-good">98.7%</strong>, <StatusPill key="status" tone="warning">Pending Test</StatusPill>],
-    ['BPC-157 (10mg)', '20mg', 'Bio Labs', <strong key="purity" className="metric-warn">94.1%</strong>, <StatusPill key="status" tone="warning">Low Stock</StatusPill>],
-    ['NAD+ (100mg)', '0mg', 'Pure Science', <strong key="purity" className="metric-good">99.0%</strong>, <StatusPill key="status">Reorder</StatusPill>],
-  ]
+  const supplyRows = supplies.map((supply) => {
+    const status = SUPPLY_STATUS_DISPLAY[supply.status] ?? SUPPLY_STATUS_DISPLAY.pending
+    return [
+      supply.peptide_name,
+      supply.quantity_mg != null ? `${supply.quantity_mg}mg` : '—',
+      supply.vendor_name || '—',
+      supply.purity != null ? (
+        <strong key="purity" className={supply.purity >= 95 ? 'metric-good' : 'metric-warn'}>
+          {supply.purity.toFixed(1)}%
+        </strong>
+      ) : (
+        '—'
+      ),
+      <StatusPill key="status" tone={status.tone}>{status.label}</StatusPill>,
+    ]
+  })
 
   return (
     <main className="account-page-main dashboard-main">
@@ -172,15 +221,17 @@ function DashboardPage() {
               <a href="/shipments">track shipments</a>
             </div>
             <AccountTable
-              columns={['Tracking ID', 'Peptide Name', 'Date Submitted', 'Status']}
+              columns={['Tracking ID', 'Peptide Name(s)', 'Date Submitted', 'Status']}
               rows={shipments.map((shipment) => {
                 const status = SHIPMENT_STATUS_DISPLAY[shipment.status] ?? {
                   label: shipment.status,
                   tone: 'info' as const,
                 }
                 return [
-                  shipment.tracking_id,
-                  shipment.peptide_name,
+                  <a key="tracking" href={`/shipment/${shipment.id}`} className="shipment-link">
+                    {shipment.tracking_id}
+                  </a>,
+                  shipment.peptide_names.join(', '),
                   formatShipmentDate(shipment.created_at),
                   <StatusPill key="status" tone={status.tone}>{status.label}</StatusPill>,
                 ]
