@@ -151,6 +151,26 @@ jobs:
               legacy_ids=$(docker ps -aq --filter "label=com.docker.compose.project=stg")
               [ -n "$legacy_ids" ] && docker rm -f $legacy_ids || true
             fi
+            # Remove stray containers from older/manual stacks still publishing
+            # this slot's domain. Traefik round-robins across every container
+            # whose router rule matches the Host, so a leftover container with
+            # an old build breaks every other page load (module scripts get
+            # index.html from the wrong container).
+            if [ -f .env ]; then
+              DOMAIN=$(grep -E '^PEPTRACE_DOMAIN=' .env | cut -d= -f2-)
+              PROJECT=$(grep -E '^COMPOSE_PROJECT_NAME=' .env | cut -d= -f2-)
+              for cid in $(docker ps -q); do
+                case "$(docker inspect --format '{{ json .Config.Labels }}' "$cid")" in
+                  *"$DOMAIN"*) ;;
+                  *) continue ;;
+                esac
+                proj=$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$cid")
+                if [ "$proj" != "$PROJECT" ]; then
+                  echo "Removing stray container $cid (project: ${proj:-unknown}) publishing $DOMAIN"
+                  docker rm -f "$cid"
+                fi
+              done
+            fi
             docker compose -f docker-compose.deploy.yml pull $DEPLOY_SERVICES
             docker compose -f docker-compose.deploy.yml up -d --remove-orphans $DEPLOY_SERVICES
             for service in $DEPLOY_SERVICES; do
