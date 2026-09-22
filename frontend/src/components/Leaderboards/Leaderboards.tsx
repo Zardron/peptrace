@@ -71,6 +71,25 @@ const toCardProps = (
   }
 }
 
+// StrictMode double-mounts components in dev and the home page can remount on
+// navigation; share one in-flight request (and its resolved result) across
+// mounts so only one call hits the API. Failures reset so a remount retries.
+let leaderboardsPromise: Promise<LeaderboardCardData[]> | null = null
+
+const fetchLeaderboards = (): Promise<LeaderboardCardData[]> => {
+  leaderboardsPromise ??= fetch(`${API_BASE}/leaderboards`)
+    .then((res) => {
+      if (!res.ok) throw new Error('Request failed')
+      return res.json()
+    })
+    .then((data) => (data.cards ?? []) as LeaderboardCardData[])
+    .catch((err) => {
+      leaderboardsPromise = null
+      throw err
+    })
+  return leaderboardsPromise
+}
+
 export default function Leaderboards() {
   const [cards, setCards] = useState<LeaderboardCardData[]>([])
   const [loading, setLoading] = useState(true)
@@ -82,14 +101,10 @@ export default function Leaderboards() {
 
   useEffect(() => {
     let cancelled = false
-    fetch(`${API_BASE}/leaderboards`)
-      .then((res) => {
-        if (!res.ok) throw new Error('Request failed')
-        return res.json()
-      })
-      .then((data) => {
+    fetchLeaderboards()
+      .then((list) => {
         if (cancelled) return
-        setCards(data.cards ?? [])
+        setCards(list)
         setLoading(false)
       })
       .catch(() => {
