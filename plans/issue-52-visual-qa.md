@@ -1,41 +1,36 @@
-1. **HeaderBar – add missing `rankings` link and fix mobile collapse**  
-   - **File:** `frontend/src/components/HeaderBar/HeaderBar.tsx` (or its internal nav config array).  
-   - **Change:** Insert a `rankings` nav item before `about` so it renders at tablet and desktop widths.  
-   - **Change:** Fix the responsive condition that toggles the mobile hamburger menu. The preview at `390px` still renders the desktop `vendors` and `sign up` pills, indicating the mobile breakpoint (`max-width: 566px`) is not correctly hiding the pill buttons and showing the hamburger icon. Update the JSX condition or CSS media query so viewports `≤566px` use the collapsed mobile header.
+### 1. `frontend/src/components/MethodologyPage/MethodologyPage.css`
+**Methodology two-column layout (tablet & desktop)**
+- **Evidence:** At 744px and 1440px the right “Vendors” column is too narrow, causing extra text wraps.
+- **Fix:** Ensure the `.methodology-section` container uses `display: grid` with `grid-template-columns: 1fr 1fr` and a `gap` of `32px` (desktop) / `24px` (tablet). If it currently uses Flexbox, switch to Grid so both columns share equal width. Remove any `max-width` or `flex-basis` constraints that shrink the right column.
 
-2. **MethodologyPage – two-column section balance**  
-   - **File:** `frontend/src/components/MethodologyPage/MethodologyPage.css`.  
-   - **Evidence:** Left column (`Analysts`) overflows below the right column (`Vendors`) on tablet and desktop.  
-   - **Change:** Reduce `line-height` on the Analysts column body paragraphs (e.g., from `1.6` to `1.5`) to match the design’s compact text density.  
-   - **Change:** Verify the Vendors column policy cards use consistent vertical padding (e.g., `16px`–`20px`) so they provide enough height to balance the grid row.  
-   - **Change:** Ensure the desktop grid uses `align-items: start` and an appropriate column ratio (e.g., `grid-template-columns: 45% 55%` or `1fr 1fr`) so the columns top-align and avoid unintended height stretching.
+**Labeling Score Calculated two-column layout (tablet & desktop)**
+- **Evidence:** The right column (`If both...`) is compressed at 744px and 1440px.
+- **Fix:** Apply `display: grid; grid-template-columns: 1fr 1fr; gap: 32px;` to the `.labeling-score-calculated` wrapper (or `45% 55%` if the design shows an asymmetric split). Ensure child boxes fill their column width (`width: 100%`).
 
-3. **MethodologyPage – "How the Labeling Score Works" grid gap**  
-   - **File:** `MethodologyPage.css`.  
-   - **Evidence:** Preview gaps between the four cards are larger than the design.  
-   - **Change:** Reduce `gap` on the grid container from the current value (e.g., `24px`) to `16px` on mobile and `20px` on desktop.
+**Standards table (mobile)**
+- **Evidence:** At 390px the `SOMETIMES` column is missing from the preview.
+- **Fix:** Add `overflow-x: auto` to the table wrapper and set the table `min-width` to roughly `600px` so all five columns render horizontally scrollable. Alternatively, to match the design’s non-scrolling 5-column fit, reduce cell `font-size` to `12px` (or the project’s `--text-xs` token) and cell `padding` to `8px 12px`, with `table-layout: fixed` and `width: 100%`.
 
-4. **MethodologyPage – Formula cards density**  
-   - **File:** `MethodologyPage.css`.  
-   - **Evidence:** The six formula cards are much taller in the preview due to excess internal spacing.  
-   - **Change:** Target the formula card class and reduce `padding` to `16px`–`20px`. Remove any explicit `min-height` so the cards shrink to fit their content, matching the compact design.
+**Standards table (all breakpoints)**
+- **Evidence:** Column proportions and row padding differ from the design.
+- **Fix:** Define explicit column widths via `:is(th, td):nth-child(n)` selectors (e.g., col 1 = 20 %, col 2 = 15 %, col 3 = 25 %, col 4 = 20 %, col 5 = 20 %) using `table-layout: fixed`. Set uniform row `padding: 12px 16px` to match the design’s compact density.
 
-5. **MethodologyPage – Final Rating cards density**  
-   - **File:** `MethodologyPage.css`.  
-   - **Evidence:** The three rating interpretation cards have too much internal whitespace.  
-   - **Change:** Reduce `padding` inside the rating cards to `16px` (or the equivalent design token) to match the compact card height shown in the design.
+**Formulas grid**
+- **Evidence:** Formula cards have unequal heights within each row at all breakpoints.
+- **Fix:** Set the formulas grid container to `display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;` on desktop (`min-width: 1092px`), `repeat(2, 1fr)` on tablet (`567px–1091px`), and `1fr` on mobile. Add `align-items: stretch;`. Ensure each `.formula-card` uses `height: 100%; display: flex; flex-direction: column;` so cards in the same row stretch to the tallest item.
 
-6. **MethodologyPage – Standards table row density**  
-   - **File:** `MethodologyPage.css`.  
-   - **Evidence:** Table rows are taller in the preview than in the design.  
-   - **Change:** Reduce vertical `padding` on `.standards-table th` and `.standards-table td` to `8px`–`12px`, matching the compact row height in the design.
+**Section vertical spacing**
+- **Evidence:** Extra whitespace appears between the Methodology section and the Standards section in the preview.
+- **Fix:** Reduce `margin-bottom` on the Methodology section from the current value (e.g., `64px`) to `48px` (or the design-equivalent spacing token). Audit `padding-top` on the Standards heading to ensure it matches the design.
 
-7. **MethodologyPage – Hero top spacing (mobile)**  
-   - **File:** `MethodologyPage.css`.  
-   - **Evidence:** At `390px`, the space between the secondary nav and the `TEST DATA LAST UPDATED…` label is too tight.  
-   - **Change:** Inside the `max-width: 566px` media query, add `padding-top: 16px`–`24px` to the hero container to restore the design’s vertical rhythm.
+### 2. `frontend/src/components/HeaderBar/HeaderBar.css` (or responsive breakpoint logic)
+**Nav link breakpoint behavior**
+- **Evidence:** At 390px and 744px the preview renders a secondary nav row (`rankings about news membership`) that the design does not show at those widths.
+- **Fix:** Adjust the responsive breakpoint that controls nav-link visibility. Links should remain inline in the top header bar down to `566px` (tablet), and collapse into the hamburger menu at `566px` and below (mobile). Ensure the nav list does not fallback to a wrapped/second-row layout at `744px`. If the component uses a `max-width: 767px` media query for collapse, tighten it to `max-width: 566px` to align with the project’s stated mobile breakpoint.
 
-8. **SiteFooter – link vertical spacing**  
-   - **File:** `frontend/src/components/SiteFooter/SiteFooter.css`.  
-   - **Evidence:** Footer column links are too tightly packed on the desktop preview.  
-   - **Change:** Increase `margin-bottom` on footer list items/anchors from the current value (e.g., `4px`) to `6px`–`8px` to match the looser spacing shown in the design.
+### 3. `frontend/src/components/SiteFooter/SiteFooter.tsx`
+- **Evidence (non-visual but functional):** The footer link array auto-generates `/testing-methodology`, but the canonical route is `/methodology`.
+- **Fix:** Replace the string entry `'Testing Methodology'` with an explicit object `{ label: 'Testing Methodology', href: '/methodology' }` (or add an override map) so the footer link routes correctly. This is a minimal one-line change in the links array and does not affect visual layout.
+
+### 4. `frontend/src/components/MethodologyPage/MethodologyPage.tsx`
+- **Fix:** Verify that the standards table uses a `<table>` element with explicit `<colgroup>` or CSS `nth-child` widths so the column proportions above can be applied. Ensure the “How the Labeling Score Is Calculated” right-column boxes use the same card class as the left column so grid sizing applies uniformly. No text content changes are required.
