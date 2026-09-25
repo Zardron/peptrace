@@ -1,0 +1,30 @@
+{
+  "issueNumber": "54",
+  "prNumber": "55",
+  "branch": "feat/54_fullLeaderBoard-impl",
+  "fixBranch": "visual-qa/issue-54-2841b9d",
+  "previewUrl": "https://preview.peptrace.stg.esteemed.engineering",
+  "sha": "2841b9dfcb56ec556f56e5601df368924c1cc5cf",
+  "generatedAt": "2026-09-25T08:50:46.262Z",
+  "comparisons": [
+    {
+      "name": "products-retatrutide-390",
+      "width": 390,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/feat-54_fullLeaderBoard-impl/products-retatrutide-390.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/1871-7273/2403052005313524345.jpg"
+    },
+    {
+      "name": "products-retatrutide-744",
+      "width": 744,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/feat-54_fullLeaderBoard-impl/products-retatrutide-744.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/1871-5955/2403052005313524345.jpg"
+    },
+    {
+      "name": "products-retatrutide-1440",
+      "width": 1440,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/feat-54_fullLeaderBoard-impl/products-retatrutide-1440.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/1871-5515/2403052005313524345.jpg"
+    }
+  ],
+  "report": "**Screen: products-retatrutide-390 (390px)**\n- The entire page-specific content between the `HomeTopInfo` banner and the `SiteFooter` is missing. The preview renders only the text \"Could not load product data. Please try again later.\" inside a large blank region instead of the designed layout.\n- Missing sections: breadcrumbs (\"Products / Retatrutide\"), product title \"Retatrutide\", subtitle \"methodology · Purity focus\", stats line (\"293 vendors 3,858 tests 17 Dec 2025 first 20 Sept 2026 latest\"), methodology badge group (\"Purity Focused\", \"purity 99.5%+\", \"dose ±35%\", \"View methodology\"), the complete `VendorsPanel` (panel header, search field, filter dropdowns, and stacked vendor card list with rank, logo initials, name, \"Verified Supplier\" badge, \"Get report\" link, price, and purity pill), and the complete `TestHistorySection` (section header, stats, \"COA-BACKED LAB TESTS\" badge, and table rows with date, Pass/Fail dot, test name, vendor, and result).\n- `HeaderBar`, `HomeTopInfo` banner, and `SiteFooter` match the design qualitatively; footer stacks in a single column as expected.\n\n**Screen: products-retatrutide-744 (744px)**\n- All main content between header and footer is absent, replaced by the same plain-text error message with excessive surrounding whitespace.\n- Missing: breadcrumbs, product header with inline stats, methodology badge group, `VendorsPanel` with full table headers (`#`, `Vendor`, `$/mg`, `Customer Rating`, `Purity Rating`, `N`) and 8 data rows, and `TestHistorySection` with columns `DATE`, `RESULT`, `TEST`, `LAB`, `PURITY`, `DOSAGE`.\n- Footer renders in the expected three-column layout and matches the design.\n\n**Screen: products-retatrutide-1440 (1440px)**\n- All main content is missing; the preview shows only the error fallback string where the full page layout should be.\n- Additionally, the `HomeTopInfo` promotional banner (\"Get your free peptide safety test\") is missing entirely below the header, while it is present in the Figma design.\n- Missing: breadcrumbs, product title, subtitle, stats, methodology badge inline with the header, full `VendorsPanel` table with all columns, and `TestHistorySection` with all columns including `LABEL` and `COA`.\n- `HeaderBar` (logo, nav links, \"vendors\" button, \"sign up\" pill) and three-column `SiteFooter` match the design.\n\n---"
+}
