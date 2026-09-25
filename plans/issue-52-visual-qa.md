@@ -1,36 +1,20 @@
-### 1. `frontend/src/components/MethodologyPage/MethodologyPage.css`
-**Methodology two-column layout (tablet & desktop)**
-- **Evidence:** At 744px and 1440px the right “Vendors” column is too narrow, causing extra text wraps.
-- **Fix:** Ensure the `.methodology-section` container uses `display: grid` with `grid-template-columns: 1fr 1fr` and a `gap` of `32px` (desktop) / `24px` (tablet). If it currently uses Flexbox, switch to Grid so both columns share equal width. Remove any `max-width` or `flex-basis` constraints that shrink the right column.
+1. **`frontend/src/components/MethodologyPage/MethodologyPage.css`**
+   - **Constrain page width on desktop:** Add a centered max-width container to the root page wrapper (e.g., `.methodology-page`). Target `max-width: 980px` (or match the existing `.page-content` / `.free-peptide-testing` container token) and `margin: 0 auto` so the content column matches the narrower, centered design at 1440 px. Use responsive padding: `16px` mobile, `24px` tablet, `48px` desktop.
+   - **Fix mobile standards table:** Wrap the standards `<table>` in a scrollable container (`.standards-table-wrapper`) with `overflow-x: auto`, `-webkit-overflow-scrolling: touch`, and `width: 100%`. Give the table `min-width: 620px` (or `width: max-content`) so all five columns (`STANDARD`, `PURITY`, `QUANTITY`, `LABELING`, `SOMETIMES`) remain in a single horizontal row and scroll on 390 px instead of collapsing the fifth column.
+   - **Center formula equations:** Inside `.formula-card` (or equivalent), set `text-align: center` on the equation wrapper. Use `display: flex; flex-direction: column; align-items: center;` with `gap: 12px` between the formula title, math block, and description so the vertical rhythm matches the design.
+   - **Increase section spacing:** Raise the bottom margin between major page sections. Use `margin-bottom: 64px` on mobile, `72px` on desktop, to match the looser vertical rhythm in the Figma frames.
 
-**Labeling Score Calculated two-column layout (tablet & desktop)**
-- **Evidence:** The right column (`If both...`) is compressed at 744px and 1440px.
-- **Fix:** Apply `display: grid; grid-template-columns: 1fr 1fr; gap: 32px;` to the `.labeling-score-calculated` wrapper (or `45% 55%` if the design shows an asymmetric split). Ensure child boxes fill their column width (`width: 100%`).
+2. **`frontend/src/components/MethodologyPage/MethodologyPage.tsx`**
+   - **Preserve table column:** Ensure the standards table markup includes the fifth `<th>SOMETIMES</th>` and corresponding `<td>` cells. Do not conditionally hide this column at any breakpoint.
+   - **Formula markup:** Wrap each equation in a dedicated `<div className="formula-equation">` so the CSS `text-align: center` rule targets the math independently of left-aligned descriptive paragraphs.
 
-**Standards table (mobile)**
-- **Evidence:** At 390px the `SOMETIMES` column is missing from the preview.
-- **Fix:** Add `overflow-x: auto` to the table wrapper and set the table `min-width` to roughly `600px` so all five columns render horizontally scrollable. Alternatively, to match the design’s non-scrolling 5-column fit, reduce cell `font-size` to `12px` (or the project’s `--text-xs` token) and cell `padding` to `8px 12px`, with `table-layout: fixed` and `width: 100%`.
+3. **`frontend/src/components/SiteFooter/SiteFooter.tsx`**
+   - **Remove pipe prefixes:** Strip the leading `|` character from the footer column headings. If the JSX hardcodes it (e.g., `<span>| {title}</span>`), render only `{title}`. If the pipe comes from a string in a links array, update the array values to `"Explore"`, `"Testing"`, and `"Legal"`.
 
-**Standards table (all breakpoints)**
-- **Evidence:** Column proportions and row padding differ from the design.
-- **Fix:** Define explicit column widths via `:is(th, td):nth-child(n)` selectors (e.g., col 1 = 20 %, col 2 = 15 %, col 3 = 25 %, col 4 = 20 %, col 5 = 20 %) using `table-layout: fixed`. Set uniform row `padding: 12px 16px` to match the design’s compact density.
+4. **`frontend/src/components/HeaderBar/HeaderBar.tsx` (or the navigation config consumed by it)**
+   - **Remove `vendors` pill:** Delete the `vendors` button/pill from the header markup across all breakpoints; it does not appear in any Methodology design frame.
+   - **Restore `rankings` link on desktop:** Ensure the primary nav row at 1440 px includes `rankings` before `about`, `news`, and `membership`, matching the design link set.
+   - **Hide pills on mobile:** At 390 px, do not render the `vendors` and `sign up` pills next to the logo; rely on the hamburger menu as shown in the mobile design.
 
-**Formulas grid**
-- **Evidence:** Formula cards have unequal heights within each row at all breakpoints.
-- **Fix:** Set the formulas grid container to `display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;` on desktop (`min-width: 1092px`), `repeat(2, 1fr)` on tablet (`567px–1091px`), and `1fr` on mobile. Add `align-items: stretch;`. Ensure each `.formula-card` uses `height: 100%; display: flex; flex-direction: column;` so cards in the same row stretch to the tallest item.
-
-**Section vertical spacing**
-- **Evidence:** Extra whitespace appears between the Methodology section and the Standards section in the preview.
-- **Fix:** Reduce `margin-bottom` on the Methodology section from the current value (e.g., `64px`) to `48px` (or the design-equivalent spacing token). Audit `padding-top` on the Standards heading to ensure it matches the design.
-
-### 2. `frontend/src/components/HeaderBar/HeaderBar.css` (or responsive breakpoint logic)
-**Nav link breakpoint behavior**
-- **Evidence:** At 390px and 744px the preview renders a secondary nav row (`rankings about news membership`) that the design does not show at those widths.
-- **Fix:** Adjust the responsive breakpoint that controls nav-link visibility. Links should remain inline in the top header bar down to `566px` (tablet), and collapse into the hamburger menu at `566px` and below (mobile). Ensure the nav list does not fallback to a wrapped/second-row layout at `744px`. If the component uses a `max-width: 767px` media query for collapse, tighten it to `max-width: 566px` to align with the project’s stated mobile breakpoint.
-
-### 3. `frontend/src/components/SiteFooter/SiteFooter.tsx`
-- **Evidence (non-visual but functional):** The footer link array auto-generates `/testing-methodology`, but the canonical route is `/methodology`.
-- **Fix:** Replace the string entry `'Testing Methodology'` with an explicit object `{ label: 'Testing Methodology', href: '/methodology' }` (or add an override map) so the footer link routes correctly. This is a minimal one-line change in the links array and does not affect visual layout.
-
-### 4. `frontend/src/components/MethodologyPage/MethodologyPage.tsx`
-- **Fix:** Verify that the standards table uses a `<table>` element with explicit `<colgroup>` or CSS `nth-child` widths so the column proportions above can be applied. Ensure the “How the Labeling Score Is Calculated” right-column boxes use the same card class as the left column so grid sizing applies uniformly. No text content changes are required.
+5. **`frontend/src/App.tsx`**
+   - **Verify route wrapper consistency:** Confirm the `/methodology` branch renders `<MethodologyPage />` inside `<main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>`. No extra wrapper classes that would alter page background or padding should be applied.
