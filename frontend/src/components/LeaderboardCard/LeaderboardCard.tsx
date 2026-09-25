@@ -15,6 +15,7 @@ export interface LeaderboardCardProps {
   ctaText: string
   rows: LeaderboardRow[]
   totalVendors: string
+  leaderboardHref: string
 }
 
 export default function LeaderboardCard({
@@ -25,6 +26,7 @@ export default function LeaderboardCard({
   ctaText,
   rows,
   totalVendors,
+  leaderboardHref,
 }: LeaderboardCardProps) {
   return (
     <article className="leaderboard-card">
@@ -73,7 +75,7 @@ export default function LeaderboardCard({
       </div>
 
       <div className="card-footer">
-        <a href="/leaderboard" className="footer-link">View Full Leaderboard</a>
+        <a href={leaderboardHref} className="footer-link">View Full Leaderboard</a>
         <span className="footer-count">{totalVendors}</span>
       </div>
     </article>

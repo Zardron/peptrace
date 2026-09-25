@@ -329,7 +329,7 @@ app.get('/products/:slug/leaderboard', async (req, res) => {
   const { data: vpRows, error: vpError } = await db
     .from('VendorProduct')
     .select(
-      'id, priceMg, rating, purityPercent, testsCount, updatedAt, peptide:Peptide(id, label, slug), vendor:Vendor(id, displayName, name)',
+      'id, priceMg, rating, purityPercent, testsCount, updatedAt, peptide:Peptide!inner(id, label, slug), vendor:Vendor(id, displayName, slug)',
     )
     .eq('peptide.slug', slug);
 
@@ -348,7 +348,7 @@ app.get('/products/:slug/leaderboard', async (req, res) => {
     testsCount: number | null;
     updatedAt: string | null;
     peptide: { id: string; label: string; slug: string } | null;
-    vendor: { id: string; displayName: string; name: string | null } | null;
+    vendor: { id: string; displayName: string; slug: string | null } | null;
   }
 
   const rows = (vpRows ?? []) as unknown as VpRow[];
@@ -357,17 +357,57 @@ app.get('/products/:slug/leaderboard', async (req, res) => {
     productName = rows[0].peptide.label;
   }
 
-  let vendors = rows
-    .filter((r) => r.vendor)
-    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
-    .map((r, i) => {
-      const name = r.vendor!.displayName;
+  // Aggregate listings per vendor: one row per vendor with weighted-average
+  // ratings (weighted by test count), lowest listed price, and total tests —
+  // ranked by customer rating like the leaderboard cards on the home page.
+  interface VendorAgg {
+    id: string;
+    name: string;
+    slug: string | null;
+    pricePerMg: number | null;
+    ratingSum: number;
+    puritySum: number;
+    weightSum: number;
+    nCount: number;
+  }
+
+  const byVendor = new Map<string, VendorAgg>();
+  for (const r of rows) {
+    if (!r.vendor) continue;
+    const weight = Math.max(r.testsCount ?? 0, 1);
+    let agg = byVendor.get(r.vendor.id);
+    if (!agg) {
+      agg = {
+        id: r.vendor.id,
+        name: r.vendor.displayName,
+        slug: r.vendor.slug,
+        pricePerMg: r.priceMg,
+        ratingSum: 0,
+        puritySum: 0,
+        weightSum: 0,
+        nCount: 0,
+      };
+      byVendor.set(r.vendor.id, agg);
+    }
+    if (r.priceMg != null && (agg.pricePerMg == null || r.priceMg < agg.pricePerMg)) {
+      agg.pricePerMg = r.priceMg;
+    }
+    agg.ratingSum += (r.rating ?? 0) * weight;
+    agg.puritySum += (r.purityPercent ?? 0) * weight;
+    agg.weightSum += weight;
+    agg.nCount += r.testsCount ?? 0;
+  }
+
+  let vendors = [...byVendor.values()]
+    .sort((a, b) => b.ratingSum / b.weightSum - a.ratingSum / a.weightSum)
+    .map((agg, i) => {
       const vendorSlug =
-        name
+        agg.slug ??
+        (agg.name
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '') || `vendor-${i + 1}`;
-      const initials = name
+          .replace(/^-|-$/g, '') || `vendor-${i + 1}`);
+      const initials = agg.name
         .split(/\s+/)
         .map((w) => w[0])
         .join('')
@@ -375,14 +415,14 @@ app.get('/products/:slug/leaderboard', async (req, res) => {
         .toUpperCase();
       return {
         rank: i + 1,
-        name,
+        name: agg.name,
         slug: vendorSlug,
         initials,
         isVerified: true,
-        pricePerMg: r.priceMg ?? 0,
-        customerRating: r.rating ?? 0,
-        purityRating: r.purityPercent ?? 0,
-        nCount: r.testsCount ?? 0,
+        pricePerMg: agg.pricePerMg ?? 0,
+        customerRating: Math.round((agg.ratingSum / agg.weightSum) * 100),
+        purityRating: Math.round((agg.puritySum / agg.weightSum) * 10) / 10,
+        nCount: agg.nCount,
       };
     });
 
@@ -439,7 +479,7 @@ app.get('/products/:slug/tests', async (req, res) => {
 
   const { data: vpRows } = await db
     .from('VendorProduct')
-    .select('peptide:Peptide(label)')
+    .select('peptide:Peptide!inner(label)')
     .eq('peptide.slug', slug)
     .limit(1);
 
