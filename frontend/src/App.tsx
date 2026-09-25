@@ -11,6 +11,7 @@ import SiteFooter from './components/SiteFooter/SiteFooter'
 import VendorsList from './components/VendorsList/VendorsList'
 import VendorDetails from './components/VendorDetails/VendorDetails'
 import ShipmentDetails from './components/ShipmentDetails/ShipmentDetails'
+import FullLeaderboard from './components/FullLeaderboard/FullLeaderboard'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
 import { useAuth } from './context/AuthContext'
 import { navigate } from './lib/navigation'
@@ -27,6 +28,17 @@ const accountRoutes = new Map<string, AccountView>([
 
 const routedPaths = new Set(['/membership', '/vendors', '/testing', ...accountRoutes.keys()])
 
+const PRODUCT_LEADERBOARD_PREFIX = '/product/'
+const PRODUCT_LEADERBOARD_SUFFIX = '/leaderboard'
+
+const getProductLeaderboardSlug = (path: string): string | null => {
+  if (!path.startsWith(PRODUCT_LEADERBOARD_PREFIX) || !path.endsWith(PRODUCT_LEADERBOARD_SUFFIX)) {
+    return null
+  }
+  const slug = path.slice(PRODUCT_LEADERBOARD_PREFIX.length, -PRODUCT_LEADERBOARD_SUFFIX.length)
+  return slug ? slug : null
+}
+
 const getCurrentPagePath = () => {
   if (typeof window === 'undefined') {
     return '/'
@@ -36,6 +48,7 @@ const getCurrentPagePath = () => {
   if (routedPaths.has(path)) return path
   if (path.startsWith('/vendors/') && path !== '/vendors') return path
   if (path.startsWith('/shipment/') && path !== '/shipment') return path
+  if (getProductLeaderboardSlug(path)) return path
   return '/'
 }
 
@@ -49,6 +62,7 @@ const getModalSourcePath = () => {
   if (routedPaths.has(modalFrom)) return modalFrom
   if (modalFrom.startsWith('/vendors/') && modalFrom !== '/vendors') return modalFrom
   if (modalFrom.startsWith('/shipment/') && modalFrom !== '/shipment') return modalFrom
+  if (getProductLeaderboardSlug(modalFrom)) return modalFrom
   return '/'
 }
 
@@ -132,6 +146,7 @@ function App() {
   const isTestingPage = pagePath === '/testing'
   const isVendorsPage = pagePath === '/vendors'
   const isVendorDetailsPage = pagePath.startsWith('/vendors/') && pagePath !== '/vendors'
+  const productLeaderboardSlug = getProductLeaderboardSlug(pagePath)
   const isShipmentDetailsPage = pagePath.startsWith('/shipment/') && pagePath !== '/shipment'
   const accountView = accountRoutes.get(pagePath)
   const isAccountRoute = Boolean(accountView)
@@ -181,6 +196,14 @@ function App() {
           <HeaderBar onSignUpClick={openAuthModal} activeRoute="/vendors" />
           <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
             <VendorDetails vendorSlug={pagePath.replace('/vendors/', '')} />
+          </main>
+          <SiteFooter />
+        </>
+      ) : productLeaderboardSlug ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/products" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <FullLeaderboard slug={productLeaderboardSlug} />
           </main>
           <SiteFooter />
         </>

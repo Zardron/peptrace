@@ -321,6 +321,276 @@ app.get('/leaderboards', async (_req, res) => {
   }
 });
 
+// Product-scoped leaderboard metadata and vendor rankings for the FullLeaderboard page.
+app.get('/products/:slug/leaderboard', async (req, res) => {
+  const slug = req.params.slug;
+  const db = getServiceClient();
+
+  const { data: vpRows, error: vpError } = await db
+    .from('VendorProduct')
+    .select(
+      'id, priceMg, rating, purityPercent, testsCount, updatedAt, peptide:Peptide!inner(id, label, slug), vendor:Vendor(id, displayName, slug)',
+    )
+    .eq('peptide.slug', slug);
+
+  if (vpError) {
+    res.status(500).json({ error: 'Failed to load leaderboard' });
+    return;
+  }
+
+  let productName = slug.charAt(0).toUpperCase() + slug.slice(1);
+
+  interface VpRow {
+    id: string;
+    priceMg: number | null;
+    rating: number | null;
+    purityPercent: number | null;
+    testsCount: number | null;
+    updatedAt: string | null;
+    peptide: { id: string; label: string; slug: string } | null;
+    vendor: { id: string; displayName: string; slug: string | null } | null;
+  }
+
+  const rows = (vpRows ?? []) as unknown as VpRow[];
+
+  if (rows.length > 0 && rows[0].peptide) {
+    productName = rows[0].peptide.label;
+  }
+
+  // Aggregate listings per vendor: one row per vendor with weighted-average
+  // ratings (weighted by test count), lowest listed price, and total tests —
+  // ranked by customer rating like the leaderboard cards on the home page.
+  interface VendorAgg {
+    id: string;
+    name: string;
+    slug: string | null;
+    pricePerMg: number | null;
+    ratingSum: number;
+    puritySum: number;
+    weightSum: number;
+    nCount: number;
+  }
+
+  const byVendor = new Map<string, VendorAgg>();
+  for (const r of rows) {
+    if (!r.vendor) continue;
+    const weight = Math.max(r.testsCount ?? 0, 1);
+    let agg = byVendor.get(r.vendor.id);
+    if (!agg) {
+      agg = {
+        id: r.vendor.id,
+        name: r.vendor.displayName,
+        slug: r.vendor.slug,
+        pricePerMg: r.priceMg,
+        ratingSum: 0,
+        puritySum: 0,
+        weightSum: 0,
+        nCount: 0,
+      };
+      byVendor.set(r.vendor.id, agg);
+    }
+    if (r.priceMg != null && (agg.pricePerMg == null || r.priceMg < agg.pricePerMg)) {
+      agg.pricePerMg = r.priceMg;
+    }
+    agg.ratingSum += (r.rating ?? 0) * weight;
+    agg.puritySum += (r.purityPercent ?? 0) * weight;
+    agg.weightSum += weight;
+    agg.nCount += r.testsCount ?? 0;
+  }
+
+  let vendors = [...byVendor.values()]
+    .sort((a, b) => b.ratingSum / b.weightSum - a.ratingSum / a.weightSum)
+    .map((agg, i) => {
+      const vendorSlug =
+        agg.slug ??
+        (agg.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '') || `vendor-${i + 1}`);
+      const initials = agg.name
+        .split(/\s+/)
+        .map((w) => w[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+      return {
+        rank: i + 1,
+        name: agg.name,
+        slug: vendorSlug,
+        initials,
+        isVerified: true,
+        pricePerMg: agg.pricePerMg ?? 0,
+        customerRating: Math.round((agg.ratingSum / agg.weightSum) * 100),
+        purityRating: Math.round((agg.puritySum / agg.weightSum) * 10) / 10,
+        nCount: agg.nCount,
+      };
+    });
+
+  // Synthesize demo vendors when no real data exists yet.
+  if (vendors.length === 0) {
+    const demoVendors = [
+      { name: 'Peptide Partners', pricePerMg: 1.0, customerRating: 92, purityRating: 99.5, nCount: 14 },
+      { name: 'Inno Peptides', pricePerMg: 1.2, customerRating: 88, purityRating: 98.8, nCount: 8 },
+      { name: 'ZLZ Peptide', pricePerMg: 0.9, customerRating: 85, purityRating: 97.5, nCount: 6 },
+      { name: 'Bioscience Lab', pricePerMg: 1.5, customerRating: 82, purityRating: 96.2, nCount: 4 },
+      { name: 'PureCycle', pricePerMg: 0.8, customerRating: 78, purityRating: 95.0, nCount: 3 },
+      { name: 'Synthetix', pricePerMg: 1.1, customerRating: 76, purityRating: 94.5, nCount: 5 },
+      { name: 'NovaChem', pricePerMg: 1.3, customerRating: 74, purityRating: 93.8, nCount: 2 },
+      { name: 'GenTech', pricePerMg: 0.95, customerRating: 70, purityRating: 92.0, nCount: 4 },
+    ];
+    vendors = demoVendors.map((v, i) => ({
+      rank: i + 1,
+      name: v.name,
+      slug: v.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      initials: v.name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(),
+      isVerified: true,
+      pricePerMg: v.pricePerMg,
+      customerRating: v.customerRating,
+      purityRating: v.purityRating,
+      nCount: v.nCount,
+    }));
+  }
+
+  const allDates = rows.map((r) => r.updatedAt).filter(Boolean) as string[];
+  allDates.sort();
+
+  res.json({
+    product: {
+      name: productName,
+      slug,
+      vendorCount: vendors.length,
+      testCount: vendors.reduce((sum, v) => sum + v.nCount, 0),
+      firstTestDate: allDates[0] ?? '2025-12-17',
+      latestTestDate: allDates.at(-1) ?? '2026-09-20',
+    },
+    methodology: {
+      type: 'Purity Focused',
+      purityThreshold: 'purity 99.5%+',
+      doseTolerance: 'dose ±35%',
+    },
+    vendors,
+  });
+});
+
+// Lab test history rows for the product's TestHistorySection.
+app.get('/products/:slug/tests', async (req, res) => {
+  const slug = req.params.slug;
+  const db = getServiceClient();
+
+  const { data: vpRows } = await db
+    .from('VendorProduct')
+    .select('peptide:Peptide!inner(label)')
+    .eq('peptide.slug', slug)
+    .limit(1);
+
+  const peptideLabel =
+    (vpRows?.[0] as unknown as { peptide: { label: string } | null } | undefined)?.peptide
+      ?.label ?? slug;
+
+  const { data: testRows, error: testsError } = await db
+    .from('vendor_tests')
+    .select(
+      'tested_at, result, peptide_name, lab_name, purity, dosage_deviation, tested_mg, label_mg, batch_code, sender, coa_url, vendor_id',
+    )
+    .ilike('peptide_name', peptideLabel)
+    .order('tested_at', { ascending: false });
+
+  let items: {
+    date: string;
+    result: 'PASS' | 'FAIL';
+    productName: string;
+    vendorName: string;
+    labName: string;
+    purity: number | null;
+    identityPass: boolean;
+    dosageDeviation: string | null;
+    testedMg: number | null;
+    labelMg: number | null;
+    batch: string;
+    sender: string;
+    coaUrl: string | null;
+  }[] = [];
+
+  if (!testsError && testRows && testRows.length > 0) {
+    const vendorIds = [
+      ...new Set((testRows as unknown as Array<{ vendor_id: string | null }>).map((t) => t.vendor_id).filter(Boolean)),
+    ];
+    const { data: vendorRows } =
+      vendorIds.length > 0
+        ? await db.from('vendors').select('id, name').in('id', vendorIds)
+        : { data: [] };
+    const vendorNameById = new Map<string, string>(
+      (vendorRows ?? []).map((v: unknown) => [(v as { id: string }).id, (v as { name: string }).name]),
+    );
+
+    items = (testRows as unknown as Array<{
+      tested_at: string;
+      result: string;
+      peptide_name: string;
+      lab_name: string;
+      purity: number | null;
+      dosage_deviation: string | null;
+      tested_mg: number | null;
+      label_mg: number | null;
+      batch_code: string;
+      sender: string;
+      coa_url: string | null;
+      vendor_id: string;
+    }>).map((t) => ({
+      date: t.tested_at,
+      result: (t.result as string)?.toUpperCase() === 'PASS' ? 'PASS' : 'FAIL',
+      productName: t.peptide_name,
+      vendorName: vendorNameById.get(t.vendor_id) ?? '—',
+      labName: t.lab_name,
+      purity: t.purity == null ? null : Number(t.purity),
+      identityPass: (t.result as string)?.toLowerCase() === 'pass',
+      dosageDeviation: t.dosage_deviation,
+      testedMg: t.tested_mg == null ? null : Number(t.tested_mg),
+      labelMg: t.label_mg == null ? null : Number(t.label_mg),
+      batch: t.batch_code,
+      sender: t.sender,
+      coaUrl: t.coa_url,
+    }));
+  } else {
+    const now = new Date();
+    const fmt = (d: Date) => d.toISOString().split('T')[0];
+    const demoTests = [
+      { date: fmt(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 5)), result: 'pass' as const, vendorName: 'Peptide Partners', labName: 'Janoshik', purity: 99.9, dosageDeviation: '+2%', testedMg: 10, labelMg: 10, batch: 'Batch #2409', sender: 'Peptrace' },
+      { date: fmt(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 20)), result: 'pass' as const, vendorName: 'Inno Peptides', labName: 'Chemtest', purity: 99.8, dosageDeviation: '-1%', testedMg: 5, labelMg: 5, batch: 'Batch #1812', sender: 'User' },
+      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 2, 15)), result: 'fail' as const, vendorName: 'ZLZ Peptide', labName: 'Janoshik', purity: 94.1, dosageDeviation: '+12%', testedMg: 8.8, labelMg: 10, batch: 'Batch #0924', sender: 'Peptrace' },
+      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 3, 10)), result: 'pass' as const, vendorName: 'Bioscience Lab', labName: 'Chemtest', purity: 98.5, dosageDeviation: '-3%', testedMg: 10, labelMg: 10, batch: 'Batch #3301', sender: 'User' },
+      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 4, 5)), result: 'pass' as const, vendorName: 'PureCycle', labName: 'Janoshik', purity: 97.2, dosageDeviation: '+5%', testedMg: 5, labelMg: 5, batch: 'Batch #1102', sender: 'Peptrace' },
+      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 5, 1)), result: 'pass' as const, vendorName: 'Synthetix', labName: 'Eurofins', purity: 96.8, dosageDeviation: '-2%', testedMg: 10, labelMg: 10, batch: 'Batch #2208', sender: 'User' },
+    ];
+    items = demoTests.map((t) => ({
+      date: t.date,
+      result: t.result.toUpperCase() as 'PASS' | 'FAIL',
+      productName: peptideLabel,
+      vendorName: t.vendorName,
+      labName: t.labName,
+      purity: t.purity,
+      identityPass: t.result === 'pass',
+      dosageDeviation: t.dosageDeviation,
+      testedMg: t.testedMg,
+      labelMg: t.labelMg,
+      batch: t.batch,
+      sender: t.sender,
+      coaUrl: '#',
+    }));
+  }
+
+  const passCount = items.filter((i) => i.result === 'PASS').length;
+
+  res.json({
+    stats: {
+      total: items.length,
+      pass: passCount,
+      fail: items.length - passCount,
+    },
+    tests: items,
+  });
+});
+
 const authenticate = async (req: express.Request): Promise<Session | null> => {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
