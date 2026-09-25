@@ -1,79 +1,86 @@
-Implement the complete `FullLeaderboard` page UI so it renders the designed layout at all breakpoints instead of an error-only placeholder.
+### 1. Remove duplicated/misplaced `HomeTopInfo` pill on mobile and tablet
+**File:** `frontend/src/components/FullLeaderboard/FullLeaderboard.tsx` and `FullLeaderboard.css`  
+**Issue:** A green *“Get your free peptide safety test →”* pill is rendered below the nav links at ≤1091px, which does not appear in the Figma designs for mobile or tablet.  
+**Fix:** Conditionally hide the `HomeTopInfo` component (or the pill variant) at viewports below `1092px`. Add a CSS rule:
+```css
+@media (max-width: 1091px) {
+  .full-leaderboard__home-top-info { display: none; }
+}
+```
+At desktop (≥1092px), keep the pill as-is because it matches the design.
 
-### 1. Replace the error-only placeholder with the page layout shell
-**File:** `frontend/src/components/FullLeaderboard/FullLeaderboard.tsx`
-- **Current:** The preview shows a single sentence "Could not load product data. Please try again later." replacing the entire main content area, breaking vertical spacing and hiding all sections.
-- **Target:** Render the page scaffold unconditionally: `<HeaderBar />`, `<HomeTopInfo />`, a `<main>` page wrapper, and `<SiteFooter />`. Perform data fetching inside the page wrapper. If data fails or loads, show localized states (spinners or inline messages) inside `VendorsPanel` and `TestHistorySection`, not as a full-page text block. Maintain `gap` or `margin-bottom` between sections at ≈24px (mobile) and ≈32px (desktop) even in error states.
+### 2. Hide breadcrumbs on tablet and mobile
+**File:** `frontend/src/components/FullLeaderboard/Breadcrumbs.tsx` and `FullLeaderboard.css`  
+**Issue:** Breadcrumbs (*Products / Retatrutide*) render on tablet (744px) but are absent from the design tablet frame.  
+**Fix:** Render breadcrumbs only at desktop. Wrap the component in a media query:
+```css
+.breadcrumbs { display: none; }
+@media (min-width: 1092px) {
+  .breadcrumbs { display: block; }
+}
+```
 
-### 2. Restore the missing `HomeTopInfo` banner on desktop
-**File:** `frontend/src/components/FullLeaderboard/FullLeaderboard.tsx`
-- **Discrepancy:** At 1440px the green "Get your free peptide safety test →" banner is absent in the preview.
-- **Action:** Import and render `<HomeTopInfo />` immediately after `<HeaderBar />` for **all** breakpoints. Do not hide it on desktop; the design explicitly includes it at 1440px.
+### 3. Rebuild `MethodologyBadge` container and layout
+**File:** `frontend/src/components/FullLeaderboard/MethodologyBadge.tsx` and `FullLeaderboard.css`  
+**Issues:** 
+- Missing bordered container with rounded corners and dropdown chevron.
+- Desktop preview incorrectly floats the badge to the right of the title block instead of placing it below the stats line.
+- *“View methodology”* is inside the container on desktop; design places it outside/to the right.
 
-### 3. Build `Breadcrumbs`
-**File:** `frontend/src/components/FullLeaderboard/Breadcrumbs.tsx`
-- Render "Products / Retatrutide" as text links.
-- **Typography:** Small, muted gray (`#6B7280` or similar) for inactive; slightly darker for the current page. Regular weight.
-- **Spacing:** Horizontal padding must match the page gutter (see Section 8). Top padding below the banner ≈16px mobile, ≈24px desktop.
+**Fixes:**
+- Wrap the inner pills/text in a container with:
+  - `background: #ffffff`
+  - `border: 1px solid #e5e7eb` (or the design-system gray-200 equivalent)
+  - `border-radius: 8px`
+  - `padding: 8px 12px`
+  - `display: inline-flex; align-items: center; gap: 8px;`
+- Append a down-chevron icon (`<ChevronDown />` or SVG) as the last child of that container.
+- At desktop (≥1092px), place the badge container on its own line below the stats row (`margin-top: 16px`), and place *“View methodology”* as a separate inline link to the right of the container (`margin-left: 16px`), not inside it.
+- At mobile/tablet, keep the container left-aligned and place *“View methodology”* below it (`display: block; margin-top: 8px;`).
 
-### 4. Build `ProductHeader`
-**File:** `frontend/src/components/FullLeaderboard/ProductHeader.tsx`
-- **Title "Retatrutide":** Bold, near-black, size ≈32px mobile and ≈40px desktop.
-- **Subtitle "methodology · Purity focus":** Regular weight, muted gray, ≈14–16px, with `margin-top: 4px`.
-- **Stats line "293 vendors 3,858 tests 17 Dec 2025 first 20 Sept 2026 latest":** Regular weight, muted gray, ≈12–14px, with `margin-top: 8px`.
-- **Layout:** Stack vertically on mobile. On desktop, allow the methodology badge to sit on the same horizontal row as the title block (flex row, space-between or flex-start with large gap).
+### 4. Correct page subtitle copy
+**File:** `frontend/src/components/FullLeaderboard/ProductHeader.tsx`  
+**Issue:** The subtitle reads *“methodology · Purity Focused”*; design specifies *“methodology · Purity focus”*.  
+**Fix:** Change the hard-coded string (or the data mapping) to exactly:
+```tsx
+<span>methodology · Purity focus</span>
+```
 
-### 5. Build `MethodologyBadge`
-**File:** `frontend/src/components/FullLeaderboard/MethodologyBadge.tsx`
-- **Elements:** Text label "Purity Focused"; pill badges "purity 99.5%+" and "dose ±35%"; a downward chevron; and a "View methodology" link.
-- **Pill styling:** Dark green fill (`#064E3B` or similar), white text, `border-radius: 9999px`, `padding: 4px 12px`, small font size (≈12px), medium weight.
-- **Link styling:** Green text (`#059669`), underlined or semibold, positioned to the right of the badge group on desktop.
-- **Responsive:** Stack below the product header on mobile/tablet; align inline with the header on desktop (≥1092px).
+### 5. Fix vendor table header typography
+**File:** `frontend/src/components/FullLeaderboard/VendorsPanel.tsx` and `FullLeaderboard.css`  
+**Issue:** Table headers are rendered in ALL CAPS. Design uses Title Case.  
+**Fix:** Update header labels:
+- `#` → `#` (keep)
+- `VENDOR` → `Vendor`
+- `$/MG` → `$/mg`
+- `CUSTOMER RATING` → `Customer Rating`
+- `PURITY RATING` → `Purity Rating`
+- `N` → `N` (keep)
+Remove any `text-transform: uppercase` rules targeting `.vendor-table th`.
 
-### 6. Build `VendorsPanel`
-**Files:** `frontend/src/components/FullLeaderboard/VendorsPanel.tsx` and optional row sub-component.
-- **Panel container:** White background, `border: 1px solid #E5E7EB`, `border-radius: 12px`, internal padding ≈16px mobile / ≈24px desktop.
-- **Header:** "Vendors" (bold, ≈20px), subtitle "Filter and compare verified suppliers" (muted, ≈14px), `margin-bottom: 16px`.
-- **Toolbar:**
-  - Search field: rounded border, magnifying glass icon, placeholder "Search vendor...". Width: 100% on mobile; ≈320px on desktop.
-  - Filter dropdowns: `Rating Sort`, `Rating`, `Price`, `Customer` (with inline star icon), `N`. Light gray border, rounded (`border-radius: 6px`), small padding (`8px 12px`), font size ≈13–14px.
-  - Layout: wrapping flex row. On mobile, two rows of filters; on desktop, single row with `gap: 8–12px`.
-- **Vendor table / list:**
-  - **Mobile (≤566px):** Hide table headers. Each vendor renders as a card-like row: ranking number (muted, fixed width), colored circle with initials, vendor name (bold), "Verified Supplier" microtext, orange "Get report" link, price right-aligned, purity percentage in a green pill. `Customer Rating` and `N` columns are hidden.
-  - **Tablet (567–1091px):** Show headers `#`, `Vendor`, `$/mg`, `Customer Rating`, `Purity Rating`, `N`. Row height ≈64px. Allow horizontal scroll if the container is too narrow.
-  - **Desktop (≥1092px):** Full table with all columns. Vendor cell: initials circle + name + "Verified Supplier" + "Get report". Customer Rating: yellow star icon + score + count in parentheses. Purity Rating: green percentage pill. N: plain number. Column alignment: `#` centered, text columns left-aligned, numeric columns right-aligned or consistent.
+### 6. Fix TestHistorySection table header visibility and COA badge icon
+**File:** `frontend/src/components/FullLeaderboard/TestHistorySection.tsx`  
+**Issues:** 
+- On mobile the table headers (`DATE`, `RESULT`, `TEST`) are missing when data fails to load.
+- The *“COA-BACKED LAB TESTS”* badge uses a document icon instead of the green dot from the design.
 
-### 7. Build `TestHistorySection`
-**File:** `frontend/src/components/FullLeaderboard/TestHistorySection.tsx`
-- **Section header:** "Retatrutide test history" (bold, ≈20px). Stats: "18 TESTS · 17 PASS · 1 FAIL" in small caps; PASS text green, FAIL text red. "COA-BACKED LAB TESTS" badge with a green dot and small uppercase text.
-- **Table header:** Light gray background or bottom border, uppercase labels ≈11–12px, muted color, semibold.
-- **Columns by breakpoint:**
-  - Mobile: `DATE`, `RESULT`, `TEST`.
-  - Tablet: add `LAB`, `PURITY`, `DOSAGE`.
-  - Desktop: add `LABEL`, `COA`.
-- **Row styling:**
-  - Date: bold, dark.
-  - Result: green dot + "Pass" (green text) or red dot + "Fail" (red text). On failed rows, add a red micro-note "purity below standard" below the row.
-  - Test: product name bold, vendor name muted below.
-  - Lab: dark pill/badge "LAB NAME".
-  - Purity: bold percentage + "identity Pass" microtext.
-  - Dosage: bold deviation (e.g., "-15%") + microtext "34 mg tested / 40 mg label".
-  - Label: batch info + sender info.
-  - COA: green outlined button "VIEW COA", small rounded corners.
-- **Responsive:** At mobile, render rows as stacked blocks. At tablet/desktop, render as standard table rows with `border-bottom: 1px solid #E5E7EB` and adequate cell padding (≈12px mobile, ≈16px desktop).
+**Fixes:**
+- Ensure the `<thead>` row is part of the rendered markup regardless of data state (show headers even when the body shows an empty/error state).
+- Replace the document icon with a simple green dot element:
+  ```tsx
+  <span className="coa-dot" style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#10b981', marginRight: 6 }} />
+  ```
+  or use the design-system equivalent.
 
-### 8. Define responsive page gutters and container
-**File:** `frontend/src/components/FullLeaderboard/FullLeaderboard.css`
-- **Mobile (≤566px):** Page wrapper `padding: 0 16px`; section spacing `margin-bottom: 24px`.
-- **Tablet (567–1091px):** Page wrapper `padding: 0 32px`; section spacing `margin-bottom: 28px`.
-- **Desktop (≥1092px):** Page wrapper `max-width: 1280px` (or `1440px` per design), centered, `padding: 0 64px`; section spacing `margin-bottom: 32px`.
-- Ensure all internal cards (`VendorsPanel`, `TestHistorySection`) use `background: #FFFFFF` and `border: 1px solid #E5E7EB` to match the elevated card surfaces in Figma.
+### 7. Restore populated table layouts and loading/empty states
+**File:** `frontend/src/components/FullLeaderboard/VendorsPanel.tsx`, `TestHistorySection.tsx`  
+**Issue:** Both panels currently render error messages (*“Unable to load vendors…”* / *“Unable to load test history…”*) instead of the design’s populated rows.  
+**Fix:** While this is partly a backend/data issue, the frontend should at minimum:
+- Render row markup that matches the Figma spacing and alignment so that when data arrives the visual structure is correct.
+- Verify that `VendorsPanel` row items use the expected grid/flex columns: rank (`40px`), vendor info (flex), `$/mg` (`80px`), customer rating (`120px`), purity rating (`100px`), N (`60px`).
+- Verify that `TestHistorySection` desktop rows display all 8 columns: `DATE` (`100px`), `RESULT` (`80px`), `TEST` (`flex`), `LAB` (`100px`), `PURITY` (`80px`), `DOSAGE` (`100px`), `LABEL` (`140px`), `COA` (`100px`).
+- Ensure the green `VIEW COA` pill buttons in the test-history table match the design’s `background-color`, `border-radius`, and `font-weight`.
 
-### 9. Wire data fetching without destroying layout
-**File:** `frontend/src/components/FullLeaderboard/FullLeaderboard.tsx`
-- Use `useEffect` to call `GET /products/:slug/leaderboard` and `GET /products/:slug/tests`.
-- On network error or missing data, render the empty table structures with a centered inline message (e.g., "Unable to load vendors") **inside** the panel, preserving the designed panel borders, padding, and spacing. Do not return early from the component with a plain string.
-
-### 10. Route verification
-**File:** `frontend/src/App.tsx`
-- Confirm the route `/products/:slug` renders the `FullLeaderboard` component inside the standard layout that already includes `HeaderBar` and `SiteFooter`. The preview shell is correct; only the page component interior is missing.
+### 8. Header & Footer check (no changes)
+**File:** `frontend/src/components/HeaderBar/HeaderBar.tsx`, `SiteFooter/SiteFooter.tsx`  
+**Verdict:** The `HeaderBar` and `SiteFooter` instances match the design across all three breakpoints. No modifications required.
