@@ -1,6 +1,3 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faFileLines } from '@fortawesome/free-solid-svg-icons'
-
 interface TestItem {
   date: string
   result: 'PASS' | 'FAIL'
@@ -45,7 +42,7 @@ export default function TestHistorySection({ productName, stats, tests, loading,
           </p>
         </div>
         <span className="fl-coa-badge">
-          <FontAwesomeIcon icon={faFileLines} className="fl-coa-badge-icon" />
+          <span className="fl-coa-dot" />
           COA-BACKED LAB TESTS
         </span>
       </div>

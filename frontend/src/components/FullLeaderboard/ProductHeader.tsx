@@ -24,7 +24,7 @@ export default function ProductHeader({
   return (
     <div className="fl-product-header">
       <h1 className="fl-product-title">{name}</h1>
-      <p className="fl-product-subtitle">methodology · {methodology}</p>
+      <p className="fl-product-subtitle">methodology · Purity focus</p>
       <p className="fl-product-meta">
         {vendorCount} vendors&nbsp;&nbsp;&nbsp;{testCount.toLocaleString()} tests&nbsp;&nbsp;&nbsp;{formatDate(firstTestDate)} first&nbsp;&nbsp;&nbsp;{formatDate(latestTestDate)} latest
       </p>

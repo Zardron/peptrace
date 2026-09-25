@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import searchIcon from '../../assets/vendors/search.svg'
 import chevronDown from '../../assets/vendors/chevron-down.svg'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -94,7 +95,7 @@ export default function VendorsPanel({ vendors, loading, error }: VendorsPanelPr
           <FilterDropdown value={ratingSort} options={['Rating Sort', 'Rating: High to Low', 'Rating: Low to High', 'Price: Low to High', 'Price: High to Low']} onChange={setRatingSort} />
           <FilterDropdown value={ratingFilter} options={['Rating', '90%+', '80%+', '70%+']} onChange={setRatingFilter} />
           <FilterDropdown value={priceFilter} options={['Price', '< $1', '$1 – $2', '> $2']} onChange={setPriceFilter} />
-          <FilterDropdown value={starsFilter} options={['Customer', '5★', '4★+']} onChange={setStarsFilter} />
+          <FilterDropdown value={starsFilter} options={['Customer', '5★', '4★+']} onChange={setStarsFilter} icon={<FontAwesomeIcon icon={faStar} className="fl-filter-star-icon" />} />
           <FilterDropdown value={nFilter} options={['N', 'N > 5', 'N > 10']} onChange={setNFilter} />
         </div>
       </div>
@@ -143,7 +144,7 @@ export default function VendorsPanel({ vendors, loading, error }: VendorsPanelPr
               <span className="col-price">${row.pricePerMg.toFixed(2)}</span>
               <span className="col-rating">
                 <FontAwesomeIcon icon={faStar} className="fl-star-icon" />
-                {row.customerRating}%
+                {row.customerRating} <span className="col-rating-count">({row.nCount})</span>
               </span>
               <span className="col-purity">{row.purityRating}%</span>
               <span className="col-n">{row.nCount}</span>
@@ -162,9 +163,10 @@ interface FilterDropdownProps {
   value: string
   options: string[]
   onChange: (value: string) => void
+  icon?: React.ReactNode
 }
 
-function FilterDropdown({ value, options, onChange }: FilterDropdownProps) {
+function FilterDropdown({ value, options, onChange, icon }: FilterDropdownProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -177,6 +179,7 @@ function FilterDropdown({ value, options, onChange }: FilterDropdownProps) {
         aria-expanded={open}
       >
         <span>{value}</span>
+        {icon}
         <img src={chevronDown} alt="" className={`fl-filter-chevron${open ? ' open' : ''}`} />
       </button>
       {open && (

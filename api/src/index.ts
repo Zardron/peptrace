@@ -389,21 +389,21 @@ app.get('/products/:slug/leaderboard', async (req, res) => {
   // Synthesize demo vendors when no real data exists yet.
   if (vendors.length === 0) {
     const demoVendors = [
-      { name: 'Peptide Partners', pricePerMg: 1.0, customerRating: 92, purityRating: 99.5, nCount: 14 },
-      { name: 'Inno Peptides', pricePerMg: 1.2, customerRating: 88, purityRating: 98.8, nCount: 8 },
-      { name: 'ZLZ Peptide', pricePerMg: 0.9, customerRating: 85, purityRating: 97.5, nCount: 6 },
-      { name: 'Bioscience Lab', pricePerMg: 1.5, customerRating: 82, purityRating: 96.2, nCount: 4 },
-      { name: 'PureCycle', pricePerMg: 0.8, customerRating: 78, purityRating: 95.0, nCount: 3 },
-      { name: 'Synthetix', pricePerMg: 1.1, customerRating: 76, purityRating: 94.5, nCount: 5 },
-      { name: 'NovaChem', pricePerMg: 1.3, customerRating: 74, purityRating: 93.8, nCount: 2 },
-      { name: 'GenTech', pricePerMg: 0.95, customerRating: 70, purityRating: 92.0, nCount: 4 },
+      { name: 'Peptide Partners', pricePerMg: 1.45, customerRating: 4.9, purityRating: 93, nCount: 142, isVerified: true },
+      { name: 'Inno Peptides', pricePerMg: 1.52, customerRating: 4.8, purityRating: 91, nCount: 128, isVerified: true },
+      { name: 'ZLZ Peptide', pricePerMg: 1.58, customerRating: 4.7, purityRating: 91, nCount: 115, isVerified: true },
+      { name: 'Bioscience Lab', pricePerMg: 1.65, customerRating: 4.6, purityRating: 89, nCount: 89, isVerified: false },
+      { name: 'PureCycle', pricePerMg: 1.72, customerRating: 4.5, purityRating: 88, nCount: 76, isVerified: false },
+      { name: 'Synthetix', pricePerMg: 1.80, customerRating: 4.4, purityRating: 86, nCount: 64, isVerified: false },
+      { name: 'NovaChem', pricePerMg: 1.85, customerRating: 4.3, purityRating: 85, nCount: 58, isVerified: false },
+      { name: 'GenTech', pricePerMg: 1.90, customerRating: 4.2, purityRating: 84, nCount: 52, isVerified: false },
     ];
     vendors = demoVendors.map((v, i) => ({
       rank: i + 1,
       name: v.name,
       slug: v.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
       initials: v.name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(),
-      isVerified: true,
+      isVerified: v.isVerified,
       pricePerMg: v.pricePerMg,
       customerRating: v.customerRating,
       purityRating: v.purityRating,
@@ -512,15 +512,17 @@ app.get('/products/:slug/tests', async (req, res) => {
       coaUrl: t.coa_url,
     }));
   } else {
-    const now = new Date();
-    const fmt = (d: Date) => d.toISOString().split('T')[0];
     const demoTests = [
-      { date: fmt(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 5)), result: 'pass' as const, vendorName: 'Peptide Partners', labName: 'Janoshik', purity: 99.9, dosageDeviation: '+2%', testedMg: 10, labelMg: 10, batch: 'Batch #2409', sender: 'Peptrace' },
-      { date: fmt(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 20)), result: 'pass' as const, vendorName: 'Inno Peptides', labName: 'Chemtest', purity: 99.8, dosageDeviation: '-1%', testedMg: 5, labelMg: 5, batch: 'Batch #1812', sender: 'User' },
-      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 2, 15)), result: 'fail' as const, vendorName: 'ZLZ Peptide', labName: 'Janoshik', purity: 94.1, dosageDeviation: '+12%', testedMg: 8.8, labelMg: 10, batch: 'Batch #0924', sender: 'Peptrace' },
-      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 3, 10)), result: 'pass' as const, vendorName: 'Bioscience Lab', labName: 'Chemtest', purity: 98.5, dosageDeviation: '-3%', testedMg: 10, labelMg: 10, batch: 'Batch #3301', sender: 'User' },
-      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 4, 5)), result: 'pass' as const, vendorName: 'PureCycle', labName: 'Janoshik', purity: 97.2, dosageDeviation: '+5%', testedMg: 5, labelMg: 5, batch: 'Batch #1102', sender: 'Peptrace' },
-      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 5, 1)), result: 'pass' as const, vendorName: 'Synthetix', labName: 'Eurofins', purity: 96.8, dosageDeviation: '-2%', testedMg: 10, labelMg: 10, batch: 'Batch #2208', sender: 'User' },
+      { date: '2026-08-03', result: 'pass' as const, vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.9, dosageDeviation: '-15%', testedMg: 34, labelMg: 40, batch: 'Batch March 7, 2026', sender: 'sent by Public' },
+      { date: '2026-07-30', result: 'pass' as const, vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.8, dosageDeviation: '+6%', testedMg: 21.2, labelMg: 20, batch: 'Batch 258014', sender: 'sent by Public' },
+      { date: '2025-07-13', result: 'fail' as const, vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.2, dosageDeviation: '+8%', testedMg: 10.8, labelMg: 10, batch: 'No label / Copper crimp / Clear cap', sender: 'sent by Public' },
+      { date: '2025-07-13', result: 'pass' as const, vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.9, dosageDeviation: '-19%', testedMg: 40.7, labelMg: 50, batch: 'Batch May 6, 2025', sender: 'sent by Public' },
+      { date: '2025-06-08', result: 'pass' as const, vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.8, dosageDeviation: '+1%', testedMg: 30.4, labelMg: 30, batch: 'Batch March 6, 2025', sender: 'sent by Public' },
+      { date: '2025-06-02', result: 'pass' as const, vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.9, dosageDeviation: '-2%', testedMg: 9.79, labelMg: 10, batch: 'Batch 258013', sender: 'sent by Public' },
+      { date: '2025-04-02', result: 'pass' as const, vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.6, dosageDeviation: '+2%', testedMg: 20.4, labelMg: 20, batch: 'Batch Feb 5, 2025', sender: 'sent by Public' },
+      { date: '2025-03-07', result: 'pass' as const, vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.8, dosageDeviation: '+9%', testedMg: 21.7, labelMg: 20, batch: 'Batch 021525', sender: 'sent by Public' },
+      { date: '2025-03-02', result: 'pass' as const, vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.9, dosageDeviation: '-12%', testedMg: 88.2, labelMg: 100, batch: 'Batch Jan 2, 2025', sender: 'sent by Public' },
+      { date: '2025-02-18', result: 'pass' as const, vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.9, dosageDeviation: '-12%', testedMg: 17.6, labelMg: 20, batch: 'No Label / Gold Crimp / Clear Cap', sender: 'sent by Public' },
     ];
     items = demoTests.map((t) => ({
       date: t.date,

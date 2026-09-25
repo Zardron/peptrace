@@ -115,14 +115,21 @@
 }
 
 /* Methodology badge */
-.fl-methodology-badge {
+.methodology-badge-outer {
   display: flex;
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  background: #ffffff;
+}
+
+.fl-methodology-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 8px 20px;
+  padding: 8px 12px;
   font-size: 13px;
 }
 
@@ -136,17 +143,18 @@
   display: inline-flex;
   align-items: center;
   padding: 4px 12px;
-  background: var(--primary);
+  background: #047857;
   color: #ffffff;
   font-size: 12px;
-  font-weight: 700;
-  border-radius: 999px;
-  letter-spacing: 0.48px;
+  font-weight: 500;
+  border-radius: 9999px;
 }
 
-.fl-methodology-dose {
-  color: #888888;
-  font-weight: 400;
+.fl-methodology-chevron {
+  width: 16px;
+  height: 16px;
+  color: #6b7280;
+  flex-shrink: 0;
 }
 
 .fl-methodology-link {
@@ -349,10 +357,10 @@
   background: #f5f7f6;
   padding: 14px 20px;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.88px;
-  color: #7e7e7e;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #6b7280;
+  text-transform: none;
   white-space: nowrap;
   gap: 12px;
 }
@@ -449,6 +457,12 @@
   color: #f59e0b;
 }
 
+.fl-filter-star-icon {
+  width: 14px;
+  height: 14px;
+  color: #f59e0b;
+}
+
 .col-purity {
   font-weight: 500;
 }
@@ -526,10 +540,12 @@
   white-space: nowrap;
 }
 
-.fl-coa-badge-icon {
-  width: 14px;
-  height: 14px;
-  color: #7e7e7e;
+.fl-coa-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10b981;
+  flex-shrink: 0;
 }
 
 .fl-test-table-wrap {
@@ -656,8 +672,39 @@
   gap: 12px;
 }
 
+/* Desktop spacing */
+@media (min-width: 1092px) {
+  .fl-inner {
+    gap: 0;
+  }
+
+  .fl-breadcrumbs {
+    margin-bottom: 16px;
+  }
+
+  .fl-header-row {
+    margin-bottom: 16px;
+  }
+
+  .methodology-badge-wrapper {
+    margin-bottom: 24px;
+  }
+
+  .fl-vendors-panel {
+    margin-bottom: 24px;
+  }
+
+  .fl-test-history {
+    margin-bottom: 24px;
+  }
+}
+
 /* Tablet */
 @media (max-width: 1091px) {
+  .home-top-info-wrapper {
+    display: none;
+  }
+
   .fl-inner {
     padding: 20px 16px 0;
     gap: 16px;
@@ -692,6 +739,13 @@
   .fl-test-table td {
     padding: 10px 16px;
   }
+
+  .fl-test-table th:nth-child(7),
+  .fl-test-table td:nth-child(7),
+  .fl-test-table th:nth-child(8),
+  .fl-test-table td:nth-child(8) {
+    display: none;
+  }
 }
 
 /* Mobile */
@@ -721,6 +775,12 @@
 
   .fl-methodology-mobile {
     display: block;
+  }
+
+  .methodology-badge-outer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
   }
 
   .fl-methodology-badge {

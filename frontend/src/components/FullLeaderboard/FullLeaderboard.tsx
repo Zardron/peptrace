@@ -93,6 +93,30 @@ const DEFAULT_STATS: TestStats = {
   fail: 1,
 }
 
+const DEFAULT_VENDORS: Vendor[] = [
+  { rank: 1, name: 'Peptide Partners', slug: 'peptide-partners', initials: 'PP', isVerified: true, pricePerMg: 1.45, customerRating: 4.9, purityRating: 93, nCount: 142 },
+  { rank: 2, name: 'Inno Peptides', slug: 'inno-peptides', initials: 'IP', isVerified: true, pricePerMg: 1.52, customerRating: 4.8, purityRating: 91, nCount: 128 },
+  { rank: 3, name: 'ZLZ Peptide', slug: 'zlz-peptide', initials: 'ZL', isVerified: true, pricePerMg: 1.58, customerRating: 4.7, purityRating: 91, nCount: 115 },
+  { rank: 4, name: 'Bioscience Lab', slug: 'bioscience-lab', initials: 'BL', isVerified: false, pricePerMg: 1.65, customerRating: 4.6, purityRating: 89, nCount: 89 },
+  { rank: 5, name: 'PureCycle', slug: 'purecycle', initials: 'PC', isVerified: false, pricePerMg: 1.72, customerRating: 4.5, purityRating: 88, nCount: 76 },
+  { rank: 6, name: 'Synthetix', slug: 'synthetix', initials: 'SX', isVerified: false, pricePerMg: 1.80, customerRating: 4.4, purityRating: 86, nCount: 64 },
+  { rank: 7, name: 'NovaChem', slug: 'novachem', initials: 'NC', isVerified: false, pricePerMg: 1.85, customerRating: 4.3, purityRating: 85, nCount: 58 },
+  { rank: 8, name: 'GenTech', slug: 'gentech', initials: 'GT', isVerified: false, pricePerMg: 1.90, customerRating: 4.2, purityRating: 84, nCount: 52 },
+]
+
+const DEFAULT_TESTS: TestItem[] = [
+  { date: '2026-08-03', result: 'PASS', productName: 'Retatrutide', vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.9, identityPass: true, dosageDeviation: '-15%', testedMg: 34, labelMg: 40, batch: 'Batch March 7, 2026', sender: 'sent by Public', coaUrl: '#' },
+  { date: '2026-07-30', result: 'PASS', productName: 'Retatrutide', vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.8, identityPass: true, dosageDeviation: '+6%', testedMg: 21.2, labelMg: 20, batch: 'Batch 258014', sender: 'sent by Public', coaUrl: '#' },
+  { date: '2025-07-13', result: 'FAIL', productName: 'Retatrutide', vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.2, identityPass: true, dosageDeviation: '+8%', testedMg: 10.8, labelMg: 10, batch: 'No label / Copper crimp / Clear cap', sender: 'sent by Public', coaUrl: '#' },
+  { date: '2025-07-13', result: 'PASS', productName: 'Retatrutide', vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.9, identityPass: true, dosageDeviation: '-19%', testedMg: 40.7, labelMg: 50, batch: 'Batch May 6, 2025', sender: 'sent by Public', coaUrl: '#' },
+  { date: '2025-06-08', result: 'PASS', productName: 'Retatrutide', vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.8, identityPass: true, dosageDeviation: '+1%', testedMg: 30.4, labelMg: 30, batch: 'Batch March 6, 2025', sender: 'sent by Public', coaUrl: '#' },
+  { date: '2025-06-02', result: 'PASS', productName: 'Retatrutide', vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.9, identityPass: true, dosageDeviation: '-2%', testedMg: 9.79, labelMg: 10, batch: 'Batch 258013', sender: 'sent by Public', coaUrl: '#' },
+  { date: '2025-04-02', result: 'PASS', productName: 'Retatrutide', vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.6, identityPass: true, dosageDeviation: '+2%', testedMg: 20.4, labelMg: 20, batch: 'Batch Feb 5, 2025', sender: 'sent by Public', coaUrl: '#' },
+  { date: '2025-03-07', result: 'PASS', productName: 'Retatrutide', vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.8, identityPass: true, dosageDeviation: '+9%', testedMg: 21.7, labelMg: 20, batch: 'Batch 021525', sender: 'sent by Public', coaUrl: '#' },
+  { date: '2025-03-02', result: 'PASS', productName: 'Retatrutide', vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.9, identityPass: true, dosageDeviation: '-12%', testedMg: 88.2, labelMg: 100, batch: 'Batch Jan 2, 2025', sender: 'sent by Public', coaUrl: '#' },
+  { date: '2025-02-18', result: 'PASS', productName: 'Retatrutide', vendorName: 'Zenith Jode Peptide', labName: 'LAB NAME', purity: 99.9, identityPass: true, dosageDeviation: '-12%', testedMg: 17.6, labelMg: 20, batch: 'No Label / Gold Crimp / Clear Cap', sender: 'sent by Public', coaUrl: '#' },
+]
+
 export default function FullLeaderboard({ slug }: FullLeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null)
   const [testsData, setTestsData] = useState<TestsData | null>(null)
@@ -133,9 +157,9 @@ export default function FullLeaderboard({ slug }: FullLeaderboardProps) {
 
   const product = leaderboard?.product ?? DEFAULT_PRODUCT
   const methodology = leaderboard?.methodology ?? DEFAULT_METHODOLOGY
-  const vendors = leaderboard?.vendors ?? []
+  const vendors = leaderboard?.vendors ?? DEFAULT_VENDORS
   const stats = testsData?.stats ?? DEFAULT_STATS
-  const tests = testsData?.tests ?? []
+  const tests = testsData?.tests ?? DEFAULT_TESTS
 
   return (
     <div className="full-leaderboard">
@@ -151,13 +175,14 @@ export default function FullLeaderboard({ slug }: FullLeaderboardProps) {
             firstTestDate={product.firstTestDate}
             latestTestDate={product.latestTestDate}
           />
-          <div className="fl-methodology-desktop">
-            <MethodologyBadge
-              type={methodology.type}
-              purityThreshold={methodology.purityThreshold}
-              doseTolerance={methodology.doseTolerance}
-            />
-          </div>
+        </div>
+
+        <div className="fl-methodology-desktop methodology-badge-wrapper">
+          <MethodologyBadge
+            type={methodology.type}
+            purityThreshold={methodology.purityThreshold}
+            doseTolerance={methodology.doseTolerance}
+          />
         </div>
 
         <div className="fl-methodology-mobile">
