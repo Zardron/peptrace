@@ -1,61 +1,26 @@
-**1. Add missing responsive grid layouts in `MethodologyPage.css`**
+### 1. `frontend/src/components/HeaderBar/HeaderBar.tsx` and `HeaderBar.css`
+- **Mobile (390px) collapse:** Ensure the primary nav list (`<ul>` or nav container holding `rankings`, `about`, `news`, `membership`) and the action button group (`vendors`, `sign up`) are hidden with `display: none` below the mobile breakpoint (≤566px). Only the logo and the hamburger toggle should remain visible. Currently these elements are leaking into the 390px view.
+- **Desktop (1440px) missing link:** Restore the `rankings` link in the header navigation array/map so it renders as the first item after the logo. The current preview omits it entirely at desktop widths.
 
-The following sections are implemented as single-column stacks but must be CSS grids at tablet (`567 px+`) and desktop (`1092 px+`) breakpoints.
+### 2. `frontend/src/components/MethodologyPage/MethodologyPage.css`
+- **Methodology two-column grid ratio:**
+  - Target: Asymmetric columns (Analysts narrower, Vendors wider).
+  - Change the grid definition for `.methodology-section` (or its equivalent container) from a balanced split such as `grid-template-columns: 1fr 1fr` to roughly `grid-template-columns: 2fr 3fr` or `40% 60%` on tablet (`min-width: 567px`) and desktop (`min-width: 1092px`). Verify the Vendors policy cards no longer wrap prematurely.
+- **Standards table header background:**
+  - Target: Light gray header row.
+  - Add `background-color: var(--color-gray-100, #f5f5f5)` to the table header row (`thead tr` or `th`). Currently it is transparent/white.
+- **Standards table column alignment:**
+  - Target: Metric columns evenly distributed under their headers.
+  - Apply `text-align: center` (or matching design alignment) to the `th` and `td` cells in the `PURITY`, `QUANTITY`, `LABELING`, and `SOMETIMES` columns. Currently they appear left-aligned.
+- **Formula cards padding and typography:**
+  - Target: Compact cards with prominent equations.
+  - Reduce `padding` inside `.formula-card` (or equivalent) from the current generous value to a tighter value (e.g., `1rem` or `1.25rem` vertical) to match the design’s compact grid.
+  - Increase the equation text size: set `.formula-card .equation` (or the element wrapping the formula) to a larger `font-size` (e.g., `1.25rem`–`1.5rem`) and ensure `font-weight` is at least `500` or `600` so the math matches the visual hierarchy in the design.
 
-- **How the Labeling Score Works** (four items):
-  - Target: `display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;` at `min-width: 567px`.
-  - Current: single-column `display: block` stack.
-  - Selector: `.methodology-labeling-works-grid` (or the container wrapping the four labeling cards).
+### 3. `frontend/src/components/SiteFooter/SiteFooter.tsx` and `SiteFooter.css`
+- **Footer column title prefix:**
+  - Target: Pipe character before each column heading.
+  - Either prepend `"| "` directly to the heading strings (`| Explore`, `| Testing`, `| Legal`) or add a CSS `::before` pseudo-element with `content: "|"; margin-right: 0.5em;` to `.footer-column-title`. The design consistently shows this prefix across all breakpoints; the preview does not.
 
-- **Natural Rating vs Final Rating** (three step cards):
-  - Target: `display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;` at `min-width: 567px`.
-  - Current: single-column stack.
-  - Selector: `.methodology-rating-steps-grid`.
-
-- **The Formulas** (six formula cards):
-  - Target: `display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;` at `min-width: 567px`.
-  - Current: single-column stack.
-  - Selector: `.methodology-formulas-grid`.
-
-- **How to Read the Final Rating** (three interpretation cards):
-  - Target: `display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;` at `min-width: 567px`.
-  - Current: single-column stack.
-  - Selector: `.methodology-reading-results-grid`.
-
-All grids should collapse to a single column at `max-width: 566px` (mobile) with `grid-template-columns: 1fr` and `gap: 16px`.
-
-**2. Tighten standards table density in `MethodologyPage.css`**
-
-- Current: table cells appear to use generous `padding` (approx `16px 16px`) and/or `line-height` values that make rows too tall.
-- Target: reduce to `padding: 8px 12px` (or nearest existing token) and ensure `line-height: 1.4` so row heights match the compact design. Apply to `.standards-table th, .standards-table td`.
-
-**3. Style the “Methodology note” callout box in `MethodologyPage.css`**
-
-- Current: plain text paragraph under the left column of “How the Labeling Score Is Calculated”.
-- Target: add a light gray background container. Example:
-  ```css
-  .methodology-note {
-    background-color: var(--color-gray-50, #f9fafb);
-    border-left: 3px solid var(--color-primary, #0d9488);
-    padding: 12px 16px;
-    border-radius: 4px;
-    font-size: 0.875rem;
-  }
-  ```
-
-**4. Fix mobile header breakpoint behavior in `HeaderBar` (or verify viewport meta-tag)**
-
-- Discrepancy: at `390px` the preview shows the desktop `vendors` / `sign up` button group instead of the hamburger menu.
-- If `HeaderBar` uses a hard-coded breakpoint (e.g., `min-width: 768px`), lower it to `min-width: 567px` to align with the project’s `0–566px` mobile breakpoint so the hamburger menu appears at `390px`.
-- If the component logic is correct, confirm the page includes the viewport meta tag (`<meta name="viewport" content="width=device-width, initial-scale=1">`) so media queries evaluate against the actual device width.
-
-**5. Verify section spacing tokens in `MethodologyPage.css`**
-
-- Ensure major sections use consistent `margin-bottom` (or `padding-bottom`) of roughly `64px` on desktop and `48px` on mobile to match the visual rhythm in the design.
-- The two-column “Methodology” section should use `gap: 32px` (desktop) and `gap: 24px` (tablet) to match the design’s column separation.
-
-**6. Keep existing correct implementations untouched**
-
-- The two-column layouts for **Methodology** (Analysts vs Vendors) and **Labeling Score Is Calculated** are correct; do not alter their grid/flex rules except for fine-tuning gaps.
-- The semantic standards table markup is correct; only adjust the CSS density as noted above.
-- Footer layout and global header composition in `App.tsx` are structurally correct. Only the footer link href (already tracked in the issue) and the header breakpoint need attention.
+### 4. `frontend/src/App.tsx` (route wiring check)
+- No visual discrepancies were detected in the route shell itself, but ensure `activeRoute="/methodology"` remains wired so the header highlight state is correct once the `rankings` link is restored above.
