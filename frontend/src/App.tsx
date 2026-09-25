@@ -11,6 +11,7 @@ import SiteFooter from './components/SiteFooter/SiteFooter'
 import VendorsList from './components/VendorsList/VendorsList'
 import VendorDetails from './components/VendorDetails/VendorDetails'
 import ShipmentDetails from './components/ShipmentDetails/ShipmentDetails'
+import FullLeaderboard from './components/FullLeaderboard/FullLeaderboard'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
 import { useAuth } from './context/AuthContext'
 import { navigate } from './lib/navigation'
@@ -36,6 +37,7 @@ const getCurrentPagePath = () => {
   if (routedPaths.has(path)) return path
   if (path.startsWith('/vendors/') && path !== '/vendors') return path
   if (path.startsWith('/shipment/') && path !== '/shipment') return path
+  if (path.startsWith('/products/') && path !== '/products') return path
   return '/'
 }
 
@@ -49,6 +51,7 @@ const getModalSourcePath = () => {
   if (routedPaths.has(modalFrom)) return modalFrom
   if (modalFrom.startsWith('/vendors/') && modalFrom !== '/vendors') return modalFrom
   if (modalFrom.startsWith('/shipment/') && modalFrom !== '/shipment') return modalFrom
+  if (modalFrom.startsWith('/products/') && modalFrom !== '/products') return modalFrom
   return '/'
 }
 
@@ -132,6 +135,7 @@ function App() {
   const isTestingPage = pagePath === '/testing'
   const isVendorsPage = pagePath === '/vendors'
   const isVendorDetailsPage = pagePath.startsWith('/vendors/') && pagePath !== '/vendors'
+  const isProductPage = pagePath.startsWith('/products/') && pagePath !== '/products'
   const isShipmentDetailsPage = pagePath.startsWith('/shipment/') && pagePath !== '/shipment'
   const accountView = accountRoutes.get(pagePath)
   const isAccountRoute = Boolean(accountView)
@@ -181,6 +185,14 @@ function App() {
           <HeaderBar onSignUpClick={openAuthModal} activeRoute="/vendors" />
           <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
             <VendorDetails vendorSlug={pagePath.replace('/vendors/', '')} />
+          </main>
+          <SiteFooter />
+        </>
+      ) : isProductPage ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/products" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <FullLeaderboard slug={pagePath.replace('/products/', '')} />
           </main>
           <SiteFooter />
         </>
