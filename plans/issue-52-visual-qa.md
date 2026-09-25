@@ -1,36 +1,53 @@
-1. **`frontend/src/components/MethodologyPage/MethodologyPage.css` — Mobile breakpoint (`max-width: 566px`)**
-   - `.methodology-hero`: Increase `padding-top` to ~32–40 px to match the design’s hero spacing.
-   - `.labeling-works-grid`: Change `grid-template-columns` from the current `1fr 1fr` (preview) to `1fr` (design) so the four items stack vertically.
-   - `.labeling-calculated-grid`: Change `grid-template-columns` from `1fr 1fr` to `1fr` so the two sub-sections stack vertically.
-   - `.standards-table-wrapper`: Add `overflow-x: auto` and set the table `min-width` to at least `600–700 px` so all five columns (STANDARD, PURITY, QUANTITY, LABELING, SOMETIMES) remain accessible without clipping.
+### 1. `frontend/src/App.tsx` — Add the missing announcement banner
+Insert a page-level announcement bar at the top of the `/methodology` route branch, before `<HeaderBar>`.  
+- **Element:** `<div className="announcement-bar">Get your free peptide safety test →</div>`  
+- **CSS properties:** `background-color: #0B7A3F` (or existing token `--color-primary-green`), `color: #fff`, `text-align: center`, `padding: 10px 16px`, `font-size: 14px`, `font-weight: 500`.  
+- **Evidence:** All three design screenshots show this bar; none of the previews do.
 
-2. **`frontend/src/components/MethodologyPage/MethodologyPage.css` — Tablet breakpoint (`567px – 1091px`)**
-   - `.standards-table th, .standards-table td`: Reduce vertical padding (e.g., to `8–10 px`) to tighten row heights and match the design’s compact table density.
-   - `.formula-card`: Reduce internal `padding` to ~16–20 px and/or slightly reduce formula font size so equations stay on two lines.
-   - `.site-footer .footer-grid`: Increase `column-gap` to ~40–48 px to match the design’s wider footer distribution.
+### 2. `frontend/src/components/MethodologyPage/MethodologyPage.tsx` — Fix vendors card wrapper and 0-point icon
+- **Vendors policy card:** Wrap the three policy items (*Tests are not altered*, *Rankings are not for sale*, *How a vendor improves*) in a container `div` with class `vendors-policy-group`. Do **not** wrap the section heading inside this container.  
+- **0-point bullet:** Change the icon/indicator for the *0 points* row under *“If only a label claim is present”* from the green modifier class to the neutral gray modifier (e.g., swap `status-icon--green` for `status-icon--gray`).  
+- **Evidence:** 390px design shows the gray zero icon and the gray card background; preview shows a green zero icon and no card background.
 
-3. **`frontend/src/components/MethodologyPage/MethodologyPage.css` — Desktop breakpoint (`min-width: 1092px`)**
-   - `.methodology-hero`: Increase `padding-top` by ~24–40 px to match the design.
-   - `.analysts-vendors-grid`: Change `grid-template-columns` from `1fr 1fr` (preview) to roughly `2fr 3fr` (or `40% 60%`) and increase `gap` to `48–64 px` to match the asymmetric design.
-   - `.standards-table`: Apply explicit column width ratios—e.g., `STANDARD` ~25 %, `PURITY` ~15 %, `QUANTITY` ~20 %, `LABELING` ~20 %, `SOMETIMES` ~20 %—instead of auto-sizing evenly.
-   - `.labeling-works-grid`: Reduce `row-gap` to ~16–24 px to match the tighter vertical spacing in the design.
-   - `.methodology-note`: Add a left border accent (`border-left: 3px solid var(--color-accent, #0d8a58)`) and any missing subtle background tint.
-   - `.formula-card`: Reduce `padding` and ensure the formula `<code>`/monospace element uses a size that keeps multi-line formulas on two lines (target `font-size` ~13–14 px if currently larger).
-   - `.page-section + .page-section`: Increase `margin-top` for major content blocks (especially before Reading Results and Leaderboard) to restore the design’s vertical rhythm.
-   - `.site-footer .footer-grid`: Increase `column-gap` to ~48–64 px so columns spread wider, matching the design.
+### 3. `frontend/src/components/MethodologyPage/MethodologyPage.css` — Two-column ratio and vendors background
+- **Selector:** `.methodology-section` (the Analysts + Vendors grid).  
+  - **Current:** Likely `grid-template-columns: 1fr 1fr`.  
+  - **Target:** `grid-template-columns: 2fr 3fr` (or `minmax(320px, 2fr) minmax(480px, 3fr)`) inside `@media (min-width: 567px)`.  
+- **Selector:** `.vendors-policy-group`.  
+  - **Target:** `background-color: var(--color-bg-secondary, #F6F6F6)` and `padding: 24px`.  
+- **Evidence:** 744px and 1440px designs show an asymmetric split and a light gray card around the vendors policies; previews show 50/50 columns on white.
 
-4. **`frontend/src/components/MethodologyPage/MethodologyPage.tsx`**
-   - Verify the “Methodology note” markup uses the correct CSS class (e.g., `methodology-note`) so the left border accent renders.
-   - Ensure the standards table includes the `<th>SOMETIMES</th>` header and corresponding data cells so the fifth column is present at all breakpoints.
+### 4. `frontend/src/components/MethodologyPage/MethodologyPage.css` — Reduce Labeling Score Works grid gap
+- **Selector:** `.labeling-works-grid` (the 2×2 grid under *“How the Labeling Score Works”*).  
+  - **Current:** `gap: 24px` (or larger).  
+  - **Target:** `gap: 16px`.  
+- **Evidence:** Design cards sit closer together; preview cards are too far apart at 744px and 1440px.
 
-5. **`frontend/src/components/HeaderBar/HeaderBar.css` (or equivalent responsive stylesheet)**
-   - **Mobile**: Hide `.header-auth-buttons` (vendors / sign-in pills) below `566px`; the design shows only the hamburger menu.
-   - **Tablet (`744px`)**: Hide the `.vendors-button` at widths below `1092px` if the design intent is to show only the “sign up” pill at tablet size.
-   - **All widths**: Update the green CTA button label text from “sign in” to “sign up” to match the design.
+### 5. `frontend/src/components/MethodologyPage/MethodologyPage.css` — Tighten formula grid vertical spacing
+- **Selector:** `.formulas-grid` (the 3×2 grid).  
+  - **Current:** `row-gap: 24px`–`32px`.  
+  - **Target:** `row-gap: 16px` (keep `column-gap: 16px` to match horizontal density).  
+- **Evidence:** Design packs the six formula cards tightly; preview has excessive vertical whitespace.
 
-6. **`frontend/src/components/SiteFooter/SiteFooter.tsx`**
-   - Replace the plain string `'Testing Methodology'` in the footer links array with `{ label: 'Testing Methodology', href: '/methodology' }` (and update the rendering loop if it only handles strings) so the footer link routes to `/methodology` instead of `/testing-methodology`.
+### 6. `frontend/src/components/MethodologyPage/MethodologyPage.css` — Compact Reading Results cards
+- **Selector:** `.reading-result-card` (the three cards under *“How to Read the Final Rating”*).  
+  - **Current:** `padding: 24px`–`32px`.  
+  - **Target:** `padding: 16px`–`20px` to reduce overall card height.  
+- **Evidence:** Preview cards are taller and looser than the compact cards in the design.
 
-7. **`frontend/src/App.tsx`**
-   - Confirm `'/methodology'` is present in `routedPaths`.
-   - Ensure the `isMethodologyPage` branch renders `<HeaderBar onSignUpClick={openAuthModal} activeRoute="/methodology" />` so the active navigation state is styled correctly.
+### 7. `frontend/src/components/MethodologyPage/MethodologyPage.css` — Standards table density and column proportions
+- **Selector:** `.standards-table th, .standards-table td`.  
+  - **Target:** `padding: 12px 16px`, `font-size: 14px`, `line-height: 1.4`, `vertical-align: top`.  
+- **Selector:** `.standards-table`.  
+  - **Target:** `border-collapse: collapse` and explicit column widths (e.g., `STANDARD` 20 %, `PURITY` 20 %, `QUANTITY` 25 %, `LABELING` 20 %, `SOMETIMES` 15 %) so text wraps consistently with the design.  
+- **Evidence:** Preview table cells are looser and column proportions differ slightly from the design’s compact grid.
+
+### 8. `frontend/src/components/MethodologyPage/MethodologyPage.css` (or global) — Footer background override
+- **Selector:** `.site-footer` (or equivalent footer class).  
+  - **Target:** `background-color: var(--color-bg-secondary, #F9F9F9)`.  
+- **Note:** If `SiteFooter` internals must not be edited, apply this override from the page stylesheet or `App.css`.  
+- **Evidence:** All three design screenshots show a light gray footer; previews show a white footer.
+
+### 9. `frontend/src/App.tsx` — HeaderBar composition (drift note)
+- The preview renders extra chrome (*vendors* pill at 744px and *Sign in* at 744px/1440px) that the design omits. Since `HeaderBar` internals should not be edited, verify whether `HeaderBar` accepts suppression props (e.g., `hideVendorLink`, `hideSignIn`). If such props exist, pass them in the `/methodology` branch. If not, record this as a shared-component drift issue outside the scope of `MethodologyPage`.  
+- **Evidence:** 744px/1440px design headers lack these elements; previews include them.
