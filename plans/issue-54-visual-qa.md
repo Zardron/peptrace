@@ -1,82 +1,66 @@
-### 1. Conditionally hide `HomeTopInfo` on mobile and tablet
-**File:** `frontend/src/components/FullLeaderboard/FullLeaderboard.tsx` and `FullLeaderboard.css`  
-The green pill banner must only render on desktop (≥1092px).  
-- In the JSX, ensure `<HomeTopInfo />` is wrapped with a class (e.g. `home-top-info`).  
-- **Add to `FullLeaderboard.css`:**  
-  ```css
-  @media (max-width: 1091px) {
-    .home-top-info { display: none; }
-  }
-  ```  
-**Current:** Banner renders at 390px and 744px. **Target:** Visible only at 1092px+.
+Implement the following corrections in the `FullLeaderboard` feature directory and parent shell:
 
-### 2. Hide breadcrumbs on mobile
-**File:** `frontend/src/components/FullLeaderboard/FullLeaderboard.css`  
-- **Add:**  
-  ```css
-  @media (max-width: 566px) {
-    .breadcrumbs { display: none; }
-  }
-  ```  
-**Current:** Breadcrumbs visible at 390px. **Target:** Hidden at ≤566px.
+1. **Hide `HomeTopInfo` on mobile and tablet**  
+   - **File:** `frontend/src/components/FullLeaderboard/FullLeaderboard.tsx`  
+   - **Change:** Wrap `<HomeTopInfo />` in a `<div className="home-top-info-wrapper">` and hide it via CSS at viewports `≤1091px`.  
+   - **CSS:** In `FullLeaderboard.css` add:  
+     ```css
+     @media (max-width: 1091px) {
+       .home-top-info-wrapper { display: none; }
+     }
+     ```  
+   - **Evidence:** DESIGN at 390px and 744px omits the second banner; PREVIEW renders it.
 
-### 3. Correct ProductHeader subtitle copy
-**File:** `frontend/src/components/FullLeaderboard/ProductHeader.tsx`  
-- Change the subtitle string from `"methodology · Purity Focused"` to `"methodology · Purity focus"`.  
-**Current:** Capital “F” and trailing “ed”. **Target:** Lowercase “focus” exactly as in the Figma.
+2. **Fix `ProductHeader` subtitle casing**  
+   - **File:** `frontend/src/components/FullLeaderboard/ProductHeader.tsx`  
+   - **Change:** Update the hardcoded subtitle string from `"methodology · Purity Focused"` to `"methodology · Purity focus"`.  
+   - **Evidence:** DESIGN uses lowercase "focus"; PREVIEW uses "Focused".
 
-### 4. Fix MethodologyBadge container styling and layout
-**Files:** `frontend/src/components/FullLeaderboard/MethodologyBadge.tsx`, `FullLeaderboard.css`  
-- Remove the gray background (`background: #F3F4F6` or similar).  
-- **Set:** `background: transparent; border: 1px solid #E5E7EB; border-radius: 8px; padding: 8px 12px;` to match the design’s outlined box.  
-- Add a dropdown chevron/arrow icon at the right end of the badge group.  
-- **Layout correction:**  
-  - At ≤566px: `.view-methodology { display: block; margin-top: 8px; }` so the link sits below the container.  
-  - At ≥567px: `.view-methodology { display: inline-flex; margin-left: 16px; vertical-align: middle; }` so it sits inline to the right of the container.  
-**Current:** Gray box, no arrow, link mis-placed on mobile. **Target:** Bordered box with arrow and correct link placement.
+3. **Restructure `MethodologyBadge` layout at desktop**  
+   - **File:** `frontend/src/components/FullLeaderboard/FullLeaderboard.css`  
+   - **Change:** Remove any `float: right`, `position: absolute`, or `justify-content: flex-end` rules that pin the badge beside the title block. Instead, give `.methodology-badge-wrapper` `display: flex; flex-direction: column; align-items: flex-start;` (or `display: block`) so it sits below the stats text in normal flow. At `≥1092px` set `margin-top: 16px` and `margin-bottom: 24px`.  
+   - **Evidence:** DESIGN at 1440px shows the badge left-aligned under the stats; PREVIEW shows it floated right of the title.
 
-### 5. Add star icon to the “Customer” filter dropdown
-**File:** `frontend/src/components/FullLeaderboard/VendorsPanel.tsx`  
-- Inside the trigger for the `Customer` filter, render a star icon (e.g. `<StarIcon size={12} fill="currentColor" />` or `★`) between the label text and the chevron.  
-**Current:** Text-only “Customer ▼”. **Target:** “Customer ★ ▼”.
+4. **Fix `MethodologyBadge` pill styling and chevron**  
+   - **File:** `frontend/src/components/FullLeaderboard/MethodologyBadge.tsx` and `.css`  
+   - **Changes:**  
+     a. Wrap the `dose ±35%` text in the same pill element used for `purity 99.5%+` (green background `#047857`, white text, `border-radius: 9999px`, `padding: 4px 12px`, `font-size: 12px`, `font-weight: 500`).  
+     b. Append a downward chevron icon (SVG, `width: 16px`, `color: #6B7280`) inside the bordered badge container, spaced `8px` from the last pill.  
+     c. Move the `View methodology` link **outside** the bordered container. At `≥567px` place it to the right of the container with `gap: 16px`. At `≤566px` keep it below the container.  
+     d. Style the badge container with `border: 1px solid #E5E7EB`, `border-radius: 8px`, `padding: 8px 12px`, and remove any box-shadow or white card background so it matches the design's outlined box.  
+   - **Evidence:** DESIGN shows three pills, a chevron, and an external link; PREVIEW omits the chevron, omits the dose pill, and embeds the link inside a white card.
 
-### 6. Remove uppercase transform from vendor table headers
-**File:** `frontend/src/components/FullLeaderboard/VendorsPanel.css` (or `FullLeaderboard.css`)  
-- **Set:** `.vendor-table th { text-transform: none; }`  
-**Current:** Uppercase yields “VENDOR”, “$/MG”, “CUSTOMER RATING”, “PURITY RATING”. **Target:** “Vendor”, “$/mg”, “Customer Rating”, “Purity Rating”.
+5. **Fix vendor table header typography**  
+   - **File:** `frontend/src/components/FullLeaderboard/VendorsPanel.tsx`  
+   - **Change:** Replace header labels with sentence-case text: `#`, `Vendor`, `$/mg`, `Customer Rating`, `Purity Rating`, `N`. Remove any CSS `text-transform: uppercase`. Set `font-weight: 500` and `color: #6B7280` (or the project's gray-500 token).  
+   - **Evidence:** DESIGN uses sentence case; PREVIEW uses all-caps.
 
-### 7. Replace COA-backed badge icon with a green dot
-**File:** `frontend/src/components/FullLeaderboard/TestHistorySection.tsx`  
-- Remove the document/page icon.  
-- Render `<span className="coa-dot" />` before the text “COA-BACKED LAB TESTS”.  
-- **Add CSS:** `.coa-dot { width: 8px; height: 8px; background-color: #10B981; border-radius: 50%; display: inline-block; margin-right: 6px; }`  
-**Current:** Document icon. **Target:** Green dot matching the design.
+6. **Add star icon to `Customer` filter button**  
+   - **File:** `frontend/src/components/FullLeaderboard/VendorsPanel.tsx`  
+   - **Change:** Inside the `filter-stars` trigger button, insert a star icon (SVG or character, colored `#F59E0B`, `width: 14px`) between the text `"Customer"` and the dropdown chevron.  
+   - **Evidence:** DESIGN shows a yellow star inside the Customer filter; PREVIEW does not.
 
-### 8. Center footer copyright on tablet and desktop
-**File:** `frontend/src/components/SiteFooter/SiteFooter.css` (or an override in `FullLeaderboard.css`)  
-- **Add:**  
-  ```css
-  @media (min-width: 567px) {
-    .site-footer .copyright { text-align: center; }
-  }
-  ```  
-**Current:** Left-aligned at 744px and 1440px. **Target:** Centered as in the design.
+7. **Fix `TestHistorySection` COA badge icon**  
+   - **File:** `frontend/src/components/FullLeaderboard/TestHistorySection.tsx`  
+   - **Change:** Replace the document icon with a simple green circle (`width: 8px; height: 8px; border-radius: 50%; background-color: #10B981`) placed before the `COA-BACKED LAB TESTS` text.  
+   - **Evidence:** DESIGN uses a green dot; PREVIEW uses a document icon.
 
-### 9. Wire API endpoints to eliminate error fallbacks
-**Files:** `frontend/src/components/FullLeaderboard/FullLeaderboard.tsx`, `VendorsPanel.tsx`, `TestHistorySection.tsx`  
-- Connect `GET /products/:slug/leaderboard` to populate the vendor table instead of the “Unable to load vendors…” placeholder.  
-- Connect `GET /products/:slug/tests` to populate the test-history table instead of the “Unable to load test history…” placeholder.  
-- Ensure the row components (vendor cards for mobile, table rows for tablet/desktop; test-history rows for all breakpoints) render when data is present.  
-**Current:** Error placeholders visible on all breakpoints. **Target:** Populated rows as shown in the Figma.
+8. **Ensure responsive test-history table columns**  
+   - **File:** `frontend/src/components/FullLeaderboard/FullLeaderboard.css`  
+   - **Changes:**  
+     - At `≥1092px`: Show all columns DATE, RESULT, TEST, LAB, PURITY, DOSAGE, LABEL, COA.  
+     - At `567px–1091px`: Hide LABEL and COA columns (`display: none`) or enable horizontal scroll.  
+     - At `≤566px`: Convert the vendor table to a card list (hide `<thead>`) and allow the test-history table to scroll horizontally.  
+   - **Evidence:** DESIGN at 744px displays 6 test-history columns; at 1440px displays 8.
 
-### 10. Ensure mobile vendor list uses card layout
-**File:** `frontend/src/components/FullLeaderboard/VendorsPanel.css`  
-- When data is available, the 390px view must hide the table header row and render each vendor as a stacked card row matching the design (rank + initials circle + vendor name + verified badge + “Get report” link on the left; price and purity badge on the right).  
-- **Add:**  
-  ```css
-  @media (max-width: 566px) {
-    .vendor-table thead { display: none; }
-    .vendor-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 0; border-bottom: 1px solid #E5E7EB; }
-  }
-  ```  
-**Current:** Not verifiable because of error state; implementation must match the Figma card pattern once data is wired.
+9. **Tighten vertical spacing between sections**  
+   - **File:** `frontend/src/components/FullLeaderboard/FullLeaderboard.css`  
+   - **Changes:**  
+     - Set `.product-header { margin-bottom: 16px; }` at `≥1092px` (currently appears ~32px).  
+     - Set `.methodology-badge-wrapper { margin-bottom: 24px; }`.  
+     - Ensure `.vendors-panel { margin-bottom: 24px; }` to match the design's denser stacking.  
+   - **Evidence:** PREVIEW at 1440px has noticeably looser gaps between the title, badge, and panels than the design.
+
+10. **HeaderBar tablet layout note**  
+    - **File:** `frontend/src/components/HeaderBar/HeaderBar.tsx` (reference only; do not modify per requirements)  
+    - **Note:** The PREVIEW at 744px wraps nav links to a second row while the DESIGN keeps them on one row. Because `HeaderBar` is reused as-is, this discrepancy will persist unless the shared component is updated in a separate issue. No changes to `FullLeaderboard` can resolve this.
