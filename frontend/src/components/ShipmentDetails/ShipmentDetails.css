@@ -150,6 +150,31 @@
   margin: 0;
 }
 
+.shipment-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.shipment-label-button {
+  padding: 10px 16px;
+  border: 1px solid #dce3e0;
+  border-radius: 10px;
+  background: #fff;
+  color: #17211d;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.shipment-label-button:hover {
+  background: #f4f7f5;
+}
+
 /* Progress */
 .shipment-progress {
   display: flex;

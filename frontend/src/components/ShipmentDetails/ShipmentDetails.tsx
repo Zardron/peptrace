@@ -182,7 +182,16 @@ export default function ShipmentDetails({ shipmentId }: ShipmentDetailsProps) {
 
             {/* Shipment & package */}
             <section className="shipment-card">
-              <h2 className="shipment-section-title">Shipment & package</h2>
+              <div className="shipment-section-header">
+                <h2 className="shipment-section-title">Shipment & package</h2>
+                <button
+                  type="button"
+                  className="shipment-label-button"
+                  onClick={() => window.print()}
+                >
+                  Print shipping label
+                </button>
+              </div>
               <div className="shipment-info-rows">
                 {infoRows.map((row, i) => (
                   <div key={i} className="shipment-info-row">
