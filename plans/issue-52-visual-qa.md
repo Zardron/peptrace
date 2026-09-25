@@ -1,26 +1,65 @@
-### 1. `frontend/src/components/HeaderBar/HeaderBar.tsx` and `HeaderBar.css`
-- **Mobile (390px) collapse:** Ensure the primary nav list (`<ul>` or nav container holding `rankings`, `about`, `news`, `membership`) and the action button group (`vendors`, `sign up`) are hidden with `display: none` below the mobile breakpoint (≤566px). Only the logo and the hamburger toggle should remain visible. Currently these elements are leaking into the 390px view.
-- **Desktop (1440px) missing link:** Restore the `rankings` link in the header navigation array/map so it renders as the first item after the logo. The current preview omits it entirely at desktop widths.
+### `frontend/src/components/MethodologyPage/MethodologyPage.css`
 
-### 2. `frontend/src/components/MethodologyPage/MethodologyPage.css`
-- **Methodology two-column grid ratio:**
-  - Target: Asymmetric columns (Analysts narrower, Vendors wider).
-  - Change the grid definition for `.methodology-section` (or its equivalent container) from a balanced split such as `grid-template-columns: 1fr 1fr` to roughly `grid-template-columns: 2fr 3fr` or `40% 60%` on tablet (`min-width: 567px`) and desktop (`min-width: 1092px`). Verify the Vendors policy cards no longer wrap prematurely.
-- **Standards table header background:**
-  - Target: Light gray header row.
-  - Add `background-color: var(--color-gray-100, #f5f5f5)` to the table header row (`thead tr` or `th`). Currently it is transparent/white.
-- **Standards table column alignment:**
-  - Target: Metric columns evenly distributed under their headers.
-  - Apply `text-align: center` (or matching design alignment) to the `th` and `td` cells in the `PURITY`, `QUANTITY`, `LABELING`, and `SOMETIMES` columns. Currently they appear left-aligned.
-- **Formula cards padding and typography:**
-  - Target: Compact cards with prominent equations.
-  - Reduce `padding` inside `.formula-card` (or equivalent) from the current generous value to a tighter value (e.g., `1rem` or `1.25rem` vertical) to match the design’s compact grid.
-  - Increase the equation text size: set `.formula-card .equation` (or the element wrapping the formula) to a larger `font-size` (e.g., `1.25rem`–`1.5rem`) and ensure `font-weight` is at least `500` or `600` so the math matches the visual hierarchy in the design.
+**Global page spacing & container**
+- Add `.methodology-page { max-width: var(--content-max-width, 1200px); margin: 0 auto; padding: 0 24px; }`. Increase to `padding: 0 48px` at `min-width: 1092px` to match desktop side margins.
+- Add `.methodology-section { margin-bottom: 80px; }` on desktop, `48px` on tablet, and `40px` on mobile. Current gaps are too tight.
 
-### 3. `frontend/src/components/SiteFooter/SiteFooter.tsx` and `SiteFooter.css`
-- **Footer column title prefix:**
-  - Target: Pipe character before each column heading.
-  - Either prepend `"| "` directly to the heading strings (`| Explore`, `| Testing`, `| Legal`) or add a CSS `::before` pseudo-element with `content: "|"; margin-right: 0.5em;` to `.footer-column-title`. The design consistently shows this prefix across all breakpoints; the preview does not.
+**Hero**
+- Set `.methodology-hero h1 { font-size: var(--font-size-hero, 3.5rem); font-weight: 700; line-height: 1.1; }` on desktop. Reduce to `2.5rem` on tablet and `2rem` on mobile.
+- Set `.methodology-hero .meta-label { font-size: var(--font-size-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-muted); margin-bottom: 16px; }` to match the “TEST DATA LAST UPDATED…” treatment.
 
-### 4. `frontend/src/App.tsx` (route wiring check)
-- No visual discrepancies were detected in the route shell itself, but ensure `activeRoute="/methodology"` remains wired so the header highlight state is correct once the `rankings` link is restored above.
+**Two-column Methodology section**
+- Change the grid from `grid-template-columns: 1fr 1fr` to `grid-template-columns: 2fr 3fr` (or `minmax(300px, 2fr) minmax(400px, 3fr)`) so the Vendors column is wider, matching the design ratio.
+- Add `align-items: start` to the grid container so both columns top-align.
+- Give each policy card `.policy-card { background: var(--color-surface-subtle, #F9FAFB); border-radius: 8px; padding: 24px; }`. Remove the current border-only styling.
+
+**Standards table**
+- Increase cell padding: `.standards-table th, .standards-table td { padding: 16px 12px; }`.
+- Add `.standards-table thead { border-bottom: 2px solid var(--color-border); }` and `.standards-table tbody tr { border-bottom: 1px solid var(--color-border); }`.
+- On mobile (`max-width: 566px`), wrap the table in `.table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }` so the SOMETIMES column is reachable. Set `.standards-table { min-width: 640px; }` inside the wrapper to force scroll rather than squash.
+
+**Labeling Score Works grid**
+- Ensure the fourth item badge uses the same green class as items 1–3 (e.g., `.badge-green` instead of `.badge-gray`).
+- Use `display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;` on desktop/tablet, and `1fr` on mobile.
+- Each card needs `.labeling-card { background: var(--color-surface-subtle); border-radius: 8px; padding: 24px; }`.
+- Use `align-items: stretch` on the grid so cards in the same row share equal heights.
+
+**Labeling Score Calculated**
+- Layout the two sub-sections with `display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start;`.
+- Left pane: wrap the “If only a label claim is present” content in `.calc-pane { background: var(--color-surface-subtle); border-radius: 8px; padding: 24px; }`.
+- Right pane: apply the same `.calc-pane` styling to the “Batch identifier” and “Batch claim communication” blocks.
+- Numbered rules: use green circle badges for the 2/1/0 point items.
+- Methodology note: `.methodology-note { border-left: 4px solid var(--color-primary); padding: 16px; margin-top: 16px; background: rgba(var(--color-primary-rgb), 0.05); }`.
+
+**Natural Rating vs Final Rating**
+- Use `display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; align-items: stretch;` on desktop, `repeat(2, 1fr)` on tablet, and `1fr` on mobile.
+- Each card needs `.rating-card { background: var(--color-surface-subtle); border-radius: 8px; padding: 24px; }`.
+
+**Formulas grid**
+- Desktop: `grid-template-columns: repeat(3, 1fr);`. Tablet: `repeat(2, 1fr);`. Mobile: `1fr;`.
+- `.formula-card { background: var(--color-surface-subtle); border-radius: 8px; padding: 24px; text-align: center; }`.
+- Formula text: `.formula-math { font-size: var(--font-size-lg, 1.125rem); font-family: var(--font-mono, monospace); margin: 12px 0; }`.
+- Description: `.formula-desc { font-size: var(--font-size-sm); line-height: 1.6; color: var(--color-text-secondary); }`.
+
+**How to Read the Final Rating**
+- Same grid/card pattern as above: `background`, `border-radius: 8px`, `padding: 24px`.
+- Badge circles: `.pct-badge { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }`. Use green for 90%, gray for 50%, red for 20%.
+
+**Leaderboard**
+- `.leaderboard-note { background: var(--color-surface-subtle); border-left: 4px solid var(--color-primary); border-radius: 0 8px 8px 0; padding: 24px; }`.
+
+### `frontend/src/components/MethodologyPage/MethodologyPage.tsx`
+
+- Wrap the four “How the Labeling Score Works” items in the grid container and apply `.labeling-card`.
+- Change the fourth item’s badge class from gray to green.
+- Wrap the “Batch identifier” and “Batch claim communication” blocks in the right-side pane container so they receive the `.calc-pane` background.
+- Ensure the Standards table is wrapped in `<div className="table-wrapper">` so mobile scrolling works.
+
+### `frontend/src/components/HeaderBar/HeaderBar.tsx` (or its CSS module)
+
+- **Mobile breakpoint:** The header must render the hamburger menu at widths ≤ 566px. Currently it exposes the “vendors” input and “sign up” pill at 390px. Reduce the mobile breakpoint threshold (or adjust the media query) so the collapsed state appears at `max-width: 566px`.
+- **Tablet breakpoint:** At 744px the header must hide the “vendors” button and show only nav links + “sign up” pill. Ensure the “vendors” button only appears at `min-width: 1092px` (desktop).
+
+### `frontend/src/components/SiteFooter/SiteFooter.tsx`
+
+- Update the footer link array so “Testing Methodology” points to `/methodology` instead of `/testing-methodology`. Ensure the label text remains “Testing Methodology” (already planned, verify no visual regression).
