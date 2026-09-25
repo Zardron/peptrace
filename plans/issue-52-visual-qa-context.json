@@ -1,0 +1,30 @@
+{
+  "issueNumber": "52",
+  "prNumber": "57",
+  "branch": "feat/52_methodologies-impl",
+  "fixBranch": "visual-qa/issue-52-d585659",
+  "previewUrl": "https://preview.peptrace.stg.esteemed.engineering",
+  "sha": "d585659cafeb3db7d9e2cd0c6adf7566441206ae",
+  "generatedAt": "2026-09-25T10:17:10.380Z",
+  "comparisons": [
+    {
+      "name": "methodology-390",
+      "width": 390,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/feat-52_methodologies-impl/methodology-390.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/2142-2908/2403032523346546026.jpg"
+    },
+    {
+      "name": "methodology-744",
+      "width": 744,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/feat-52_methodologies-impl/methodology-744.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/2119-2697/2403032523346546026.jpg"
+    },
+    {
+      "name": "methodology-1440",
+      "width": 1440,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/feat-52_methodologies-impl/methodology-1440.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/2098-118/2403032523346546026.jpg"
+    }
+  ],
+  "report": "**Screen: methodology-390 (390px)**\n- **Header / Navigation:** The preview renders the desktop header buttons (`vendors` outline pill and `sign up` solid pill) in the top-right corner. The design shows the mobile header with a hamburger menu icon and no visible desktop buttons. The responsive breakpoint for the mobile header layout is not firing at this width.\n- **Standards table:** The table is visible but extremely tight; text wraps aggressively compared with the design. Consider enabling horizontal scroll or reducing cell padding for the mobile breakpoint.\n- **Footer & content stacking:** Content regions stack vertically as expected. No other major layout mismatches.\n\n**Screen: methodology-744 (744px)**\n- **How the Labeling Score Works:** Design shows a 2×2 grid (two columns, two rows). Preview renders all four items stacked in a single column.\n- **Natural Rating vs Final Rating:** Design shows the three step cards (“Classify each sample”, “Weight recent evidence more”, “Adjust thin histories”) in a horizontal three-column grid. Preview renders them stacked in a single column.\n- **The Formulas:** Design shows the six formula cards in a three-column grid (two rows). Preview renders them stacked in a single column.\n- **How to Read the Final Rating:** Design shows the three interpretation cards (“Strong pass rate”, “Near baseline”, “Consistent failures”) in a horizontal three-column grid. Preview renders them stacked in a single column.\n- **Standards table:** Table is readable, but row vertical padding in the preview appears slightly looser than the design, making the table taller than intended.\n- **Header:** Renders correctly with desktop-style nav and `vendors` / `sign up` buttons.\n\n**Screen: methodology-1440 (1440px)**\n- **How the Labeling Score Works:** Design shows a 2×2 grid. Preview renders all four items as full-width stacked blocks.\n- **Natural Rating vs Final Rating:** Design shows three step cards in a three-column grid. Preview renders them stacked in a single column.\n- **The Formulas:** Design shows a three-column grid (2 rows × 3 cols). Preview renders all six formula cards stacked in a single column.\n- **How to Read the Final Rating:** Design shows three cards in a three-column grid. Preview renders them stacked in a single column.\n- **Methodology note box (inside Labeling Score Is Calculated):** In the design this appears as a distinct shaded/carded note block with its own background. In the preview it renders as plain text without a containing box or background.\n- **Standards table:** The table structure matches, but cell vertical padding and line-height appear larger in the preview than in the design, giving rows more height.\n- **Two-column Methodology section:** The “What Peptrace Tests” / “What Vendors Can and Cannot Change” layout renders side-by-side correctly.\n- **Two-column Labeling Score Is Calculated:** Renders side-by-side correctly."
+}
