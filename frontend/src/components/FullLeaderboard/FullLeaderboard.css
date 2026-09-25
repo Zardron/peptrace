@@ -169,6 +169,7 @@
 /* Vendors panel */
 .fl-vendors-panel {
   background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 12px;
   padding: 24px;
   display: flex;
@@ -466,6 +467,7 @@
 /* Test history */
 .fl-test-history {
   background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
   overflow: hidden;
   display: flex;
@@ -643,6 +645,17 @@
   letter-spacing: 0.44px;
 }
 
+.fl-test-empty {
+  padding: 32px 20px;
+  text-align: center;
+  font-size: 13px;
+  color: #888888;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
 /* Tablet */
 @media (max-width: 1091px) {
   .fl-inner {
@@ -748,32 +761,36 @@
   }
 
   .fl-vendors-table-header {
-    grid-template-columns: 36px 1fr;
-    padding: 10px 12px;
-    font-size: 11px;
-    gap: 8px;
-  }
-
-  .fl-vendors-table-header .col-price,
-  .fl-vendors-table-header .col-rating,
-  .fl-vendors-table-header .col-purity,
-  .fl-vendors-table-header .col-n {
     display: none;
   }
 
   .fl-vendors-table-row {
-    grid-template-columns: 36px 1fr;
+    grid-template-columns: 36px 1fr auto auto;
     padding: 12px;
     font-size: 12px;
     gap: 8px;
-    align-items: flex-start;
+    align-items: center;
   }
 
-  .fl-vendors-table-row .col-price,
   .fl-vendors-table-row .col-rating,
-  .fl-vendors-table-row .col-purity,
   .fl-vendors-table-row .col-n {
     display: none;
+  }
+
+  .fl-vendors-table-row .col-price {
+    text-align: right;
+    font-weight: 500;
+  }
+
+  .fl-vendors-table-row .col-purity {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    background: #e8f5f1;
+    color: #106e56;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 999px;
   }
 
   .fl-vendor-initials {

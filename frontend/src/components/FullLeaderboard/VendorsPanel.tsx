@@ -18,6 +18,8 @@ interface Vendor {
 
 interface VendorsPanelProps {
   vendors: Vendor[]
+  loading?: boolean
+  error?: string
 }
 
 const INITIALS_BG: Record<string, string> = {
@@ -42,7 +44,7 @@ const INITIALS_COLOR: Record<string, string> = {
   GT: '#9d174d',
 }
 
-export default function VendorsPanel({ vendors }: VendorsPanelProps) {
+export default function VendorsPanel({ vendors, loading, error }: VendorsPanelProps) {
   const [query, setQuery] = useState('')
   const [ratingSort, setRatingSort] = useState('Rating Sort')
   const [ratingFilter, setRatingFilter] = useState('Rating')
@@ -107,7 +109,16 @@ export default function VendorsPanel({ vendors }: VendorsPanelProps) {
             <span className="col-purity">Purity Rating</span>
             <span className="col-n">N</span>
           </div>
-          {rows.map((row) => (
+          {loading && (
+            <div className="fl-vendors-empty">
+              <span className="fl-spinner" role="status" aria-label="Loading" />
+              <span>Loading vendors…</span>
+            </div>
+          )}
+          {!loading && error && (
+            <div className="fl-vendors-empty">Unable to load vendors. Please try again later.</div>
+          )}
+          {!loading && !error && rows.map((row) => (
             <div key={row.slug} className="fl-vendors-table-row">
               <span className="col-rank">{row.rank}</span>
               <span className="col-vendor">
@@ -138,7 +149,7 @@ export default function VendorsPanel({ vendors }: VendorsPanelProps) {
               <span className="col-n">{row.nCount}</span>
             </div>
           ))}
-          {rows.length === 0 && (
+          {!loading && !error && rows.length === 0 && (
             <div className="fl-vendors-empty">No vendors match your filters.</div>
           )}
         </div>

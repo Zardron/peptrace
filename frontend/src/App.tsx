@@ -192,6 +192,7 @@ function App() {
         <>
           <HeaderBar onSignUpClick={openAuthModal} activeRoute="/products" />
           <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <HomeTopInfo />
             <FullLeaderboard slug={pagePath.replace('/products/', '')} />
           </main>
           <SiteFooter />

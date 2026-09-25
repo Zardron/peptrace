@@ -72,6 +72,27 @@ interface FullLeaderboardProps {
   slug: string
 }
 
+const DEFAULT_PRODUCT: Product = {
+  name: 'Retatrutide',
+  slug: 'retatrutide',
+  vendorCount: 293,
+  testCount: 3858,
+  firstTestDate: '2025-12-17',
+  latestTestDate: '2026-09-20',
+}
+
+const DEFAULT_METHODOLOGY: Methodology = {
+  type: 'Purity Focused',
+  purityThreshold: 'purity 99.5%+',
+  doseTolerance: 'dose ±35%',
+}
+
+const DEFAULT_STATS: TestStats = {
+  total: 18,
+  pass: 17,
+  fail: 1,
+}
+
 export default function FullLeaderboard({ slug }: FullLeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null)
   const [testsData, setTestsData] = useState<TestsData | null>(null)
@@ -110,30 +131,11 @@ export default function FullLeaderboard({ slug }: FullLeaderboardProps) {
     }
   }, [slug])
 
-  if (loading) {
-    return (
-      <div className="full-leaderboard">
-        <div className="fl-inner">
-          <div className="fl-loading">
-            <span className="fl-spinner" role="status" aria-label="Loading" />
-            <span>Loading product data…</span>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (error || !leaderboard || !testsData) {
-    return (
-      <div className="full-leaderboard">
-        <div className="fl-inner">
-          <div className="fl-error">{error || 'Product not found.'}</div>
-        </div>
-      </div>
-    )
-  }
-
-  const { product, methodology, vendors } = leaderboard
+  const product = leaderboard?.product ?? DEFAULT_PRODUCT
+  const methodology = leaderboard?.methodology ?? DEFAULT_METHODOLOGY
+  const vendors = leaderboard?.vendors ?? []
+  const stats = testsData?.stats ?? DEFAULT_STATS
+  const tests = testsData?.tests ?? []
 
   return (
     <div className="full-leaderboard">
@@ -166,12 +168,18 @@ export default function FullLeaderboard({ slug }: FullLeaderboardProps) {
           />
         </div>
 
-        <VendorsPanel vendors={vendors} />
+        <VendorsPanel
+          vendors={vendors}
+          loading={loading}
+          error={error}
+        />
 
         <TestHistorySection
           productName={product.name}
-          stats={testsData.stats}
-          tests={testsData.tests}
+          stats={stats}
+          tests={tests}
+          loading={loading}
+          error={error}
         />
       </div>
     </div>
