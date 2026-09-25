@@ -7,6 +7,7 @@ import Leaderboards from './components/Leaderboards/Leaderboards'
 import HomeBottom from './components/HomeBottom/HomeBottom'
 import MembershipPage from './components/MembershipPage/MembershipPage'
 import FreePeptideTesting from './components/FreePeptideTesting/FreePeptideTesting'
+import MethodologyPage from './components/MethodologyPage/MethodologyPage'
 import SiteFooter from './components/SiteFooter/SiteFooter'
 import VendorsList from './components/VendorsList/VendorsList'
 import VendorDetails from './components/VendorDetails/VendorDetails'
@@ -26,7 +27,7 @@ const accountRoutes = new Map<string, AccountView>([
   ['/account/privacy', 'privacy'],
 ])
 
-const routedPaths = new Set(['/membership', '/vendors', '/testing', ...accountRoutes.keys()])
+const routedPaths = new Set(['/membership', '/vendors', '/testing', '/methodology', ...accountRoutes.keys()])
 
 const PRODUCT_LEADERBOARD_PREFIX = '/product/'
 const PRODUCT_LEADERBOARD_SUFFIX = '/leaderboard'
@@ -144,6 +145,7 @@ function App() {
 
   const isMembershipPage = pagePath === '/membership'
   const isTestingPage = pagePath === '/testing'
+  const isMethodologyPage = pagePath === '/methodology'
   const isVendorsPage = pagePath === '/vendors'
   const isVendorDetailsPage = pagePath.startsWith('/vendors/') && pagePath !== '/vendors'
   const productLeaderboardSlug = getProductLeaderboardSlug(pagePath)
@@ -223,6 +225,14 @@ function App() {
             <HomeBottom />
             <SiteFooter />
           </main>
+        </>
+      ) : isMethodologyPage ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/methodology" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <MethodologyPage />
+          </main>
+          <SiteFooter />
         </>
       ) : (
         <>

@@ -1,5 +1,7 @@
 import './SiteFooter.css'
 
+type FooterLink = string | { label: string; href: string }
+
 const columns = [
   {
     title: 'Explore',
@@ -9,11 +11,11 @@ const columns = [
       'Vendor Support',
       'Blog',
       'Partner Testing Labs',
-      'Testing Methodology',
+      { label: 'Testing Methodology', href: '/methodology' },
       'Corrections',
       'Company',
       'Customer Support',
-    ],
+    ] as FooterLink[],
   },
   {
     title: 'Testing',
@@ -54,11 +56,15 @@ export default function SiteFooter() {
                 <h4 className="column-title">{col.title}</h4>
               </div>
               <ul className="column-links">
-                {col.links.map((link) => (
-                  <li key={link}>
-                    <a href={`/${link.toLowerCase().replace(/\s+/g, '-')}`}>{link}</a>
-                  </li>
-                ))}
+                {col.links.map((link) => {
+                  const label = typeof link === 'string' ? link : link.label
+                  const href = typeof link === 'string' ? `/${link.toLowerCase().replace(/\s+/g, '-')}` : link.href
+                  return (
+                    <li key={label}>
+                      <a href={href}>{label}</a>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ))}
