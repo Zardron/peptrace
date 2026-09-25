@@ -249,10 +249,12 @@ export default function MethodologyPage() {
                   <span>0 points: the batch identifier is website-only, purchase-page-only, or absent.</span>
                 </li>
               </ul>
-              <p className="mp-note-title">Methodology note</p>
-              <p className="mp-note-body">
-                For label-only claims, the batch identifier must be on the product container itself to earn 2 points. A separate insert or packaging insert shipped with the container is scored as 1 point.
-              </p>
+              <div className="mp-methodology-note">
+                <p className="mp-note-title">Methodology note</p>
+                <p className="mp-note-body">
+                  For label-only claims, the batch identifier must be on the product container itself to earn 2 points. A separate insert or packaging insert shipped with the container is scored as 1 point.
+                </p>
+              </div>
             </div>
             <div className="mp-col">
               <h4 className="mp-calc-subtitle">If both a label claim and batch claim are present</h4>
