@@ -1,1 +1,5 @@
 .DS_Store
+
+# Production server artifacts (live in the server-side clone, never committed)
+letsencrypt/
+acme-webroot/

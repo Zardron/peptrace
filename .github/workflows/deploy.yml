@@ -153,6 +153,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
+          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
           GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -160,7 +161,7 @@ jobs:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: ${{ vars.SERVER_USER || 'github' }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,DEPLOY_SHA,GITHUB_REPO,RELEASE_DIR,PROD_DIR,PEPTRACE_DOMAIN,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,SUPABASE_ANON_KEY,SUPABASE_SECRET_KEY,AUTH_SESSION_SECRET,GHCR_USER,GHCR_PAT,GIT_TOKEN
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,DEPLOY_SHA,GITHUB_REPO,RELEASE_DIR,PROD_DIR,PEPTRACE_DOMAIN,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,SUPABASE_ANON_KEY,SUPABASE_SECRET_KEY,AUTH_SESSION_SECRET,LETSENCRYPT_EMAIL,GHCR_USER,GHCR_PAT,GIT_TOKEN
           script: |
             set -euo pipefail
             if [ "$DEPLOY_ENVIRONMENT" = "production" ]; then
@@ -200,6 +201,26 @@ jobs:
                 echo "AUTH_SESSION_SECRET=$AUTH_SESSION_SECRET"
               } > .env
               chmod 600 .env
+              # TLS: first issuance must happen before the stack starts,
+              # because the frontend's HTTPS server block references the cert
+              # files. Standalone mode binds port 80 directly, so the frontend
+              # is stopped first (brief downtime on this one-time migration).
+              # Renewals use the webroot via the running frontend instead (see
+              # the certbot service in docker-compose.prod.yml).
+              PROD_DOMAIN="${PEPTRACE_DOMAIN:-peptrace.co}"
+              if [ ! -s "letsencrypt/live/$PROD_DOMAIN/fullchain.pem" ]; then
+                if [ -z "$LETSENCRYPT_EMAIL" ]; then
+                  echo "::error::LETSENCRYPT_EMAIL must be set as a variable on the 'production' GitHub environment (used for Let's Encrypt expiry notices)."
+                  exit 1
+                fi
+                echo "No certificate for $PROD_DOMAIN yet — issuing via Let's Encrypt."
+                mkdir -p letsencrypt acme-webroot
+                docker compose -f docker-compose.prod.yml stop frontend 2>/dev/null || true
+                docker run --rm -p 80:80 \
+                  -v "$PWD/letsencrypt:/etc/letsencrypt" \
+                  certbot/certbot:v5.8.0 certonly --standalone --non-interactive \
+                  --agree-tos -m "$LETSENCRYPT_EMAIL" -d "$PROD_DOMAIN"
+              fi
             else
               cd "$RELEASE_DIR"
             fi
@@ -243,8 +264,14 @@ jobs:
             else
               COMPOSE_FILE=docker-compose.deploy.yml
             fi
-            docker compose -f "$COMPOSE_FILE" pull $DEPLOY_SERVICES
-            docker compose -f "$COMPOSE_FILE" up -d --remove-orphans $DEPLOY_SERVICES
+            # certbot runs only in production and is always brought up with the
+            # stack, but excluded from the health-check loop (no healthcheck).
+            UP_SERVICES="$DEPLOY_SERVICES"
+            if [ "$DEPLOY_ENVIRONMENT" = "production" ]; then
+              UP_SERVICES="$UP_SERVICES certbot"
+            fi
+            docker compose -f "$COMPOSE_FILE" pull $UP_SERVICES
+            docker compose -f "$COMPOSE_FILE" up -d --remove-orphans $UP_SERVICES
             for service in $DEPLOY_SERVICES; do
               cid="$(docker compose -f "$COMPOSE_FILE" ps -q "$service")"
               for i in $(seq 1 24); do
