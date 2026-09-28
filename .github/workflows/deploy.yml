@@ -123,21 +123,61 @@ jobs:
           DEPLOY_API_IMAGE: ${{ env.IMAGE_NAME }}-api:${{ env.TAG }}
           DEPLOY_SERVICES: ${{ env.SERVICES }}
           DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          DEPLOY_SHA: ${{ github.sha }}
+          GITHUB_REPO: ${{ github.repository }}
           RELEASE_DIR: /home/github/services/peptrace/stg/releases/${{ github.sha }}
+          PROD_DIR: /home/github/services/peptrace
+          PEPTRACE_DOMAIN: ${{ vars.PEPTRACE_DOMAIN }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
         with:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: github
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,RELEASE_DIR,GHCR_USER,GHCR_PAT
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,DEPLOY_SHA,GITHUB_REPO,RELEASE_DIR,PROD_DIR,PEPTRACE_DOMAIN,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,SUPABASE_ANON_KEY,SUPABASE_SECRET_KEY,AUTH_SESSION_SECRET,GHCR_USER,GHCR_PAT
           script: |
             set -euo pipefail
-            if [ "$DEPLOY_ENVIRONMENT" = "staging" ]; then
-              cd "$RELEASE_DIR"
+            if [ "$DEPLOY_ENVIRONMENT" = "production" ]; then
+              # Production server: ~/services/peptrace is a git clone of this
+              # repository (the server has outbound access to github.com, so
+              # unlike staging there is no need to stream source over SSH).
+              if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+                echo "::error::SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (variables) and SUPABASE_ANON_KEY (secret) must be set on the 'production' GitHub environment."
+                exit 1
+              fi
+              if [ -z "$SUPABASE_SECRET_KEY" ]; then
+                echo "::error::SUPABASE_SECRET_KEY (service-role key) must be set on the 'production' GitHub environment secrets."
+                exit 1
+              fi
+              mkdir -p ~/services
+              # The PAT needs Contents:read on this repo for the clone/fetch to
+              # succeed (it is the same PAT used for GHCR login).
+              REPO_URL="https://x-access-token:${GHCR_PAT}@github.com/${GITHUB_REPO}.git"
+              if [ ! -d "$PROD_DIR/.git" ]; then
+                git clone "$REPO_URL" "$PROD_DIR"
+              fi
+              cd "$PROD_DIR"
+              git remote set-url origin "$REPO_URL"
+              git fetch origin
+              git checkout --detach "$DEPLOY_SHA"
+              {
+                echo "PEPTRACE_DOMAIN=${PEPTRACE_DOMAIN:-peptrace.co}"
+                echo "PEPTRACE_NAME=peptrace"
+                echo "COMPOSE_PROJECT_NAME=peptrace"
+                echo "SUPABASE_URL=$SUPABASE_URL"
+                echo "SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY"
+                echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+                echo "SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY"
+                echo "AUTH_SESSION_SECRET=$AUTH_SESSION_SECRET"
+              } > .env
+              chmod 600 .env
             else
-              # Production server path is not set up yet; keep previous behavior.
-              cd ~/services/peptrace/stg
+              cd "$RELEASE_DIR"
             fi
             export FRONTEND_IMAGE="$DEPLOY_FRONTEND_IMAGE"
             export API_IMAGE="$DEPLOY_API_IMAGE"

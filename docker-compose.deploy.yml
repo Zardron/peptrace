@@ -1,8 +1,11 @@
 # Deployment for the peptrace servers (Docker + Traefik already installed).
 #
 # Environments (same file on both servers, different .env):
-#   staging    — peptrace.stg.esteemed.engineering (same VPS as figma-calc)
-#   production — peptrace.co (separate server, not set up yet)
+#   staging    — peptrace.stg.esteemed.engineering (same VPS as figma-calc);
+#                source is streamed over SSH into stg/releases/<sha>
+#   production — peptrace.co (separate server); the deploy workflow clones
+#                this repo into ~/services/peptrace and checks out the
+#                deployed commit there
 #
 # Usage:
 #   1. The deploy workflows stream the source into a per-commit release
