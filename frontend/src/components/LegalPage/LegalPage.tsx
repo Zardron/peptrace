@@ -13,7 +13,7 @@ interface LegalDocument {
   sections: LegalSection[]
 }
 
-const CONTACT_EMAIL = 'legal@peptrace.co'
+const CONTACT_EMAIL = 'contact@peptrace.co'
 
 const privacyPolicy: LegalDocument = {
   title: 'Privacy Policy',
