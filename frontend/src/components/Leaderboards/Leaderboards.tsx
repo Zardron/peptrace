@@ -68,6 +68,7 @@ const toCardProps = (
     ctaText: `Submit your ${card.productName} for free testing`,
     rows,
     totalVendors: `${card.vendorCount} Vendors`,
+    leaderboardHref: `/product/${card.slug}/leaderboard`,
   }
 }
 
