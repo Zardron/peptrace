@@ -155,11 +155,12 @@ jobs:
           AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
+          GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: ${{ vars.SERVER_USER || 'github' }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,DEPLOY_SHA,GITHUB_REPO,RELEASE_DIR,PROD_DIR,PEPTRACE_DOMAIN,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,SUPABASE_ANON_KEY,SUPABASE_SECRET_KEY,AUTH_SESSION_SECRET,GHCR_USER,GHCR_PAT
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,DEPLOY_SHA,GITHUB_REPO,RELEASE_DIR,PROD_DIR,PEPTRACE_DOMAIN,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,SUPABASE_ANON_KEY,SUPABASE_SECRET_KEY,AUTH_SESSION_SECRET,GHCR_USER,GHCR_PAT,GIT_TOKEN
           script: |
             set -euo pipefail
             if [ "$DEPLOY_ENVIRONMENT" = "production" ]; then
@@ -175,9 +176,11 @@ jobs:
                 exit 1
               fi
               mkdir -p ~/services
-              # The PAT needs Contents:read on this repo for the clone/fetch to
-              # succeed (it is the same PAT used for GHCR login).
-              REPO_URL="https://x-access-token:${GHCR_PAT}@github.com/${GITHUB_REPO}.git"
+              # Clone/fetch with the workflow's GITHUB_TOKEN, which always has
+              # read access to this repository — no PAT scope needed. The token
+              # expires when the job ends; the scrubbed remote URL is re-set
+              # with a fresh token on every deploy.
+              REPO_URL="https://x-access-token:${GIT_TOKEN}@github.com/${GITHUB_REPO}.git"
               if [ ! -d "$PROD_DIR/.git" ]; then
                 git clone "$REPO_URL" "$PROD_DIR"
               fi
@@ -185,6 +188,7 @@ jobs:
               git remote set-url origin "$REPO_URL"
               git fetch origin
               git checkout --detach "$DEPLOY_SHA"
+              git remote set-url origin "https://github.com/${GITHUB_REPO}.git"
               {
                 echo "PEPTRACE_DOMAIN=${PEPTRACE_DOMAIN:-peptrace.co}"
                 echo "PEPTRACE_NAME=peptrace"
