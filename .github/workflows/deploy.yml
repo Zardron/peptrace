@@ -235,10 +235,18 @@ jobs:
                 fi
               done
             fi
-            docker compose -f docker-compose.deploy.yml pull $DEPLOY_SERVICES
-            docker compose -f docker-compose.deploy.yml up -d --remove-orphans $DEPLOY_SERVICES
+            # Production has no Traefik on the host: it uses the plain compose
+            # file (ports published directly, frontend nginx proxies /api).
+            # Staging/preview route through the shared Traefik instead.
+            if [ "$DEPLOY_ENVIRONMENT" = "production" ]; then
+              COMPOSE_FILE=docker-compose.prod.yml
+            else
+              COMPOSE_FILE=docker-compose.deploy.yml
+            fi
+            docker compose -f "$COMPOSE_FILE" pull $DEPLOY_SERVICES
+            docker compose -f "$COMPOSE_FILE" up -d --remove-orphans $DEPLOY_SERVICES
             for service in $DEPLOY_SERVICES; do
-              cid="$(docker compose -f docker-compose.deploy.yml ps -q "$service")"
+              cid="$(docker compose -f "$COMPOSE_FILE" ps -q "$service")"
               for i in $(seq 1 24); do
                 status="$(docker inspect --format='{{.State.Health.Status}}' "$cid" 2>/dev/null || echo unknown)"
                 echo "$service health: $status ($i/24)"
