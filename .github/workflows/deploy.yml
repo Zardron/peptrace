@@ -67,6 +67,25 @@ jobs:
             exit 1
           fi
 
+      - name: Verify SSH connectivity
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOST: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
+          SERVER_USER: ${{ vars.SERVER_USER || 'github' }}
+        run: |
+          set -euo pipefail
+          echo "Resolved SSH login: '$SERVER_USER'@$HOST"
+          install -m 600 /dev/null ssh_key
+          printf '%s\n' "$SSH_KEY" > ssh_key
+          trap 'rm -f ssh_key' EXIT
+          # Fingerprint of the key GitHub will offer — compare against the
+          # public key in the server's authorized_keys:
+          #   ssh-keygen -lf ~/.ssh/<your-key>.pub   (locally)
+          ssh-keygen -lf ssh_key
+          ssh -i ssh_key -o BatchMode=yes -o ConnectTimeout=10 \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "$SERVER_USER@$HOST" 'echo "SSH OK, logged in as: $(whoami), home: $HOME"'
+
       - name: Checkout source to sync
         if: inputs.environment == 'staging'
         uses: actions/checkout@v4
