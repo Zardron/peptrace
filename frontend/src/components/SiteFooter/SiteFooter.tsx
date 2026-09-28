@@ -42,6 +42,11 @@ const columns = [
   },
 ]
 
+const linkHrefs: Record<string, string> = {
+  'Terms of Service': '/terms',
+  'Privacy Policy': '/privacy',
+}
+
 export default function SiteFooter() {
   return (
     <footer className="site-footer">
@@ -56,7 +61,7 @@ export default function SiteFooter() {
               <ul className="column-links">
                 {col.links.map((link) => (
                   <li key={link}>
-                    <a href={`/${link.toLowerCase().replace(/\s+/g, '-')}`}>{link}</a>
+                    <a href={linkHrefs[link] ?? `/${link.toLowerCase().replace(/\s+/g, '-')}`}>{link}</a>
                   </li>
                 ))}
               </ul>
