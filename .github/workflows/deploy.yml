@@ -76,6 +76,7 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           HOST: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
+          SERVER_USER: ${{ vars.SERVER_USER || 'github' }}
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -83,7 +84,7 @@ jobs:
           AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
         run: |
           set -euo pipefail
-          RELEASE_DIR="/home/github/services/peptrace/stg/releases/${{ github.sha }}"
+          RELEASE_DIR="/home/$SERVER_USER/services/peptrace/stg/releases/${{ github.sha }}"
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
             echo "::error::SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (variables) and SUPABASE_ANON_KEY (secret) must be set on the '${{ inputs.environment }}' GitHub environment."
             exit 1
@@ -97,7 +98,7 @@ jobs:
           install -m 600 /dev/null ssh_key
           printf '%s\n' "$SSH_KEY" > ssh_key
           trap 'rm -f ssh_key' EXIT
-          SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
+          SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $SERVER_USER@$HOST"
           # Each deploy gets a fresh per-commit directory — no clearing of a
           # shared slot, so no "directory not empty" failures. The server has
           # no outbound access to github.com, so the runner (which can)
@@ -125,8 +126,8 @@ jobs:
           DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
           DEPLOY_SHA: ${{ github.sha }}
           GITHUB_REPO: ${{ github.repository }}
-          RELEASE_DIR: /home/github/services/peptrace/stg/releases/${{ github.sha }}
-          PROD_DIR: /home/github/services/peptrace
+          RELEASE_DIR: /home/${{ vars.SERVER_USER || 'github' }}/services/peptrace/stg/releases/${{ github.sha }}
+          PROD_DIR: /home/${{ vars.SERVER_USER || 'github' }}/services/peptrace
           PEPTRACE_DOMAIN: ${{ vars.PEPTRACE_DOMAIN }}
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
@@ -137,7 +138,7 @@ jobs:
           GHCR_PAT: ${{ secrets.PAT }}
         with:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
-          username: github
+          username: ${{ vars.SERVER_USER || 'github' }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,DEPLOY_SHA,GITHUB_REPO,RELEASE_DIR,PROD_DIR,PEPTRACE_DOMAIN,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,SUPABASE_ANON_KEY,SUPABASE_SECRET_KEY,AUTH_SESSION_SECRET,GHCR_USER,GHCR_PAT
           script: |
@@ -226,7 +227,7 @@ jobs:
             docker image prune -f
             if [ "$DEPLOY_ENVIRONMENT" = "staging" ]; then
               # Prune old release directories, keeping the current and previous.
-              cd /home/github/services/peptrace/stg/releases
+              cd "$RELEASE_DIR/.."
               ls -1t | tail -n +3 | xargs -r rm -rf
             fi
             echo "Deployed $DEPLOY_SERVICES"

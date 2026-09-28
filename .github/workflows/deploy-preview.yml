@@ -11,9 +11,9 @@ name: deploy-preview
 # PRs that touch neither (e.g. plan-only PRs) skip the deploy entirely.
 #
 # Server-side layout (staging VPS, same host as staging):
-#   /home/github/services/peptrace/preview/releases/<sha>/  — one directory per
-#   deploy, holding the PR's merged source plus a generated .env. The .env is
-#   written by this workflow from the 'staging' GitHub environment
+#   ~<SERVER_USER>/services/peptrace/preview/releases/<sha>/  — one directory
+#   per deploy, holding the PR's merged source plus a generated .env. The .env
+#   is written by this workflow from the 'staging' GitHub environment
 #   (variables: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY; secret:
 #   SUPABASE_ANON_KEY) — no manually maintained .env on the server.
 #   COMPOSE_PROJECT_NAME is pinned in the .env so a new release replaces the
@@ -22,7 +22,8 @@ name: deploy-preview
 # One-time server setup:
 #   1. Point DNS for the preview domain(s) at the VPS.
 #   2. Make sure the `staging` environment has SERVER_IP + SSH_PRIVATE_KEY
-#      (same ones deploy.yml uses) and the SUPABASE_* values above.
+#      (same ones deploy.yml uses), SERVER_USER (the SSH login user on the
+#      server), and the SUPABASE_* values above.
 #
 # NOTE: the preview slot is shared — the latest PR deploy wins. If the branch
 # name contains an issue number, the workflow also notifies visual QA.
@@ -160,6 +161,7 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           HOST: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
+          SERVER_USER: ${{ vars.SERVER_USER || 'github' }}
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -167,7 +169,7 @@ jobs:
           AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
         run: |
           set -euo pipefail
-          RELEASE_DIR="/home/github/services/peptrace/preview/releases/$SHA"
+          RELEASE_DIR="/home/$SERVER_USER/services/peptrace/preview/releases/$SHA"
           if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
             echo "::error::SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (variables) and SUPABASE_ANON_KEY (secret) must be set on the 'staging' GitHub environment."
             exit 1
@@ -179,7 +181,7 @@ jobs:
           install -m 600 /dev/null ssh_key
           printf '%s\n' "$SSH_KEY" > ssh_key
           trap 'rm -f ssh_key' EXIT
-          SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null github@$HOST"
+          SSH="ssh -i ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $SERVER_USER@$HOST"
           # Each deploy gets a fresh per-commit directory — no clearing of a
           # shared slot, so no "directory not empty" failures. The server has
           # no outbound access to github.com, so the runner (which can)
@@ -206,12 +208,12 @@ jobs:
           DEPLOY_FRONTEND_IMAGE: ${{ env.IMAGE_NAME }}-frontend:sha-${{ env.SHA_SHORT }}
           DEPLOY_API_IMAGE: ${{ env.IMAGE_NAME }}-api:sha-${{ env.SHA_SHORT }}
           DEPLOY_SERVICES: ${{ needs.changes.outputs.services }}
-          RELEASE_DIR: /home/github/services/peptrace/preview/releases/${{ env.SHA }}
+          RELEASE_DIR: /home/${{ vars.SERVER_USER || 'github' }}/services/peptrace/preview/releases/${{ env.SHA }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
         with:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
-          username: github
+          username: ${{ vars.SERVER_USER || 'github' }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,RELEASE_DIR,GHCR_USER,GHCR_PAT
           script: |
@@ -259,7 +261,7 @@ jobs:
             done
             docker image prune -f
             # Prune old release directories, keeping the current and previous.
-            cd /home/github/services/peptrace/preview/releases
+            cd "$RELEASE_DIR/.."
             ls -1t | tail -n +3 | xargs -r rm -rf
             echo "Preview deployed."
 
