@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import './FullLeaderboard.css'
 import Breadcrumbs from './Breadcrumbs'
 import ProductHeader from './ProductHeader'
-import MethodologyBadge from './MethodologyBadge'
 import VendorsPanel from './VendorsPanel'
 import TestHistorySection from './TestHistorySection'
+import StandardFilter, { getStandard, type StandardId } from '../StandardFilter/StandardFilter'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -75,6 +75,7 @@ interface FullLeaderboardProps {
 export default function FullLeaderboard({ slug }: FullLeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null)
   const [testsData, setTestsData] = useState<TestsData | null>(null)
+  const [standardId, setStandardId] = useState<StandardId>('purity-focus')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -133,7 +134,13 @@ export default function FullLeaderboard({ slug }: FullLeaderboardProps) {
     )
   }
 
-  const { product, methodology, vendors } = leaderboard
+  const { product, vendors } = leaderboard
+  const standard = getStandard(standardId)
+  // Same effect as the home page: keep vendors meeting the selected
+  // standard's purity threshold, then re-rank so ranks stay contiguous.
+  const visibleVendors = vendors
+    .filter((v) => v.purityRating >= standard.minPurity)
+    .map((v, i) => ({ ...v, rank: i + 1 }))
 
   return (
     <div className="full-leaderboard">
@@ -143,30 +150,19 @@ export default function FullLeaderboard({ slug }: FullLeaderboardProps) {
         <div className="fl-header-row">
           <ProductHeader
             name={product.name}
-            methodology={methodology.type}
+            methodology={standard.label}
             vendorCount={product.vendorCount}
             testCount={product.testCount}
             firstTestDate={product.firstTestDate}
             latestTestDate={product.latestTestDate}
           />
-          <div className="fl-methodology-desktop">
-            <MethodologyBadge
-              type={methodology.type}
-              purityThreshold={methodology.purityThreshold}
-              doseTolerance={methodology.doseTolerance}
-            />
+          <div className="fl-standard-filter">
+            <StandardFilter value={standardId} onChange={setStandardId} />
+            <a href="/methodology" className="fl-methodology-link">View methodology</a>
           </div>
         </div>
 
-        <div className="fl-methodology-mobile">
-          <MethodologyBadge
-            type={methodology.type}
-            purityThreshold={methodology.purityThreshold}
-            doseTolerance={methodology.doseTolerance}
-          />
-        </div>
-
-        <VendorsPanel vendors={vendors} />
+        <VendorsPanel vendors={visibleVendors} />
 
         <TestHistorySection
           productName={product.name}

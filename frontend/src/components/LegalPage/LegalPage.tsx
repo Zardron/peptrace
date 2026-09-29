@@ -170,9 +170,98 @@ const termsOfUse: LegalDocument = {
   ],
 }
 
+const refundPolicy: LegalDocument = {
+  title: 'Refund Policy',
+  lastUpdated: '28 September 2026',
+  intro: [
+    'Peptrace offers independent laboratory testing services and may issue refunds in limited circumstances. This policy explains when a refund is available, how to request one, and how we handle cancelled or failed sample submissions.',
+    'By using the Service, you agree to this refund policy alongside our Terms of Service and Privacy Policy.',
+  ],
+  sections: [
+    {
+      heading: 'Eligibility',
+      paragraphs: [
+        'Refunds may be considered where a test is not completed due to a service issue, a failed sample intake, or a duplicate or incorrect payment. Refunds are not available for completed analyses where the sample has already been processed by the laboratory.',
+      ],
+    },
+    {
+      heading: 'Sample submissions and cancellations',
+      list: [
+        'If a sample is rejected before testing begins, we may issue a refund or credit for the unused service fee.',
+        'If your sample is lost in transit or the order is cancelled before the laboratory receives it, we may assess a refund on a case-by-case basis.',
+        'Once a sample has been accepted and testing has begun, the service fee is generally non-refundable because the testing work has already been incurred.',
+      ],
+    },
+    {
+      heading: 'Payment disputes and support',
+      paragraphs: [
+        'If you believe a charge is incorrect or a service issue prevented us from delivering the expected result, contact us at contact@peptrace.co and include your order details. We review all refund requests in good faith and may request additional information before making a decision.',
+      ],
+    },
+    {
+      heading: 'Timing',
+      paragraphs: [
+        'Approved refunds are generally processed within 5 to 10 business days to the original payment method. Processing times may vary depending on the payment provider.',
+      ],
+    },
+    {
+      heading: 'Changes',
+      paragraphs: [
+        'We may update this Refund Policy from time to time. The date above reflects the current version.',
+      ],
+    },
+  ],
+}
+
+const dataDeletionPolicy: LegalDocument = {
+  title: 'Data Deletion',
+  lastUpdated: '28 September 2026',
+  intro: [
+    'You can request deletion of your Peptrace account and personal data at any time. This page explains what is deleted, what may remain for legal or operational reasons, and how to submit a deletion request.',
+    'We aim to delete data promptly once we confirm the request, while retaining only the minimum information required by law or to maintain de-identified aggregate statistics.',
+  ],
+  sections: [
+    {
+      heading: 'How to request deletion',
+      paragraphs: [
+        'You can request account deletion from your Data & Privacy settings in the account dashboard. If you cannot access your account, email contact@peptrace.co with your account email and a request to delete your data.',
+      ],
+    },
+    {
+      heading: 'What gets deleted',
+      list: [
+        'Your account profile and login information associated with the account.',
+        'Saved shipping addresses and account preferences.',
+        'Shipment records, sample submissions, and test result history linked to your account.',
+        'Files and metadata associated with your profile and dashboard data.',
+      ],
+    },
+    {
+      heading: 'What may remain',
+      paragraphs: [
+        'We may retain limited information required for legal compliance, account security, or payment dispute resolution. We also preserve de-identified aggregate data, such as leaderboard statistics, where individual users cannot be reasonably identified.',
+      ],
+    },
+    {
+      heading: 'Timing',
+      paragraphs: [
+        'Deletion requests are processed as quickly as reasonably possible. Where a request is complex or we need to confirm your identity, we may take additional time to complete the deletion securely.',
+      ],
+    },
+    {
+      heading: 'Questions',
+      paragraphs: [
+        `If you have questions about data deletion or need help with a request, contact us at ${CONTACT_EMAIL}.`,
+      ],
+    },
+  ],
+}
+
 const documents: Record<string, LegalDocument> = {
   '/privacy': privacyPolicy,
   '/terms': termsOfUse,
+  '/refund': refundPolicy,
+  '/data-deletion': dataDeletionPolicy,
 }
 
 interface LegalPageProps {

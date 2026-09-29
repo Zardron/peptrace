@@ -16,6 +16,7 @@ import otherImage from '../../assets/formfactor-images/other.png'
 import dropdownIcon from '../../assets/icons/293_5968.svg'
 import plusIcon from '../../assets/icons/319_840.svg'
 import warningIcon from '../../assets/icons/1434_2321.svg'
+import { getRequestedPeptideId } from './peptideSlug'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -246,14 +247,21 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
       .then((data) => {
         if (cancelled) return
         const list = (data.peptides ?? []) as Peptide[]
+        const requestedPeptideId = getRequestedPeptideId(list, typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('slug') : null)
+        const firstFree = list.find((p) => peptidePrice(p) === 0) ?? list[0]
+
         setPeptides(list)
         setPeptidesLoading(false)
-        // Default to the first free-testing peptide, unless a selection was
-        // restored from localStorage.
-        const firstFree = list.find((p) => peptidePrice(p) === 0) ?? list[0]
-        if (firstFree) {
+
+        const selectedId = requestedPeptideId ?? firstFree?.id ?? null
+        if (selectedId) {
           setSamples((prev) =>
-            prev.map((s) => (s.peptideId ? s : { ...s, peptideId: firstFree.id })),
+            prev.map((s, index) => {
+              if (requestedPeptideId) {
+                return index === activeSample ? { ...s, peptideId: requestedPeptideId } : s
+              }
+              return s.peptideId ? s : { ...s, peptideId: selectedId }
+            }),
           )
         }
       })

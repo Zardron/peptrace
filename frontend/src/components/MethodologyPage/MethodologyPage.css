@@ -1,0 +1,452 @@
+.methodology-page {
+  width: 100%;
+}
+
+.mp-container {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+/* Section label */
+.mp-section-label {
+  display: block;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.54px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+/* Section titles */
+.mp-section-title {
+  font-family: var(--sans);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+  color: #0d0d0d;
+  margin: 0 0 16px;
+}
+
+.mp-section-subtitle {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.22px;
+  line-height: 1.2;
+  color: #0d0d0d;
+  margin: 0 0 12px;
+}
+
+/* Hero */
+.mp-hero {
+  width: 100%;
+  padding: 32px 16px 24px;
+}
+
+.mp-hero-subtitle {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.54px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin: 0 0 12px;
+}
+
+.mp-hero-title {
+  font-family: var(--sans);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1.1;
+  color: #0d0d0d;
+  margin: 0 0 16px;
+}
+
+/* Body text */
+.mp-body {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #3d3d3d;
+  margin: 0 0 12px;
+}
+
+.mp-body:last-child {
+  margin-bottom: 0;
+}
+
+/* Divider */
+.mp-divider {
+  width: 100%;
+  border: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  margin: 0;
+}
+
+/* Two-column layout */
+.mp-two-col {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.mp-col {
+  flex: 1 1 0;
+}
+
+/* Policy grid */
+.mp-policy-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Cards */
+.mp-card {
+  background: var(--bg-white);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  padding: 20px;
+}
+
+.mp-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.mp-card-title {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #0d0d0d;
+  margin: 0;
+}
+
+.mp-card-body {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #5a5a5a;
+  margin: 0;
+}
+
+/* Number badge */
+.mp-number-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Score badge */
+.mp-score-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.mp-score-badge--gray {
+  background: #3d3d3d;
+}
+
+/* Percent badge */
+.mp-percent-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.mp-percent-badge--gray {
+  background: #3d3d3d;
+}
+
+.mp-percent-badge--red {
+  background: #c0392b;
+}
+
+/* Card grids */
+.mp-card-grid {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.mp-card-grid--2x2 {
+  grid-template-columns: 1fr;
+}
+
+.mp-card-grid--3 {
+  grid-template-columns: 1fr;
+}
+
+/* Standards table */
+.mp-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin: 20px 0;
+}
+
+.mp-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: #3d3d3d;
+}
+
+.mp-table thead th {
+  background: #f8f7f5;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1.54px;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  white-space: nowrap;
+}
+
+.mp-table tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  line-height: 1.4;
+}
+
+.mp-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Labeling calc */
+.mp-labeling-calc .mp-two-col {
+  gap: 24px;
+}
+
+.mp-calc-subtitle {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #0d0d0d;
+  margin: 0 0 12px;
+}
+
+.mp-score-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mp-score-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.4;
+  color: #3d3d3d;
+}
+
+.mp-note-title {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  color: #0d0d0d;
+  margin: 0 0 4px;
+}
+
+.mp-note-body {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #5a5a5a;
+  margin: 0;
+}
+
+.mp-mini-card {
+  background: var(--bg-white);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.mp-mini-card-title {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 700;
+  color: #0d0d0d;
+  margin: 0 0 4px;
+}
+
+.mp-mini-card-body {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: #5a5a5a;
+  margin: 0;
+}
+
+/* Formulas */
+.mp-formula-title {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.54px;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--primary);
+  margin: 0 0 8px;
+}
+
+.mp-formula {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: #0d0d0d;
+  margin: 0 0 8px;
+  text-align: center;
+  word-break: break-word;
+}
+
+.mp-formula-desc {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: #5a5a5a;
+  margin: 0;
+}
+
+/* Section spacing */
+.mp-methodology,
+.mp-standards,
+.mp-labeling,
+.mp-labeling-calc,
+.mp-rating,
+.mp-formulas,
+.mp-reading,
+.mp-leaderboard {
+  padding: 32px 16px;
+}
+
+/* Tablet */
+@media (min-width: 567px) {
+  .mp-hero {
+    padding: 40px 34px 32px;
+  }
+
+  .mp-hero-title {
+    font-size: 36px;
+  }
+
+  .mp-section-title {
+    font-size: 28px;
+  }
+
+  .mp-section-subtitle {
+    font-size: 20px;
+  }
+
+  .mp-card-grid--2x2 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .mp-two-col {
+    flex-direction: row;
+    gap: 40px;
+  }
+
+  .mp-labeling-calc .mp-two-col {
+    gap: 24px;
+  }
+
+  .mp-methodology,
+  .mp-standards,
+  .mp-labeling,
+  .mp-labeling-calc,
+  .mp-rating,
+  .mp-formulas,
+  .mp-reading,
+  .mp-leaderboard {
+    padding: 32px 34px;
+  }
+}
+
+/* Desktop */
+@media (min-width: 1092px) {
+  .mp-hero {
+    padding: 48px 160px 40px;
+  }
+
+  .mp-hero-title {
+    font-size: 42px;
+  }
+
+  .mp-section-title {
+    font-size: 30px;
+  }
+
+  .mp-section-subtitle {
+    font-size: 22px;
+  }
+
+  .mp-card-grid--3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .mp-methodology,
+  .mp-standards,
+  .mp-labeling,
+  .mp-labeling-calc,
+  .mp-rating,
+  .mp-formulas,
+  .mp-reading,
+  .mp-leaderboard {
+    padding: 40px 160px;
+  }
+}

@@ -1,51 +1,47 @@
 import './SiteFooter.css'
 
+type FooterLink = string | { label: string; href: string }
+
 const columns = [
   {
     title: 'Explore',
     links: [
-      'Products',
-      'Vendors',
-      'Vendor Support',
-      'Blog',
-      'Partner Testing Labs',
-      'Testing Methodology',
-      'Corrections',
-      'Company',
-      'Customer Support',
-    ],
+      { label: 'Products', href: '/products' },
+      { label: 'Vendors', href: '/vendors' },
+      { label: 'Vendor Support', href: '/vendor-support' },
+      { label: 'Leaderboards', href: '/leaderboards' },
+      // { label: 'Partner Testing Labs', href: '/labs' },
+      { label: 'Testing Methodology', href: '/methodology' },
+      // { label: 'Corrections', href: '/corrections' },
+      // { label: 'Company', href: '/company' },
+      // { label: 'Customer Support', href: '/customer-support' },
+    ] as FooterLink[],
   },
   {
     title: 'Testing',
     links: [
-      'Submit your sample',
-      'Test Retatrutide',
-      'Test Tirzipatide',
-      'Test Melatonin',
-      'Test BPC-157',
-      'Test Ipamoreline',
-      'Test NAD+',
-      'Test another product',
+      { label: 'Submit your sample', href: '/testing' },
+      { label: 'Test Retatrutide', href: '/testing?slug=retatrutide' },
+      { label: 'Test Tirzipatide', href: '/testing?slug=tirzipatide' },
+      { label: 'Test Melatonin', href: '/testing?slug=melatonin' },
+      { label: 'Test BPC-157', href: '/testing?slug=bpc-157' },
+      { label: 'Test Ipamoreline', href: '/testing?slug=ipamoreline' },
+      { label: 'Test NAD+', href: '/testing?slug=nad' },
     ],
   },
   {
     title: 'Legal',
     links: [
-      'Verify COA',
-      'Testing Status',
-      'Terms of Service',
-      'Privacy Policy',
-      'Refund Policy',
-      'Partner Service Terms',
-      'Data Deletion',
+      // { label: 'Verify COA', href: '/verify-coa' },
+      // { label: 'Testing Status', href: '/testing-status' },
+      { label: 'Terms of Service', href: '/terms' },
+      { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Refund Policy', href: '/refund' },
+      // { label: 'Partner Service Terms', href: '/partner-service-terms' },
+      { label: 'Data Deletion', href: '/data-deletion' },
     ],
   },
 ]
-
-const linkHrefs: Record<string, string> = {
-  'Terms of Service': '/terms',
-  'Privacy Policy': '/privacy',
-}
 
 export default function SiteFooter() {
   return (
@@ -59,11 +55,15 @@ export default function SiteFooter() {
                 <h4 className="column-title">{col.title}</h4>
               </div>
               <ul className="column-links">
-                {col.links.map((link) => (
-                  <li key={link}>
-                    <a href={linkHrefs[link] ?? `/${link.toLowerCase().replace(/\s+/g, '-')}`}>{link}</a>
-                  </li>
-                ))}
+                {col.links.map((link) => {
+                  const label = typeof link === 'string' ? link : link.label
+                  const href = typeof link === 'string' ? `/${link.toLowerCase().replace(/\s+/g, '-')}` : link.href
+                  return (
+                    <li key={label}>
+                      <a href={href}>{label}</a>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ))}

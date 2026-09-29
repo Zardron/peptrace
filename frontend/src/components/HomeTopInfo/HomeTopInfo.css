@@ -39,6 +39,7 @@
 @media (max-width: 566px) {
   .home-top-info {
     padding: 0;
+    display: none;
   }
 
   .top-info-banner {

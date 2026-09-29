@@ -7,6 +7,7 @@ import Leaderboards from './components/Leaderboards/Leaderboards'
 import HomeBottom from './components/HomeBottom/HomeBottom'
 import MembershipPage from './components/MembershipPage/MembershipPage'
 import FreePeptideTesting from './components/FreePeptideTesting/FreePeptideTesting'
+import MethodologyPage from './components/MethodologyPage/MethodologyPage'
 import SiteFooter from './components/SiteFooter/SiteFooter'
 import VendorsList from './components/VendorsList/VendorsList'
 import VendorDetails from './components/VendorDetails/VendorDetails'
@@ -27,7 +28,7 @@ const accountRoutes = new Map<string, AccountView>([
   ['/account/privacy', 'privacy'],
 ])
 
-const routedPaths = new Set(['/membership', '/vendors', '/testing', '/terms', '/privacy', ...accountRoutes.keys()])
+const routedPaths = new Set(['/membership', '/vendors', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', ...accountRoutes.keys()])
 
 const PRODUCT_LEADERBOARD_PREFIX = '/product/'
 const PRODUCT_LEADERBOARD_SUFFIX = '/leaderboard'
@@ -145,7 +146,8 @@ function App() {
 
   const isMembershipPage = pagePath === '/membership'
   const isTestingPage = pagePath === '/testing'
-  const isLegalPage = pagePath === '/terms' || pagePath === '/privacy'
+  const isLegalPage = pagePath === '/terms' || pagePath === '/privacy' || pagePath === '/refund' || pagePath === '/data-deletion'
+  const isMethodologyPage = pagePath === '/methodology'
   const isVendorsPage = pagePath === '/vendors'
   const isVendorDetailsPage = pagePath.startsWith('/vendors/') && pagePath !== '/vendors'
   const productLeaderboardSlug = getProductLeaderboardSlug(pagePath)
@@ -230,6 +232,14 @@ function App() {
         <>
           <HeaderBar onSignUpClick={openAuthModal} activeRoute={pagePath} />
           <LegalPage path={pagePath} />
+          <SiteFooter />
+        </>
+      ) : isMethodologyPage ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/methodology" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <MethodologyPage />
+          </main>
           <SiteFooter />
         </>
       ) : (

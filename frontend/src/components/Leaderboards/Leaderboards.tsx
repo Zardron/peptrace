@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import './Leaderboards.css'
 import LeaderboardCard from '../LeaderboardCard/LeaderboardCard'
 import type { LeaderboardCardProps, LeaderboardRow } from '../LeaderboardCard/LeaderboardCard'
+import StandardFilter, { getStandard, type StandardId } from '../StandardFilter/StandardFilter'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -22,13 +23,6 @@ interface LeaderboardCardData {
   rows: LeaderboardRowData[]
 }
 
-const PURITY_OPTIONS = [
-  { id: 'p995', label: 'Purity Focused', badges: ['purity 99.5%+'], minPurity: 99.5 },
-  { id: 'p99', label: 'Purity Focused', badges: ['purity 99.0%+'], minPurity: 99.0 },
-  { id: 'all', label: 'All vendors', badges: [] as string[], minPurity: 0 },
-] as const
-
-type PurityId = (typeof PURITY_OPTIONS)[number]['id']
 type RankBy = 'rating' | 'cost'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -95,10 +89,8 @@ export default function Leaderboards() {
   const [cards, setCards] = useState<LeaderboardCardData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [purityId, setPurityId] = useState<PurityId>('p99')
+  const [standardId, setStandardId] = useState<StandardId>('purity-focus')
   const [rankBy, setRankBy] = useState<RankBy>('rating')
-  const [menuOpen, setMenuOpen] = useState(false)
-  const filterRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -118,27 +110,7 @@ export default function Leaderboards() {
     }
   }, [])
 
-  useEffect(() => {
-    if (!menuOpen) return undefined
-    const handleMouseDown = (event: MouseEvent) => {
-      if (!filterRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleMouseDown)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [menuOpen])
-
-  const purity = PURITY_OPTIONS.find((option) => option.id === purityId) ?? PURITY_OPTIONS[0]
+  const standard = getStandard(standardId)
 
   return (
     <section className="leaderboards">
@@ -151,48 +123,7 @@ export default function Leaderboards() {
       </div>
 
       <div className="filter-bar">
-        <div className="filter-dropdown" ref={filterRef}>
-          <button
-            type="button"
-            className="filter-left filter-trigger"
-            aria-haspopup="listbox"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <span className="filter-label">{purity.label}</span>
-            {purity.badges.map((badge) => (
-              <span key={badge} className="filter-badge">{badge}</span>
-            ))}
-            <svg
-              className={`filter-chevron${menuOpen ? ' open' : ''}`}
-              width="12" height="7" viewBox="0 0 12 7" fill="none" xmlns="http://www.w3.org/2000/svg"
-            >
-              <path d="M1 1L6 6L11 1" stroke="#7e7e7e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          {menuOpen ? (
-            <div className="filter-menu" role="listbox" aria-label="Purity filter">
-              {PURITY_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="option"
-                  aria-selected={option.id === purityId}
-                  className={`filter-menu-option${option.id === purityId ? ' active' : ''}`}
-                  onClick={() => {
-                    setPurityId(option.id)
-                    setMenuOpen(false)
-                  }}
-                >
-                  <span className="filter-menu-option-label">{option.label}</span>
-                  {option.badges.map((badge) => (
-                    <span key={badge} className="filter-badge">{badge}</span>
-                  ))}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <StandardFilter value={standardId} onChange={setStandardId} />
         <div className="filter-right">
           <span className="filter-label">Rank by</span>
           <div className="toggle">
@@ -225,7 +156,7 @@ export default function Leaderboards() {
           {cards.map((card) => (
             <LeaderboardCard
               key={card.peptideId}
-              {...toCardProps(card, purity.minPurity, rankBy)}
+              {...toCardProps(card, standard.minPurity, rankBy)}
             />
           ))}
         </div>
