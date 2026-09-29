@@ -525,7 +525,6 @@
 
 .profile-picture-row button,
 .address-card button,
-.session-row button,
 .danger-link {
   padding: 0;
   border: 0;
@@ -554,6 +553,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin: 10px 0;
 }
 
 .settings-field > span:first-child {
@@ -608,9 +608,11 @@
 }
 
 .account-pill.primary {
-  border: 1.5px solid var(--primary);
-  background: var(--primary);
-  color: #fff;
+    border: 1.5px solid var(--primary);
+    background: var(--primary);
+    color: #fff;
+    width: fit-content;
+    margin-top: 10px;
 }
 
 .account-pill.secondary {
@@ -638,6 +640,12 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #fff;
+}
+
+/* The change-password form wraps the card's fields; keep them laid out as
+   direct children of the card's flex column. */
+.settings-inner-card > form {
+  display: contents;
 }
 
 .settings-inner-card > p {
@@ -669,45 +677,23 @@
   padding-right: 48px;
 }
 
-.password-shell img {
+.password-shell .password-toggle {
   position: absolute;
   top: 50%;
   right: 16px;
-  width: 20px;
-  height: 20px;
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
   transform: translateY(-50%);
 }
 
-.session-row {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: center;
-  gap: 24px;
-  padding: 12px 0;
-  border-bottom: 1px solid #e6e6e6;
+.password-shell .password-toggle img {
+  width: 20px;
+  height: 20px;
 }
 
-.session-row:last-child {
-  border-bottom: 0;
-}
-
-.session-row span {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.session-row strong {
-  color: var(--text-dark);
-  font-size: 14px;
-}
-
-.session-row small {
-  color: #747474;
-  font-size: 12px;
-}
-
-.session-row button,
 .danger-link {
   color: #ef4444;
 }
@@ -987,11 +973,11 @@
   }
 
   .account-view-security .settings-content {
-    height: 959px;
+    height: auto;
   }
 
   .account-view-security .settings-inner-card:nth-of-type(1) {
-    height: 369px;
+    height: auto;
     gap: 0;
   }
 
@@ -1016,56 +1002,6 @@
     width: 192px;
     margin-top: 32px;
     align-self: flex-start;
-  }
-
-  .account-view-security .settings-inner-card:nth-of-type(2) {
-    height: 134px;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    grid-template-rows: 36px 30px;
-    gap: 20px 16px;
-  }
-
-  .account-view-security .settings-inner-card:nth-of-type(2) > div:first-child {
-    height: 36px;
-  }
-
-  .account-view-security .settings-inner-card:nth-of-type(2) .settings-inline-actions {
-    height: 30px;
-  }
-
-  .account-view-security .settings-inner-card:nth-of-type(3) {
-    height: 266px;
-    gap: 0;
-  }
-
-  .account-view-security .settings-inner-card:nth-of-type(3) > h2 {
-    margin-bottom: 20px;
-  }
-
-  .account-view-security .session-row {
-    height: 52px;
-    min-height: 52px;
-    padding: 12px 0;
-    border-bottom: 0;
-    box-shadow: inset 0 -1px #e6e6e6;
-  }
-
-  .account-view-security .session-row + .session-row {
-    margin-top: 12px;
-  }
-
-  .account-view-security .session-row:last-child {
-    box-shadow: none;
-  }
-
-  .account-view-security .session-row strong {
-    line-height: 14px;
-  }
-
-  .account-view-security .session-row small,
-  .account-view-security .session-row button {
-    line-height: 12px;
   }
 
   .account-view-notifications .settings-content {
@@ -1442,11 +1378,6 @@
 
   .profile-picture-row {
     align-items: flex-start;
-  }
-
-  .session-row {
-    grid-template-columns: 1fr;
-    gap: 8px;
   }
 
   .toggle-row {

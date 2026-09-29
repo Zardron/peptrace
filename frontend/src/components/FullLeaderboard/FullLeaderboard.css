@@ -114,39 +114,12 @@
   margin: 0;
 }
 
-/* Methodology badge */
-.fl-methodology-badge {
+/* Standard filter (shared dropdown) */
+.fl-standard-filter {
   display: flex;
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-  background: #ffffff;
-  border-radius: 8px;
-  padding: 8px 20px;
-  font-size: 13px;
-}
-
-.fl-methodology-type {
-  font-weight: 500;
-  color: #111111;
-  letter-spacing: 0.52px;
-}
-
-.fl-methodology-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 12px;
-  background: var(--primary);
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 700;
-  border-radius: 999px;
-  letter-spacing: 0.48px;
-}
-
-.fl-methodology-dose {
-  color: #888888;
-  font-weight: 400;
 }
 
 .fl-methodology-link {
@@ -160,10 +133,6 @@
 .fl-methodology-link:hover {
   color: var(--primary-hover);
   text-decoration: underline;
-}
-
-.fl-methodology-mobile {
-  display: none;
 }
 
 /* Vendors panel */
@@ -700,20 +669,6 @@
   .fl-product-title {
     font-size: 24px;
     line-height: 26px;
-  }
-
-  .fl-methodology-desktop {
-    display: none;
-  }
-
-  .fl-methodology-mobile {
-    display: block;
-  }
-
-  .fl-methodology-badge {
-    padding: 10px 14px;
-    gap: 10px;
-    font-size: 12px;
   }
 
   .fl-vendors-panel {

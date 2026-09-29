@@ -507,55 +507,98 @@ function ProfileSettings() {
   )
 }
 
-function PasswordField({ label }: { label: string }) {
+function PasswordField({
+  label,
+  value,
+  onChange,
+  autoComplete,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  autoComplete?: string
+}) {
+  const [visible, setVisible] = useState(false)
   return (
     <Field label={label}>
       <span className="password-shell">
-        <input defaultValue="••••••••••••" type="password" />
-        <img src={eyeOff} alt="" />
+        <input
+          type={visible ? 'text' : 'password'}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          autoComplete={autoComplete}
+        />
+        <button
+          type="button"
+          className="password-toggle"
+          aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+          onClick={() => setVisible((v) => !v)}
+        >
+          <img src={eyeOff} alt="" />
+        </button>
       </span>
     </Field>
   )
 }
 
 function SecuritySettings() {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError('')
+    setSuccess('')
+
+    if (!currentPassword) {
+      setError('Enter your current password.')
+      return
+    }
+    if (newPassword.length < 8) {
+      setError('New password must be at least 8 characters.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError('New passwords do not match.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      await apiFetch('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      })
+      setSuccess('Password updated.')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not update password. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <>
       <AccountContentHeader title="Security & Password" subtitle="Manage your password and account security settings." />
       <section className="settings-inner-card">
         <h2>Change Password</h2>
-        <PasswordField label="Current Password" />
-        <PasswordField label="New Password" />
-        <PasswordField label="Confirm New Password" />
-        <button type="button" className="account-pill primary">Update Password</button>
-      </section>
-      <section className="settings-inner-card inline-card">
-        <div>
-          <h2>Two-Factor Authentication</h2>
-          <p>Add an extra layer of security to your account.</p>
-        </div>
-        <StatusPill tone="danger">Disabled</StatusPill>
-        <div className="settings-inline-actions">
-          <img src={toggleOff} alt="" className="account-toggle" />
-          <button type="button" className="account-pill secondary">Enable 2FA</button>
-        </div>
-      </section>
-      <section className="settings-inner-card">
-        <h2>Active Sessions</h2>
-        {[
-          ['MacBook Pro', 'Melbourne, AU', '2 mins ago'],
-          ['iPhone 14', 'Sydney, AU', '3 hours ago'],
-          ['Windows 11', 'Remote, US', 'Yesterday'],
-        ].map(([device, location, time]) => (
-          <div className="session-row" key={device}>
-            <span>
-              <strong>{device}</strong>
-              <small>{location}</small>
-            </span>
-            <small>{time}</small>
-            <button type="button">Sign Out</button>
-          </div>
-        ))}
+        <form onSubmit={handleSubmit}>
+          <PasswordField label="Current Password" value={currentPassword} onChange={setCurrentPassword} autoComplete="current-password" />
+          <PasswordField label="New Password" value={newPassword} onChange={setNewPassword} autoComplete="new-password" />
+          <PasswordField label="Confirm New Password" value={confirmPassword} onChange={setConfirmPassword} autoComplete="new-password" />
+          {error ? <p className="settings-feedback error">{error}</p> : null}
+          {success ? <p className="settings-feedback success">{success}</p> : null}
+          <button type="submit" className="account-pill primary" disabled={submitting}>
+            {submitting ? 'Updating…' : 'Update Password'}
+          </button>
+        </form>
       </section>
     </>
   )

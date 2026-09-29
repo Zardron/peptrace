@@ -736,6 +736,57 @@ app.post('/auth/login', async (req, res) => {
   res.json({ token: createSessionToken({ userId: credential.account_id, email }, secret) });
 });
 
+app.post('/auth/change-password', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const currentPassword = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '';
+  const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+  if (!currentPassword) {
+    res.status(400).json({ error: 'Current password is required' });
+    return;
+  }
+  if (newPassword.length < MIN_PASSWORD_LENGTH || newPassword.length > MAX_PASSWORD_LENGTH) {
+    res
+      .status(400)
+      .json({ error: `Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters` });
+    return;
+  }
+
+  const db = getServiceClient();
+  const { data: credential, error } = await db
+    .from('native_credentials')
+    .select('password_hash')
+    .eq('account_id', session.userId)
+    .maybeSingle();
+  if (error) {
+    res.status(500).json({ error: 'Failed to load credentials' });
+    return;
+  }
+  if (!credential) {
+    res.status(400).json({ error: 'This account has no password set' });
+    return;
+  }
+  if (!verifyPassword(currentPassword, credential.password_hash)) {
+    res.status(401).json({ error: 'Current password is incorrect' });
+    return;
+  }
+
+  const { error: updateError } = await db
+    .from('native_credentials')
+    .update({ password_hash: hashPassword(newPassword) })
+    .eq('account_id', session.userId);
+  if (updateError) {
+    res.status(500).json({ error: 'Failed to update password' });
+    return;
+  }
+
+  res.json({ ok: true });
+});
+
 // ---- Account routes (Supabase Auth or native session) ----
 
 app.get('/auth/me', async (req, res) => {
