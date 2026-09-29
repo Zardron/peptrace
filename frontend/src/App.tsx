@@ -15,6 +15,7 @@ import ShipmentDetails from './components/ShipmentDetails/ShipmentDetails'
 import FullLeaderboard from './components/FullLeaderboard/FullLeaderboard'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
 import LegalPage from './components/LegalPage/LegalPage'
+import AllPeptides from './components/AllPeptides/AllPeptides'
 import { useAuth } from './context/AuthContext'
 import { navigate } from './lib/navigation'
 
@@ -28,7 +29,7 @@ const accountRoutes = new Map<string, AccountView>([
   ['/account/privacy', 'privacy'],
 ])
 
-const routedPaths = new Set(['/membership', '/vendors', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', ...accountRoutes.keys()])
+const routedPaths = new Set(['/membership', '/vendors', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', '/products', ...accountRoutes.keys()])
 
 const PRODUCT_LEADERBOARD_PREFIX = '/product/'
 const PRODUCT_LEADERBOARD_SUFFIX = '/leaderboard'
@@ -148,6 +149,7 @@ function App() {
   const isTestingPage = pagePath === '/testing'
   const isLegalPage = pagePath === '/terms' || pagePath === '/privacy' || pagePath === '/refund' || pagePath === '/data-deletion'
   const isMethodologyPage = pagePath === '/methodology'
+  const isProductsPage = pagePath === '/products'
   const isVendorsPage = pagePath === '/vendors'
   const isVendorDetailsPage = pagePath.startsWith('/vendors/') && pagePath !== '/vendors'
   const productLeaderboardSlug = getProductLeaderboardSlug(pagePath)
@@ -239,6 +241,14 @@ function App() {
           <HeaderBar onSignUpClick={openAuthModal} activeRoute="/methodology" />
           <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
             <MethodologyPage />
+          </main>
+          <SiteFooter />
+        </>
+      ) : isProductsPage ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/products" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <AllPeptides />
           </main>
           <SiteFooter />
         </>
