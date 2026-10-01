@@ -1,12 +1,16 @@
 # Production TLS config for the frontend container. Mounted by
 # docker-compose.prod.yml into /etc/nginx/templates/ — the nginx image's
-# entrypoint runs envsubst on it (only ${PEPTRACE_DOMAIN} is defined in the
-# container environment; nginx's own $variables pass through untouched).
+# entrypoint runs envsubst on it (only ${PEPTRACE_DOMAIN} and
+# ${ADMIN_PORTAL_DOMAIN} are defined in the container environment; nginx's
+# own $variables pass through untouched).
 #
 # Port 80 exists only for the Let's Encrypt HTTP-01 challenge (webroot), the
 # container healthcheck, and redirecting everything else to HTTPS. The actual
 # site is served on 443; /api is proxied to the api container (no Traefik on
-# the production VPS).
+# the production VPS). A second 443 server block below routes
+# ADMIN_PORTAL_DOMAIN to the admin-portal container (shared-services/admin-portal,
+# joined to this project's default Docker network) — there's no Traefik to
+# front that service on this server either.
 
 server {
     listen 80;
@@ -74,5 +78,36 @@ server {
         # Always revalidate the HTML shell so a new deploy takes effect on the
         # next page load instead of serving a stale asset manifest.
         add_header Cache-Control "no-cache";
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${ADMIN_PORTAL_DOMAIN};
+
+    # Same cert lineage as the main site: it must be issued covering both
+    # PEPTRACE_DOMAIN and ADMIN_PORTAL_DOMAIN (see deploy.yml).
+    ssl_certificate /etc/letsencrypt/live/${PEPTRACE_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${PEPTRACE_DOMAIN}/privkey.pem;
+
+    location /health {
+        access_log off;
+        return 200 "ok";
+        add_header Content-Type text/plain;
+    }
+
+    # admin-portal container (shared-services/admin-portal's own compose
+    # project, joined to this project's default network). Resolved at request
+    # time via Docker's embedded DNS so nginx starts even if that container
+    # isn't up yet.
+    location / {
+        resolver 127.0.0.11 valid=10s ipv6=off;
+        set $admin_portal_upstream http://admin-portal:80;
+        proxy_pass $admin_portal_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }

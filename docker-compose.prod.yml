@@ -18,6 +18,14 @@
 # this stack starts, because the HTTPS server block needs the cert files to
 # exist. DNS for PEPTRACE_DOMAIN must point at this server and ports 80/443
 # must be reachable from the internet.
+#
+# admin-portal (shared-services/admin-portal, its own repo/compose project)
+# has no Traefik to front it on this server, so it joins this project's
+# default Docker network ("peptrace_default") instead, and the frontend's
+# nginx template gets a second server_name block for ADMIN_PORTAL_DOMAIN that
+# proxies to it — see frontend/nginx.prod.conf.template. The Let's Encrypt
+# cert issued below must cover both PEPTRACE_DOMAIN and ADMIN_PORTAL_DOMAIN
+# (see deploy.yml).
 
 services:
   frontend:
@@ -27,6 +35,7 @@ services:
       - api
     environment:
       PEPTRACE_DOMAIN: ${PEPTRACE_DOMAIN:?set PEPTRACE_DOMAIN in the .env}
+      ADMIN_PORTAL_DOMAIN: ${ADMIN_PORTAL_DOMAIN:-admin.peptrace.co}
     ports:
       - "80:80"
       - "443:443"
