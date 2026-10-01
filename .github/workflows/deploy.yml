@@ -216,12 +216,12 @@ jobs:
                   echo "::error::LETSENCRYPT_EMAIL must be set as a variable on the 'production' GitHub environment (used for Let's Encrypt expiry notices)."
                   exit 1
                 fi
-                echo "No certificate for $PROD_DOMAIN yet — issuing via Let's Encrypt (covering $PROD_DOMAIN and $ADMIN_DOMAIN)."
+                echo "Requesting Let's Encrypt certificate covering $PROD_DOMAIN and $ADMIN_DOMAIN."
                 mkdir -p letsencrypt acme-webroot
                 docker compose -f docker-compose.prod.yml stop frontend 2>/dev/null || true
                 docker run --rm -p 80:80 \
                   -v "$PWD/letsencrypt:/etc/letsencrypt" \
-                  certbot/certbot:v5.8.0 certonly --standalone --non-interactive \
+                  certbot/certbot:v5.8.0 certonly --standalone --non-interactive --expand \
                   --agree-tos -m "$LETSENCRYPT_EMAIL" -d "$PROD_DOMAIN" -d "$ADMIN_DOMAIN"
               fi
             else
