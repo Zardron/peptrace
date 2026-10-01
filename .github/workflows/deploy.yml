@@ -148,6 +148,7 @@ jobs:
           RELEASE_DIR: /home/${{ vars.SERVER_USER || 'github' }}/services/peptrace/stg/releases/${{ github.sha }}
           PROD_DIR: /home/${{ vars.SERVER_USER || 'github' }}/services/peptrace
           PEPTRACE_DOMAIN: ${{ vars.PEPTRACE_DOMAIN }}
+          ADMIN_PORTAL_DOMAIN: ${{ vars.ADMIN_PORTAL_DOMAIN }}
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -161,7 +162,7 @@ jobs:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: ${{ vars.SERVER_USER || 'github' }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,DEPLOY_SHA,GITHUB_REPO,RELEASE_DIR,PROD_DIR,PEPTRACE_DOMAIN,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,SUPABASE_ANON_KEY,SUPABASE_SECRET_KEY,AUTH_SESSION_SECRET,LETSENCRYPT_EMAIL,GHCR_USER,GHCR_PAT,GIT_TOKEN
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,DEPLOY_SHA,GITHUB_REPO,RELEASE_DIR,PROD_DIR,PEPTRACE_DOMAIN,ADMIN_PORTAL_DOMAIN,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,SUPABASE_ANON_KEY,SUPABASE_SECRET_KEY,AUTH_SESSION_SECRET,LETSENCRYPT_EMAIL,GHCR_USER,GHCR_PAT,GIT_TOKEN
           script: |
             set -euo pipefail
             if [ "$DEPLOY_ENVIRONMENT" = "production" ]; then
@@ -192,6 +193,7 @@ jobs:
               git remote set-url origin "https://github.com/${GITHUB_REPO}.git"
               {
                 echo "PEPTRACE_DOMAIN=${PEPTRACE_DOMAIN:-peptrace.co}"
+                echo "ADMIN_PORTAL_DOMAIN=${ADMIN_PORTAL_DOMAIN:-admin.peptrace.co}"
                 echo "PEPTRACE_NAME=peptrace"
                 echo "COMPOSE_PROJECT_NAME=peptrace"
                 echo "SUPABASE_URL=$SUPABASE_URL"
@@ -208,18 +210,19 @@ jobs:
               # Renewals use the webroot via the running frontend instead (see
               # the certbot service in docker-compose.prod.yml).
               PROD_DOMAIN="${PEPTRACE_DOMAIN:-peptrace.co}"
+              ADMIN_DOMAIN="${ADMIN_PORTAL_DOMAIN:-admin.peptrace.co}"
               if [ ! -s "letsencrypt/live/$PROD_DOMAIN/fullchain.pem" ]; then
                 if [ -z "$LETSENCRYPT_EMAIL" ]; then
                   echo "::error::LETSENCRYPT_EMAIL must be set as a variable on the 'production' GitHub environment (used for Let's Encrypt expiry notices)."
                   exit 1
                 fi
-                echo "No certificate for $PROD_DOMAIN yet — issuing via Let's Encrypt."
+                echo "No certificate for $PROD_DOMAIN yet — issuing via Let's Encrypt (covering $PROD_DOMAIN and $ADMIN_DOMAIN)."
                 mkdir -p letsencrypt acme-webroot
                 docker compose -f docker-compose.prod.yml stop frontend 2>/dev/null || true
                 docker run --rm -p 80:80 \
                   -v "$PWD/letsencrypt:/etc/letsencrypt" \
                   certbot/certbot:v5.8.0 certonly --standalone --non-interactive \
-                  --agree-tos -m "$LETSENCRYPT_EMAIL" -d "$PROD_DOMAIN"
+                  --agree-tos -m "$LETSENCRYPT_EMAIL" -d "$PROD_DOMAIN" -d "$ADMIN_DOMAIN"
               fi
             else
               cd "$RELEASE_DIR"

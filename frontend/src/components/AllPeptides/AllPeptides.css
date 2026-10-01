@@ -1,0 +1,418 @@
+.all-peptides-page {
+  background: var(--bg);
+}
+
+.all-peptides {
+  width: 100%;
+}
+
+.all-peptides-inner {
+  max-width: 1126px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+/* Page header */
+.all-peptides-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0 8px;
+}
+
+.all-peptides-title {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 1.96px;
+  color: var(--text);
+  margin: 0;
+}
+
+.all-peptides-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.all-peptides-tabs .tab {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.54px;
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--sans);
+}
+
+.all-peptides-tabs .tab.active {
+  color: var(--text);
+}
+
+/* Divider */
+.all-peptides-divider {
+  height: 1px;
+  background: var(--border);
+  width: 100%;
+}
+
+/* Filter bar */
+.all-peptides-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  flex-wrap: wrap;
+}
+
+.all-peptides-filter-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filter-label {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 1.68px;
+  color: var(--text);
+}
+
+/* Toggle */
+.ap-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ap-toggle-option {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.68px;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: var(--sans);
+}
+
+.ap-toggle-option.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* Table header */
+.all-peptides-table-header {
+  display: grid;
+  grid-template-columns: 320px 1fr 100px 100px 120px;
+  align-items: center;
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.54px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.th-rest {
+  display: grid;
+  grid-template-columns: 1fr 100px 100px 120px;
+  align-items: center;
+}
+
+/* Table body */
+.all-peptides-table-body {
+  background: var(--bg-white);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.peptide-row {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  min-height: 96px;
+}
+
+.peptide-row:last-child {
+  border-bottom: none;
+}
+
+.peptide-name {
+  width: 320px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0.84px;
+}
+
+.peptide-vendors {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.vendor-line {
+  display: grid;
+  grid-template-columns: 1fr 100px 100px 120px;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 16px 4px 0;
+}
+
+.vendor-line-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vendor-rank {
+  width: 20px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: left;
+  letter-spacing: 0.84px;
+}
+
+.vendor-name {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  flex: 1;
+  letter-spacing: 0.52px;
+}
+
+.vendor-col {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  text-align: left;
+  letter-spacing: 0.52px;
+}
+
+/* Rating badges — exact Figma-derived colors */
+.rating-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 42px;
+  height: 18px;
+  letter-spacing: 0.72px;
+  font-family: var(--sans);
+}
+
+.rating-badge.high {
+  background: #dcfce7;
+  color: #106e56;
+}
+
+.rating-badge.medium {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.rating-badge.low {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.rating-badge.empty {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+/* Mobile layout (hidden on desktop) */
+.mobile-layout {
+  display: none;
+}
+
+.peptide-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 0;
+  margin-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.peptide-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.peptide-tab {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--sans);
+  cursor: pointer;
+  background: var(--bg-white);
+  color: #383838;
+  letter-spacing: 0.84px;
+}
+
+.peptide-tab.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.mobile-peptide-section {
+  background: var(--bg-white);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.mobile-peptide-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-peptide-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 8px;
+  letter-spacing: 0.84px;
+}
+
+.mobile-peptide-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.mobile-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mobile-meta-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mobile-meta-label {
+  color: #747474;
+  font-weight: 400;
+  letter-spacing: 0.66px;
+}
+
+.mobile-meta-value {
+  color: #374151;
+  font-weight: 400;
+  letter-spacing: 0.66px;
+}
+
+.mobile-vendor-rows {
+  padding: 8px 16px;
+}
+
+.mobile-vendor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+  min-height: 44px;
+}
+
+.mobile-vendor-row:last-child {
+  border-bottom: none;
+}
+
+.mobile-vendor-rank {
+  width: 24px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.84px;
+}
+
+.mobile-vendor-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0.52px;
+}
+
+/* Tablet */
+@media (max-width: 1091px) {
+  .all-peptides-inner {
+    padding: 20px 16px 40px;
+  }
+
+  .all-peptides-table-header {
+    grid-template-columns: 240px 1fr 90px 90px 110px;
+    padding: 10px 12px;
+  }
+
+  .th-rest {
+    grid-template-columns: 1fr 90px 90px 110px;
+  }
+
+  .peptide-name {
+    width: 240px;
+    padding: 12px;
+  }
+
+  .vendor-line {
+    grid-template-columns: 1fr 90px 90px 110px;
+    padding: 4px 12px 4px 0;
+  }
+}
+
+/* Mobile */
+@media (max-width: 566px) {
+  .all-peptides-inner {
+    padding: 16px 16px 32px;
+  }
+
+  .all-peptides-header {
+    padding: 12px 0 8px;
+  }
+
+  .all-peptides-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 8px 0;
+    gap: 12px;
+  }
+
+  .all-peptides-filter-right {
+    display: none;
+  }
+
+  .desktop-table {
+    display: none;
+  }
+
+  .mobile-layout {
+    display: block;
+  }
+}
