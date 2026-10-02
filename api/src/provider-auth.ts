@@ -16,6 +16,21 @@ export const passwordMeetsPolicy = (
 export const providerMayUseBearerExchange = (provider: unknown): boolean =>
   typeof provider === 'string' && provider !== 'email';
 
+export type ProviderRegistrationErrorDisposition = 'accepted' | 'rate_limited' | 'unavailable';
+
+// Preserve deliberately ambiguous provider 4xx responses so registration
+// cannot enumerate accounts, but never claim mail was queued during a real
+// provider outage.
+export const classifyProviderRegistrationError = (
+  value: unknown,
+): ProviderRegistrationErrorDisposition => {
+  if (!value || typeof value !== 'object') return 'accepted';
+  const error = value as { status?: unknown };
+  if (error.status === 429) return 'rate_limited';
+  if (typeof error.status === 'number' && error.status >= 500) return 'unavailable';
+  return 'accepted';
+};
+
 export const isRecentProviderSession = (
   source: unknown,
   createdAt: unknown,

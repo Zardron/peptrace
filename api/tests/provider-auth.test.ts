@@ -2,11 +2,20 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 import {
+  classifyProviderRegistrationError,
   hasVerifiedEmailProviderConfiguration,
   isRecentProviderSession,
   passwordMeetsPolicy,
   providerMayUseBearerExchange,
 } from '../src/provider-auth.js';
+
+test('provider signup distinguishes outages without creating an enumeration oracle', () => {
+  assert.equal(classifyProviderRegistrationError({ status: 500 }), 'unavailable');
+  assert.equal(classifyProviderRegistrationError({ status: 503 }), 'unavailable');
+  assert.equal(classifyProviderRegistrationError({ status: 429 }), 'rate_limited');
+  assert.equal(classifyProviderRegistrationError({ status: 400, code: 'user_already_exists' }), 'accepted');
+  assert.equal(classifyProviderRegistrationError(null), 'accepted');
+});
 
 test('provider registration fails closed unless email confirmation is enabled', () => {
   assert.equal(hasVerifiedEmailProviderConfiguration({ external: { email: true }, mailer_autoconfirm: false }), true);

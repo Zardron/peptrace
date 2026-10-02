@@ -26,6 +26,7 @@ import {
   type SafeUploadType,
 } from './security.js';
 import {
+  classifyProviderRegistrationError,
   isRecentProviderSession,
   passwordMeetsPolicy,
   providerMayUseBearerExchange,
@@ -824,8 +825,14 @@ app.post('/auth/register', requireJsonRequest, authRateLimit, async (req, res) =
       res.status(503).json({ error: 'Verified email registration is temporarily unavailable' });
       return;
     }
-    if (error?.status === 429) {
+    const registrationDisposition = classifyProviderRegistrationError(error);
+    if (registrationDisposition === 'rate_limited') {
       res.status(429).json({ error: 'Too many registration attempts. Try again later.' });
+      return;
+    }
+    if (registrationDisposition === 'unavailable') {
+      console.error(JSON.stringify({ event: 'provider_registration_unavailable', code: error?.code ?? null }));
+      res.status(503).json({ error: 'Verified email registration is temporarily unavailable' });
       return;
     }
     if (error) {
@@ -2158,6 +2165,11 @@ app.post('/shipments', async (req, res) => {
   }
 
   const { samples, newsletterOptIn, termsAccepted } = req.body ?? {};
+  const idempotencyKey = req.headers['idempotency-key'];
+  if (typeof idempotencyKey !== 'string' || !isUuid(idempotencyKey)) {
+    res.status(400).json({ error: 'A valid Idempotency-Key header is required' });
+    return;
+  }
   if (termsAccepted !== true) {
     res.status(400).json({ error: 'Terms must be accepted before registering a shipment' });
     return;
@@ -2253,45 +2265,21 @@ app.post('/shipments', async (req, res) => {
     };
   });
 
-  const consentRows = [
-    {
-      user_id: session.userId,
-      subject_hash: hashUserSubject(session.userId),
-      consent_type: 'terms',
-      policy_version: CONSENT_VERSION,
-      accepted: true,
-      source: 'shipment_registration',
-      request_id: req.headers['x-request-id'],
-    },
-  ];
-  if (newsletterOptIn === true) {
-    consentRows.push({
-      user_id: session.userId,
-      subject_hash: hashUserSubject(session.userId),
-      consent_type: 'marketing',
-      policy_version: CONSENT_VERSION,
-      accepted: true,
-      source: 'shipment_registration',
-      request_id: req.headers['x-request-id'],
-    });
-  }
-  const { error: consentError } = await db.from('user_consents').insert(consentRows);
-  if (consentError) {
-    res.status(500).json({ error: 'Failed to record shipment consent' });
-    return;
-  }
-
   const { data: shipment, error } = await db.rpc('create_shipment_with_samples', {
     owner_id: session.userId,
     newsletter: newsletterOptIn === true,
     samples: sampleRows,
+    request_key: idempotencyKey,
+    consent_policy_version: CONSENT_VERSION,
+    consent_subject_hash: hashUserSubject(session.userId),
   });
   if (error || !shipment) {
     res.status(500).json({ error: 'Failed to register the shipment' });
     return;
   }
 
-  res.status(201).json(shipment);
+  const wasReplayed = typeof shipment === 'object' && shipment !== null && shipment.replayed === true;
+  res.status(wasReplayed ? 200 : 201).json(shipment);
 });
 
 app.get('/account/dashboard', async (req, res) => {

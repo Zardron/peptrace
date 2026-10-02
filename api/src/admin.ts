@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { DUMMY_PASSWORD_HASH, hashPassword, isValidEmail, verifyPassword } from './auth.js';
 import { isUuid, normalizeAdminSearch, revokeAllOwnedSessions } from './security.js';
-import { getServiceClient, sessionSecret } from './supabase.js';
+import { getServiceClient, providerRequiresEmailConfirmation, sessionSecret } from './supabase.js';
 import {
   isAdminRole,
   roleHasPermission,
@@ -683,59 +683,30 @@ export const createAdminRouter = (): Router => {
       metadata: { page, pageSize, status: status || null, searched: Boolean(search) },
     })) return;
     const db = getServiceClient();
-    let inactiveAccountIds: string[] = [];
-    if (status === 'active' || status === 'inactive') {
-      const { data: inactiveStates, error: stateError } = await db
-        .from('account_admin_state')
-        .select('account_id')
-        .neq('status', 'active');
-      if (stateError) {
-        res.status(500).json({ error: 'Could not load user status filters' });
-        return;
-      }
-      inactiveAccountIds = (inactiveStates ?? []).map((state) => state.account_id);
-      if (status === 'inactive' && inactiveAccountIds.length === 0) {
-        res.json({ items: [], page, pageSize, total: 0, totalPages: 0 });
-        return;
-      }
-    }
-    let query = db.from('user_accounts').select('id, email, created_at, last_sign_in_at', { count: 'exact' });
+    let query = db.from('admin_user_directory').select(
+      'id, email, created_at, last_sign_in_at, full_name, role, profile_updated_at, account_status, status, status_reason, state_updated_at',
+      { count: 'exact' },
+    );
     if (search) query = query.ilike('email', `%${search}%`);
-    if (status === 'inactive') query = query.in('id', inactiveAccountIds);
-    if (status === 'active' && inactiveAccountIds.length > 0) {
-      query = query.not('id', 'in', `(${inactiveAccountIds.join(',')})`);
-    }
+    if (status) query = query.eq('status', status);
     query = query.order('created_at', { ascending: false }).range(from, to);
     const { data: accounts, count, error } = await query;
     if (error) {
       res.status(500).json({ error: 'Could not load users' });
       return;
     }
-    const ids = (accounts ?? []).map((account) => account.id);
-    const [{ data: profiles }, { data: states }] = ids.length
-      ? await Promise.all([
-          db.from('user_profiles').select('account_id, full_name, role, updated_at').in('account_id', ids),
-          db.from('account_admin_state').select('account_id, status, reason, updated_at').in('account_id', ids),
-        ])
-      : [{ data: [] }, { data: [] }];
-    const profileById = new Map((profiles ?? []).map((profile) => [profile.account_id, profile]));
-    const stateById = new Map((states ?? []).map((state) => [state.account_id, state]));
-    let items = (accounts ?? []).map((account) => {
-      const profile = profileById.get(account.id);
-      const state = stateById.get(account.id);
-      return {
+    const items = (accounts ?? []).map((account) => ({
         id: account.id,
-        displayName: profile?.full_name || account.email.split('@')[0],
+        displayName: account.full_name || account.email.split('@')[0],
         email: account.email,
-        role: profile?.role || 'member',
-        status: state && state.status !== 'active' ? 'inactive' : 'active',
-        accountStatus: state?.status ?? 'active',
-        statusReason: state?.reason ?? null,
+        role: account.role || 'member',
+        status: account.status,
+        accountStatus: account.account_status,
+        statusReason: account.status_reason,
         lastLoginAt: account.last_sign_in_at,
         createdAt: account.created_at,
-        updatedAt: state?.updated_at ?? profile?.updated_at ?? account.created_at,
-      };
-    });
+        updatedAt: account.state_updated_at ?? account.profile_updated_at ?? account.created_at,
+      }));
     res.json({ items, page, pageSize, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / pageSize) });
   });
 
@@ -1203,20 +1174,27 @@ export const createAdminRouter = (): Router => {
     const started = Date.now();
     const db = getServiceClient();
     const { error: databaseError } = await db.from('user_accounts').select('id', { head: true, count: 'exact' });
-    const [{ count: webhookFailures }, { count: notificationFailures }, { count: systemFailures }] = await Promise.all([
+    const [{ count: webhookFailures }, { count: notificationFailures }, { count: systemFailures }, storageCheck, authenticationCheck] = await Promise.all([
       db.from('billing_webhook_events').select('*', { head: true, count: 'exact' }).eq('status', 'failed'),
       db.from('notification_events').select('*', { head: true, count: 'exact' }).in('status', ['failed', 'retrying']),
       db.from('system_events').select('*', { head: true, count: 'exact' }).eq('status', 'open').in('severity', ['error', 'critical']),
+      db.storage.getBucket('profile_photos'),
+      providerRequiresEmailConfirmation().then(() => true).catch(() => false),
     ]);
     res.json({
       checkedAt: new Date().toISOString(),
       services: {
         backend: { status: 'operational', latencyMs: Date.now() - started },
         database: { status: databaseError ? 'degraded' : 'operational' },
-        authentication: { status: 'operational' },
-        storage: { status: 'not_checked' },
+        authentication: { status: authenticationCheck ? 'operational' : 'degraded' },
+        storage: { status: storageCheck.error ? 'degraded' : 'operational' },
         billing: { status: process.env.BILLING_PROVIDER ? 'configured' : 'not_configured', failures: webhookFailures ?? 0 },
-        email: { status: process.env.EMAIL_PROVIDER ? 'configured' : 'not_configured', failures: notificationFailures ?? 0 },
+        email: {
+          status: authenticationCheck
+            ? (process.env.EMAIL_PROVIDER ? 'configured' : 'authentication_only')
+            : 'degraded',
+          failures: notificationFailures ?? 0,
+        },
         push: { status: process.env.PUSH_PROVIDER ? 'configured' : 'not_configured' },
         ai: { status: process.env.AI_PROVIDER ? 'configured' : 'not_configured' },
         workers: { status: process.env.PRIVACY_WORKER_ENABLED === 'false' ? 'disabled' : 'configured' },

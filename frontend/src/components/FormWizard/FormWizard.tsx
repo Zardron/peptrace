@@ -82,6 +82,7 @@ const emptySample = (): SampleData => ({
 })
 
 interface SavedWizardState {
+  submissionId?: string
   currentStep?: number
   activeSample?: number
   samples?: SampleData[]
@@ -187,6 +188,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
   const [showAuthGate, setShowAuthGate] = useState(false)
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const [savedState] = useState(loadSavedState)
+  const [submissionId] = useState(() => savedState.submissionId ?? crypto.randomUUID())
   const [currentStep, setCurrentStep] = useState(() =>
     Math.max(1, Math.min(7, savedState.currentStep ?? initialStep)),
   )
@@ -283,6 +285,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
   // Persist form progress so a refresh doesn't lose it.
   useEffect(() => {
     const state: SavedWizardState = {
+      submissionId,
       currentStep,
       activeSample,
       samples,
@@ -290,7 +293,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
       newsletterOptIn,
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  }, [currentStep, activeSample, samples, termsAccepted, newsletterOptIn])
+  }, [submissionId, currentStep, activeSample, samples, termsAccepted, newsletterOptIn])
 
   const goToStep = useCallback(
     (step: number) => {
@@ -389,6 +392,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
     try {
       await apiFetch('/shipments', {
         method: 'POST',
+        headers: { 'Idempotency-Key': submissionId },
         body: JSON.stringify({
           newsletterOptIn,
           termsAccepted: true,

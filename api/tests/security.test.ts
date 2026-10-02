@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 import {
   detectUploadType,
@@ -77,4 +78,13 @@ test('uploads are classified from magic bytes, not declared MIME or extension', 
   assert.equal(detectUploadType(Buffer.from('RIFF0000WEBP')), 'image/webp');
   assert.equal(extensionForUploadType('application/pdf'), 'pdf');
   assert.equal(extensionForUploadType('image/jpeg'), 'jpg');
+});
+
+test('shipment writes are atomically idempotent with consent records', () => {
+  const sql = fs.readFileSync(new URL('../migrations/024_production_readiness.sql', import.meta.url), 'utf8');
+  assert.match(sql, /unique index[^;]+shipments_account_submission_key/is);
+  assert.match(sql, /on conflict \(account_id, submission_id\)/i);
+  assert.match(sql, /insert into public\.user_consents/i);
+  assert.match(sql, /'replayed', was_replayed/i);
+  assert.match(sql, /revoke all on function public\.create_shipment_with_samples/i);
 });
