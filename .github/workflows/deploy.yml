@@ -110,7 +110,8 @@ jobs:
               api/migrations/017_customer_sessions.sql \
               api/migrations/018_force_admin_password_change.sql \
               api/migrations/019_allow_consent_pseudonymization.sql \
-              api/migrations/020_security_hardening.sql; do
+              api/migrations/020_security_hardening.sql \
+              api/migrations/021_user_upload_inventory.sql; do
               echo "-- applying $file"
               sed -e '$a\' "$file"
             done
