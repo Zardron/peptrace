@@ -677,8 +677,28 @@ export const createAdminRouter = (): Router => {
     const search = cleanText(req.query.search, 100).replace(/[%_(),]/g, '');
     const status = cleanText(req.query.status, 30);
     const db = getServiceClient();
+    let inactiveAccountIds: string[] = [];
+    if (status === 'active' || status === 'inactive') {
+      const { data: inactiveStates, error: stateError } = await db
+        .from('account_admin_state')
+        .select('account_id')
+        .neq('status', 'active');
+      if (stateError) {
+        res.status(500).json({ error: 'Could not load user status filters' });
+        return;
+      }
+      inactiveAccountIds = (inactiveStates ?? []).map((state) => state.account_id);
+      if (status === 'inactive' && inactiveAccountIds.length === 0) {
+        res.json({ items: [], page, pageSize, total: 0, totalPages: 0 });
+        return;
+      }
+    }
     let query = db.from('user_accounts').select('id, email, created_at, last_sign_in_at', { count: 'exact' });
     if (search) query = query.ilike('email', `%${search}%`);
+    if (status === 'inactive') query = query.in('id', inactiveAccountIds);
+    if (status === 'active' && inactiveAccountIds.length > 0) {
+      query = query.not('id', 'in', `(${inactiveAccountIds.join(',')})`);
+    }
     query = query.order('created_at', { ascending: false }).range(from, to);
     const { data: accounts, count, error } = await query;
     if (error) {
@@ -702,7 +722,7 @@ export const createAdminRouter = (): Router => {
         displayName: profile?.full_name || account.email.split('@')[0],
         email: account.email,
         role: profile?.role || 'member',
-        status: state?.status === 'suspended' ? 'inactive' : 'active',
+        status: state && state.status !== 'active' ? 'inactive' : 'active',
         accountStatus: state?.status ?? 'active',
         statusReason: state?.reason ?? null,
         lastLoginAt: account.last_sign_in_at,
@@ -710,8 +730,6 @@ export const createAdminRouter = (): Router => {
         updatedAt: state?.updated_at ?? profile?.updated_at ?? account.created_at,
       };
     });
-    if (status === 'active') items = items.filter((item) => item.accountStatus === 'active');
-    if (status === 'inactive') items = items.filter((item) => item.accountStatus !== 'active');
     res.json({ items, page, pageSize, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / pageSize) });
   });
 
