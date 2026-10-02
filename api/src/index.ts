@@ -24,6 +24,7 @@ import {
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 
+app.disable('x-powered-by');
 app.set('trust proxy', 1);
 const allowedOrigins = new Set(
   (process.env.CORS_ORIGIN ?? '')
@@ -52,6 +53,13 @@ app.use((req, res, next) => {
     : crypto.randomUUID();
   req.headers['x-request-id'] = id;
   res.setHeader('X-Request-Id', id);
+  next();
+});
+app.use((req, res, next) => {
+  if (/^\/(admin|auth|account|uploads|support|shipment|shipments)(\/|$)/.test(req.path)) {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
+  }
   next();
 });
 // 8 MB to fit base64-encoded avatar uploads (5 MB decoded cap below).
