@@ -522,6 +522,7 @@ function PasswordField({
 }
 
 function SecuritySettings() {
+  const { logout } = useAuth()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -538,8 +539,8 @@ function SecuritySettings() {
       setError('Enter your current password.')
       return
     }
-    if (newPassword.length < 8) {
-      setError('New password must be at least 8 characters.')
+    if (newPassword.length < 12) {
+      setError('New password must be at least 12 characters.')
       return
     }
     if (newPassword !== confirmPassword) {
@@ -553,10 +554,11 @@ function SecuritySettings() {
         method: 'POST',
         body: JSON.stringify({ currentPassword, newPassword }),
       })
-      setSuccess('Password updated.')
+      setSuccess('Password updated. Sign in again to continue.')
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
+      logout()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not update password. Please try again.')
     } finally {
