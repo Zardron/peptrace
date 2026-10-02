@@ -2,10 +2,10 @@ import 'dotenv/config';
 import crypto from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
-import { supabase, createUserClient, getServiceClient, sessionSecret } from './supabase.js';
+import helmet from 'helmet';
+import { supabase, getServiceClient, sessionSecret } from './supabase.js';
+import { createAdminRouter, ensureAdminBootstrap, getAccountOperationalStatus, hashUserSubject } from './admin.js';
 import {
-  createSessionToken,
-  verifySessionToken,
   hashPassword,
   verifyPassword,
   isValidEmail,
@@ -16,24 +16,143 @@ import {
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 
-app.use(cors());
+app.set('trust proxy', 1);
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGIN ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error('Origin is not allowed'));
+  },
+}));
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'same-site' },
+}));
+app.use((req, res, next) => {
+  const incoming = req.headers['x-request-id'];
+  const id = typeof incoming === 'string' && /^[a-zA-Z0-9._:-]{1,128}$/.test(incoming)
+    ? incoming
+    : crypto.randomUUID();
+  req.headers['x-request-id'] = id;
+  res.setHeader('X-Request-Id', id);
+  next();
+});
 // 8 MB to fit base64-encoded avatar uploads (5 MB decoded cap below).
 app.use(express.json({ limit: '8mb' }));
+app.use('/admin', createAdminRouter());
 
 interface Session {
   userId: string;
   email: string;
   name: string | null;
-  // Client used for user-data queries. Supabase Auth users keep their
-  // RLS-scoped client; native users get the service client. Every query below
-  // carries an explicit user filter, so both paths stay scoped to the caller.
-  db: ReturnType<typeof createUserClient>;
+  customerSessionId?: string;
+  rawCustomerSessionToken?: string;
+  // Opaque sessions resolve to the service client. Every user-data query below
+  // carries an explicit account filter; the browser never receives this key.
+  db: ReturnType<typeof getServiceClient>;
 }
+
+const CUSTOMER_SESSION_COOKIE = 'peptrace_session';
+const CUSTOMER_SESSION_SECONDS = 7 * 24 * 60 * 60;
+
+const parseCookieHeader = (header: string | undefined): Record<string, string> => {
+  if (!header) return {};
+  return Object.fromEntries(header.split(';').flatMap((part) => {
+    const separator = part.indexOf('=');
+    if (separator < 1) return [];
+    try {
+      return [[part.slice(0, separator).trim(), decodeURIComponent(part.slice(separator + 1).trim())]];
+    } catch {
+      return [];
+    }
+  }));
+};
+
+const customerTokenHash = (token: string): string =>
+  crypto.createHash('sha256').update(token).digest('hex');
+
+const customerCsrfToken = (token: string): string =>
+  crypto.createHmac('sha256', sessionSecret()!).update(`customer-csrf:${token}`).digest('base64url');
+
+const setCustomerCookie = (res: express.Response, token: string): void => {
+  res.cookie(CUSTOMER_SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/api',
+    maxAge: CUSTOMER_SESSION_SECONDS * 1000,
+  });
+};
+
+const clearCustomerCookie = (res: express.Response): void => {
+  res.clearCookie(CUSTOMER_SESSION_COOKIE, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/api',
+  });
+};
+
+const createCustomerSession = async (
+  req: express.Request,
+  res: express.Response,
+  userId: string,
+  source: 'native' | 'supabase',
+): Promise<string> => {
+  const token = crypto.randomBytes(48).toString('base64url');
+  const expiresAt = new Date(Date.now() + CUSTOMER_SESSION_SECONDS * 1000).toISOString();
+  const address = req.ip || req.socket.remoteAddress || 'unknown';
+  const { error } = await getServiceClient().from('customer_sessions').insert({
+    user_id: userId,
+    token_hash: customerTokenHash(token),
+    source,
+    expires_at: expiresAt,
+    ip_hash: crypto.createHmac('sha256', sessionSecret()!).update(`customer-ip:${address}`).digest('hex'),
+    user_agent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'].slice(0, 500) : null,
+  });
+  if (error) throw new Error(`Could not create customer session: ${error.code}`);
+  setCustomerCookie(res, token);
+  return customerCsrfToken(token);
+};
+
+app.use((req, res, next) => {
+  if (req.path.startsWith('/admin/') || ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    next();
+    return;
+  }
+  if (['/auth/login', '/auth/register', '/auth/exchange'].includes(req.path)) {
+    next();
+    return;
+  }
+  const token = parseCookieHeader(req.headers.cookie)[CUSTOMER_SESSION_COOKIE];
+  if (!token) {
+    next();
+    return;
+  }
+  const provided = req.headers['x-csrf-token'];
+  const expected = customerCsrfToken(token);
+  if (typeof provided !== 'string' || provided.length !== expected.length ||
+      !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected))) {
+    res.status(403).json({ error: 'CSRF validation failed' });
+    return;
+  }
+  next();
+});
 
 app.get('/vendors', async (_req, res) => {
   const { data, error } = await supabase
     .from('vendors')
     .select('id, name, score, cost_per_mg, location, tests_count, products_count, latest_tested_at')
+    .eq('is_demo', false)
     .order('score', { ascending: false });
   if (error) {
     res.status(500).json({ error: 'Failed to load vendors' });
@@ -61,7 +180,12 @@ app.get('/vendors/:id', async (req, res) => {
   // Try lookup by id first (only when the param is a uuid), then by slug.
   let vendor = null;
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-    const { data, error } = await db.from('vendors').select('*').eq('id', id).maybeSingle();
+    const { data, error } = await db
+      .from('vendors')
+      .select('*')
+      .eq('id', id)
+      .eq('is_demo', false)
+      .maybeSingle();
     if (error) {
       res.status(500).json({ error: 'Failed to load vendor' });
       return;
@@ -73,6 +197,7 @@ app.get('/vendors/:id', async (req, res) => {
       .from('vendors')
       .select('*')
       .eq('slug', id)
+      .eq('is_demo', false)
       .maybeSingle();
     if (slugError) {
       res.status(500).json({ error: 'Failed to load vendor' });
@@ -93,55 +218,6 @@ app.get('/vendors/:id', async (req, res) => {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
 
-  const testsCount = vendor.tests_count ?? 18;
-  const testsPassed = vendor.tests_passed ?? Math.round((testsCount * (vendor.score ?? 80)) / 100);
-  const testsTotal = vendor.tests_total ?? testsCount;
-  const peptidesCount = vendor.products_count ?? 2;
-  const rating = vendor.rating ?? vendor.score ?? 92;
-
-  // Contact channels (synthesized if missing).
-  const contactChannels = vendor.contact_channels ?? [
-    { type: 'website', value: vendor.website_url ?? 'zenithjodepep.com', url: vendor.website_url ?? 'https://zenithjodepep.com' },
-    { type: 'whatsapp', value: '+12345678901', url: 'https://wa.me/12345678901' },
-    { type: 'email', value: 'zenithjodepep@outlook.com', url: 'mailto:zenithjodepep@outlook.com' },
-  ];
-
-  // Intelligence report (synthesized if missing).
-  const intelligenceReport = vendor.intelligence_report ?? {
-    title: `Vendor Intelligence Report: ${vendor.name}`,
-    description:
-      'WHOIS records link to the same Shenzhen trading firm, while a Weibo address and WordPress cosmetics-side mention underline the US-manufacturer posture. The report also covers contact/payment info and a high-risk Bolivian team listing.',
-    pageCount: 17,
-    riskFactorsAssessed: 5,
-    publishedDate: '2026-06-08',
-    previewUrl: null,
-  };
-
-  // Peptides pricing rows (synthesized if missing).
-  const peptides = vendor.peptides ?? [
-    { id: 'pep-ghk-cu', name: 'GHK-Cu', pricePerMg: 0.1, rating: 91, testCount: 4 },
-    { id: 'pep-retatrutide-1', name: 'Retatrutide', pricePerMg: 1.0, rating: 86, testCount: 14 },
-    { id: 'pep-retatrutide-2', name: 'Retatrutide', pricePerMg: 1.0, rating: 76, testCount: 17 },
-  ];
-
-  // Rating trend (synthesized).
-  const ratingTrend = vendor.rating_trend ?? {
-    bands: [
-      { label: '83%+', threshold: 83 },
-      { label: '65%+', threshold: 65 },
-      { label: '48%+', threshold: 48 },
-      { label: '30%+', threshold: 30 },
-      { label: '<30%', threshold: 0 },
-    ],
-    points: [
-      { date: '2025-12-15', rating: 76, label: '76%' },
-      { date: '2026-04-10', rating: 86, label: '86%' },
-      { date: '2026-06-20', rating: 90, label: '90%' },
-      { date: '2026-08-08', rating: 88, label: '88%' },
-    ],
-    xAxisLabels: ['Dec 25', 'Apr 26', 'Aug 26'],
-  };
-
   // Test history from the vendor_tests table.
   const { data: testRows, error: testsError } = await db
     .from('vendor_tests')
@@ -149,6 +225,7 @@ app.get('/vendors/:id', async (req, res) => {
       'tested_at, result, peptide_name, lab_name, purity, dosage_deviation, tested_mg, label_mg, batch_code, sender, coa_url',
     )
     .eq('vendor_id', vendor.id)
+    .eq('is_demo', false)
     .order('tested_at', { ascending: false });
   if (testsError) {
     res.status(500).json({ error: 'Failed to load vendor test history' });
@@ -171,6 +248,82 @@ app.get('/vendors/:id', async (req, res) => {
   }));
 
   const passCount = items.filter((item) => item.result === 'pass').length;
+  const testsCount = items.length;
+  const testsPassed = passCount;
+  const testsTotal = testsCount;
+  const rating = testsTotal > 0 ? Math.round((testsPassed / testsTotal) * 100) : null;
+
+  const peptideGroups = new Map<string, { pass: number; total: number; purityTotal: number; purityCount: number }>();
+  for (const item of items) {
+    const group = peptideGroups.get(item.peptideName) ?? { pass: 0, total: 0, purityTotal: 0, purityCount: 0 };
+    group.total += 1;
+    if (item.result === 'pass') group.pass += 1;
+    if (item.purity != null) {
+      group.purityTotal += item.purity;
+      group.purityCount += 1;
+    }
+    peptideGroups.set(item.peptideName, group);
+  }
+  const peptides = [...peptideGroups.entries()].map(([name, group]) => ({
+    id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+    name,
+    pricePerMg: vendor.cost_per_mg == null ? null : Number(vendor.cost_per_mg),
+    rating: group.total > 0 ? Math.round((group.pass / group.total) * 100) : null,
+    averagePurity: group.purityCount > 0
+      ? Math.round((group.purityTotal / group.purityCount) * 10) / 10
+      : null,
+    testCount: group.total,
+  }));
+
+  const chronologicalItems = [...items].reverse();
+  let cumulativePasses = 0;
+  const trendPoints = chronologicalItems.map((item, index) => {
+    if (item.result === 'pass') cumulativePasses += 1;
+    const pointRating = Math.round((cumulativePasses / (index + 1)) * 100);
+    return { date: item.date, rating: pointRating, label: `${pointRating}%` };
+  });
+  const ratingTrend = trendPoints.length > 0 ? {
+    bands: [
+      { label: '83%+', threshold: 83 },
+      { label: '65%+', threshold: 65 },
+      { label: '48%+', threshold: 48 },
+      { label: '30%+', threshold: 30 },
+      { label: '<30%', threshold: 0 },
+    ],
+    points: trendPoints,
+    xAxisLabels: [...new Set([
+      trendPoints[0]?.date,
+      trendPoints[Math.floor((trendPoints.length - 1) / 2)]?.date,
+      trendPoints.at(-1)?.date,
+    ].filter((value): value is string => Boolean(value)))],
+  } : null;
+
+  const storedContacts = Array.isArray(vendor.contact_channels) ? vendor.contact_channels : [];
+  const contactChannels = [...storedContacts];
+  if (vendor.website_url && !contactChannels.some((channel: { type?: string }) => channel.type === 'website')) {
+    contactChannels.unshift({ type: 'website', value: vendor.website_url, url: vendor.website_url });
+  }
+
+  const storedReport = vendor.intelligence_report;
+  const intelligenceReport = storedReport && typeof storedReport === 'object' && storedReport.title
+    ? storedReport
+    : null;
+
+  const { data: rankedTestRows } = await db
+    .from('vendor_tests')
+    .select('vendor_id, result')
+    .eq('is_demo', false);
+  const rankTotals = new Map<string, { pass: number; total: number }>();
+  for (const row of rankedTestRows ?? []) {
+    const value = rankTotals.get(row.vendor_id) ?? { pass: 0, total: 0 };
+    value.total += 1;
+    if (row.result === 'pass') value.pass += 1;
+    rankTotals.set(row.vendor_id, value);
+  }
+  const rankedVendorIds = [...rankTotals.entries()]
+    .sort((a, b) => (b[1].pass / b[1].total) - (a[1].pass / a[1].total))
+    .map(([vendorId]) => vendorId);
+  const rankIndex = rankedVendorIds.indexOf(vendor.id);
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
 
@@ -194,20 +347,16 @@ app.get('/vendors/:id', async (req, res) => {
       location: vendor.location ?? '—',
       websiteUrl: vendor.website_url ?? '',
       avatarUrl: vendor.avatar_url ?? null,
-      testsCount: testsCount,
-      peptidesCount: peptidesCount,
-      latestUpdate: vendor.latest_tested_at ?? new Date().toISOString().split('T')[0],
+      testsCount,
+      peptidesCount: peptides.length,
+      latestUpdate: items[0]?.date ?? null,
       rating,
-      rank: vendor.rank ?? 1,
-      rankedVendorsCount: vendor.ranked_vendors_count ?? 301,
+      rank: rankIndex >= 0 ? rankIndex + 1 : null,
+      rankedVendorsCount: rankedVendorIds.length,
       testsPassed,
       testsTotal,
-      analysisText:
-        vendor.analysis_text ??
-        `${vendor.name} is a peptide vendor tracked in Peptrace's ratings, observed price signals, recent test dates, and corrections. Peptrace ratings are calculated from published sample data using a Bayesian model that adjusts low-volume results so small sample counts do not appear artificially high.`,
-      about:
-        vendor.about ??
-        `${vendor.name} is a peptide vendor tracked in Peptrace's ratings, observed price signals, recent test dates, and corrections. The most visible peptides in this dataset are Retatrutide and GHK-Cu. This page shows the current Peptrace rating, price per mg, and sample volume for each peptide. Recent tests and corrections are shown below when available.`,
+      analysisText: vendor.analysis_text ?? null,
+      about: vendor.about ?? null,
       correctionsCount: 0,
       corrections: [],
       contactChannels,
@@ -238,61 +387,80 @@ interface LeaderboardsCard {
     pricePerMg: number | null;
     rating: number | null;
     purityPercent: number | null;
+    testCount: number;
   }[];
 }
 
 let leaderboardsCache: { expiresAt: number; promise: Promise<LeaderboardsCard[]> } | null = null;
 
 const loadLeaderboardsCards = async (): Promise<LeaderboardsCard[]> => {
-  const { data, error } = await getServiceClient()
-    .from('VendorProduct')
-    .select(
-      'id, priceMg, rating, purityPercent, testsCount, updatedAt, peptide:Peptide(id, label, slug), vendor:Vendor(id, displayName)',
-    );
-  if (error) {
-    throw new Error(error.message);
+  const db = getServiceClient();
+  const [{ data: tests, error: testsError }, { data: vendors, error: vendorsError }] = await Promise.all([
+    db.from('vendor_tests')
+      .select('vendor_id, peptide_name, result, purity, tested_at')
+      .eq('is_demo', false),
+    db.from('vendors')
+      .select('id, name, cost_per_mg')
+      .eq('is_demo', false),
+  ]);
+  if (testsError || vendorsError) {
+    throw new Error(testsError?.message ?? vendorsError?.message ?? 'Catalog query failed');
   }
 
-  interface ProductRow {
-    id: string;
-    priceMg: number | null;
-    rating: number | null;
-    purityPercent: number | null;
-    testsCount: number | null;
-    updatedAt: string | null;
-    peptide: { id: string; label: string; slug: string } | null;
-    vendor: { id: string; displayName: string } | null;
+  const vendorById = new Map((vendors ?? []).map((vendor) => [vendor.id, vendor]));
+  interface Aggregate {
+    vendorId: string;
+    vendorName: string;
+    pricePerMg: number | null;
+    pass: number;
+    total: number;
+    purityTotal: number;
+    purityCount: number;
+    latest: string | null;
   }
-
-  const byPeptide = new Map<string, { peptide: ProductRow['peptide']; products: ProductRow[] }>();
-  for (const row of (data ?? []) as unknown as ProductRow[]) {
-    if (!row.peptide || !row.vendor) {
-      continue;
+  const byPeptide = new Map<string, Map<string, Aggregate>>();
+  for (const test of tests ?? []) {
+    const vendor = vendorById.get(test.vendor_id);
+    if (!vendor) continue;
+    const vendorGroups = byPeptide.get(test.peptide_name) ?? new Map<string, Aggregate>();
+    const aggregate = vendorGroups.get(vendor.id) ?? {
+      vendorId: vendor.id,
+      vendorName: vendor.name,
+      pricePerMg: vendor.cost_per_mg == null ? null : Number(vendor.cost_per_mg),
+      pass: 0,
+      total: 0,
+      purityTotal: 0,
+      purityCount: 0,
+      latest: null,
+    };
+    aggregate.total += 1;
+    if (test.result === 'pass') aggregate.pass += 1;
+    if (test.purity != null) {
+      aggregate.purityTotal += Number(test.purity);
+      aggregate.purityCount += 1;
     }
-    const entry = byPeptide.get(row.peptide.id) ?? { peptide: row.peptide, products: [] };
-    entry.products.push(row);
-    byPeptide.set(row.peptide.id, entry);
+    if (!aggregate.latest || test.tested_at > aggregate.latest) aggregate.latest = test.tested_at;
+    vendorGroups.set(vendor.id, aggregate);
+    byPeptide.set(test.peptide_name, vendorGroups);
   }
 
-  return [...byPeptide.values()]
-    .map(({ peptide, products }) => {
+  return [...byPeptide.entries()]
+    .map(([productName, vendorGroups]) => {
+      const groups = [...vendorGroups.values()];
+      const slug = productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       return {
-        peptideId: peptide!.id,
-        productName: peptide!.label,
-        slug: peptide!.slug,
-        testCount: products.reduce((sum, p) => sum + (p.testsCount ?? 0), 0),
-        vendorCount: new Set(products.map((p) => p.vendor!.id)).size,
-        lastUpdated: products
-          .map((p) => p.updatedAt ?? '')
-          .sort()
-          .at(-1) ?? null,
-        // All vendor rows are returned unranked; the client filters (purity),
-        // sorts (rating or $/mg) and ranks them.
-        rows: products.map((p) => ({
-          vendorName: p.vendor!.displayName,
-          pricePerMg: p.priceMg,
-          rating: p.rating,
-          purityPercent: p.purityPercent,
+        peptideId: slug,
+        productName,
+        slug,
+        testCount: groups.reduce((sum, group) => sum + group.total, 0),
+        vendorCount: groups.length,
+        lastUpdated: groups.map((group) => group.latest).filter((value): value is string => Boolean(value)).sort().at(-1) ?? null,
+        rows: groups.map((group) => ({
+          vendorName: group.vendorName,
+          pricePerMg: group.pricePerMg,
+          rating: group.total > 0 ? group.pass / group.total : null,
+          purityPercent: group.purityCount > 0 ? group.purityTotal / group.purityCount : null,
+          testCount: group.total,
         })),
       };
     })
@@ -325,134 +493,60 @@ app.get('/leaderboards', async (_req, res) => {
 app.get('/products/:slug/leaderboard', async (req, res) => {
   const slug = req.params.slug;
   const db = getServiceClient();
-
-  const { data: vpRows, error: vpError } = await db
-    .from('VendorProduct')
-    .select(
-      'id, priceMg, rating, purityPercent, testsCount, updatedAt, peptide:Peptide!inner(id, label, slug), vendor:Vendor(id, displayName, slug)',
-    )
-    .eq('peptide.slug', slug);
-
-  if (vpError) {
+  const [{ data: tests, error: testsError }, { data: vendorRows, error: vendorError }] = await Promise.all([
+    db.from('vendor_tests')
+      .select('vendor_id, peptide_name, result, purity, tested_at')
+      .eq('is_demo', false),
+    db.from('vendors')
+      .select('id, name, slug, cost_per_mg')
+      .eq('is_demo', false),
+  ]);
+  if (testsError || vendorError) {
     res.status(500).json({ error: 'Failed to load leaderboard' });
     return;
   }
 
-  let productName = slug.charAt(0).toUpperCase() + slug.slice(1);
-
-  interface VpRow {
-    id: string;
-    priceMg: number | null;
-    rating: number | null;
-    purityPercent: number | null;
-    testsCount: number | null;
-    updatedAt: string | null;
-    peptide: { id: string; label: string; slug: string } | null;
-    vendor: { id: string; displayName: string; slug: string | null } | null;
-  }
-
-  const rows = (vpRows ?? []) as unknown as VpRow[];
-
-  if (rows.length > 0 && rows[0].peptide) {
-    productName = rows[0].peptide.label;
-  }
-
-  // Aggregate listings per vendor: one row per vendor with weighted-average
-  // ratings (weighted by test count), lowest listed price, and total tests —
-  // ranked by customer rating like the leaderboard cards on the home page.
-  interface VendorAgg {
-    id: string;
-    name: string;
-    slug: string | null;
-    pricePerMg: number | null;
-    ratingSum: number;
-    puritySum: number;
-    weightSum: number;
-    nCount: number;
-  }
-
-  const byVendor = new Map<string, VendorAgg>();
-  for (const r of rows) {
-    if (!r.vendor) continue;
-    const weight = Math.max(r.testsCount ?? 0, 1);
-    let agg = byVendor.get(r.vendor.id);
-    if (!agg) {
-      agg = {
-        id: r.vendor.id,
-        name: r.vendor.displayName,
-        slug: r.vendor.slug,
-        pricePerMg: r.priceMg,
-        ratingSum: 0,
-        puritySum: 0,
-        weightSum: 0,
-        nCount: 0,
-      };
-      byVendor.set(r.vendor.id, agg);
+  const matchingTests = (tests ?? []).filter((test) => (
+    test.peptide_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') === slug
+  ));
+  const productName = matchingTests[0]?.peptide_name ?? slug.replace(/-/g, ' ');
+  const vendorById = new Map((vendorRows ?? []).map((vendor) => [vendor.id, vendor]));
+  const byVendor = new Map<string, {
+    pass: number;
+    total: number;
+    purityTotal: number;
+    purityCount: number;
+  }>();
+  for (const test of matchingTests) {
+    if (!vendorById.has(test.vendor_id)) continue;
+    const aggregate = byVendor.get(test.vendor_id) ?? { pass: 0, total: 0, purityTotal: 0, purityCount: 0 };
+    aggregate.total += 1;
+    if (test.result === 'pass') aggregate.pass += 1;
+    if (test.purity != null) {
+      aggregate.purityTotal += Number(test.purity);
+      aggregate.purityCount += 1;
     }
-    if (r.priceMg != null && (agg.pricePerMg == null || r.priceMg < agg.pricePerMg)) {
-      agg.pricePerMg = r.priceMg;
-    }
-    agg.ratingSum += (r.rating ?? 0) * weight;
-    agg.puritySum += (r.purityPercent ?? 0) * weight;
-    agg.weightSum += weight;
-    agg.nCount += r.testsCount ?? 0;
+    byVendor.set(test.vendor_id, aggregate);
   }
 
-  let vendors = [...byVendor.values()]
-    .sort((a, b) => b.ratingSum / b.weightSum - a.ratingSum / a.weightSum)
-    .map((agg, i) => {
-      const vendorSlug =
-        agg.slug ??
-        (agg.name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '') || `vendor-${i + 1}`);
-      const initials = agg.name
-        .split(/\s+/)
-        .map((w) => w[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
-      return {
-        rank: i + 1,
-        name: agg.name,
-        slug: vendorSlug,
-        initials,
-        isVerified: true,
-        pricePerMg: agg.pricePerMg ?? 0,
-        customerRating: Math.round((agg.ratingSum / agg.weightSum) * 100),
-        purityRating: Math.round((agg.puritySum / agg.weightSum) * 10) / 10,
-        nCount: agg.nCount,
-      };
-    });
-
-  // Synthesize demo vendors when no real data exists yet.
-  if (vendors.length === 0) {
-    const demoVendors = [
-      { name: 'Peptide Partners', pricePerMg: 1.0, customerRating: 92, purityRating: 99.5, nCount: 14 },
-      { name: 'Inno Peptides', pricePerMg: 1.2, customerRating: 88, purityRating: 98.8, nCount: 8 },
-      { name: 'ZLZ Peptide', pricePerMg: 0.9, customerRating: 85, purityRating: 97.5, nCount: 6 },
-      { name: 'Bioscience Lab', pricePerMg: 1.5, customerRating: 82, purityRating: 96.2, nCount: 4 },
-      { name: 'PureCycle', pricePerMg: 0.8, customerRating: 78, purityRating: 95.0, nCount: 3 },
-      { name: 'Synthetix', pricePerMg: 1.1, customerRating: 76, purityRating: 94.5, nCount: 5 },
-      { name: 'NovaChem', pricePerMg: 1.3, customerRating: 74, purityRating: 93.8, nCount: 2 },
-      { name: 'GenTech', pricePerMg: 0.95, customerRating: 70, purityRating: 92.0, nCount: 4 },
-    ];
-    vendors = demoVendors.map((v, i) => ({
-      rank: i + 1,
-      name: v.name,
-      slug: v.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
-      initials: v.name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(),
-      isVerified: true,
-      pricePerMg: v.pricePerMg,
-      customerRating: v.customerRating,
-      purityRating: v.purityRating,
-      nCount: v.nCount,
+  const vendors = [...byVendor.entries()]
+    .map(([vendorId, aggregate]) => ({ vendor: vendorById.get(vendorId)!, aggregate }))
+    .sort((a, b) => (b.aggregate.pass / b.aggregate.total) - (a.aggregate.pass / a.aggregate.total))
+    .map(({ vendor, aggregate }, index) => ({
+      rank: index + 1,
+      name: vendor.name,
+      slug: vendor.slug ?? vendor.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      initials: vendor.name.split(/\s+/).map((word: string) => word[0]).join('').slice(0, 2).toUpperCase(),
+      isVerified: aggregate.total > 0,
+      pricePerMg: vendor.cost_per_mg == null ? null : Number(vendor.cost_per_mg),
+      customerRating: Math.round((aggregate.pass / aggregate.total) * 100),
+      purityRating: aggregate.purityCount > 0
+        ? Math.round((aggregate.purityTotal / aggregate.purityCount) * 10) / 10
+        : null,
+      nCount: aggregate.total,
     }));
-  }
 
-  const allDates = rows.map((r) => r.updatedAt).filter(Boolean) as string[];
-  allDates.sort();
+  const allDates = matchingTests.map((test) => test.tested_at).sort();
 
   res.json({
     product: {
@@ -460,8 +554,8 @@ app.get('/products/:slug/leaderboard', async (req, res) => {
       slug,
       vendorCount: vendors.length,
       testCount: vendors.reduce((sum, v) => sum + v.nCount, 0),
-      firstTestDate: allDates[0] ?? '2025-12-17',
-      latestTestDate: allDates.at(-1) ?? '2026-09-20',
+      firstTestDate: allDates[0] ?? null,
+      latestTestDate: allDates.at(-1) ?? null,
     },
     methodology: {
       type: 'Purity Focused',
@@ -477,23 +571,22 @@ app.get('/products/:slug/tests', async (req, res) => {
   const slug = req.params.slug;
   const db = getServiceClient();
 
-  const { data: vpRows } = await db
-    .from('VendorProduct')
-    .select('peptide:Peptide!inner(label)')
-    .eq('peptide.slug', slug)
-    .limit(1);
-
-  const peptideLabel =
-    (vpRows?.[0] as unknown as { peptide: { label: string } | null } | undefined)?.peptide
-      ?.label ?? slug;
-
   const { data: testRows, error: testsError } = await db
     .from('vendor_tests')
     .select(
       'tested_at, result, peptide_name, lab_name, purity, dosage_deviation, tested_mg, label_mg, batch_code, sender, coa_url, vendor_id',
     )
-    .ilike('peptide_name', peptideLabel)
+    .eq('is_demo', false)
     .order('tested_at', { ascending: false });
+
+  if (testsError) {
+    res.status(500).json({ error: 'Failed to load test history' });
+    return;
+  }
+
+  const matchingRows = (testRows ?? []).filter((test) => (
+    test.peptide_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') === slug
+  ));
 
   let items: {
     date: string;
@@ -511,9 +604,9 @@ app.get('/products/:slug/tests', async (req, res) => {
     coaUrl: string | null;
   }[] = [];
 
-  if (!testsError && testRows && testRows.length > 0) {
+  if (matchingRows.length > 0) {
     const vendorIds = [
-      ...new Set((testRows as unknown as Array<{ vendor_id: string | null }>).map((t) => t.vendor_id).filter(Boolean)),
+      ...new Set((matchingRows as unknown as Array<{ vendor_id: string | null }>).map((t) => t.vendor_id).filter(Boolean)),
     ];
     const { data: vendorRows } =
       vendorIds.length > 0
@@ -523,7 +616,7 @@ app.get('/products/:slug/tests', async (req, res) => {
       (vendorRows ?? []).map((v: unknown) => [(v as { id: string }).id, (v as { name: string }).name]),
     );
 
-    items = (testRows as unknown as Array<{
+    items = (matchingRows as unknown as Array<{
       tested_at: string;
       result: string;
       peptide_name: string;
@@ -551,32 +644,6 @@ app.get('/products/:slug/tests', async (req, res) => {
       sender: t.sender,
       coaUrl: t.coa_url,
     }));
-  } else {
-    const now = new Date();
-    const fmt = (d: Date) => d.toISOString().split('T')[0];
-    const demoTests = [
-      { date: fmt(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 5)), result: 'pass' as const, vendorName: 'Peptide Partners', labName: 'Janoshik', purity: 99.9, dosageDeviation: '+2%', testedMg: 10, labelMg: 10, batch: 'Batch #2409', sender: 'Peptrace' },
-      { date: fmt(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 20)), result: 'pass' as const, vendorName: 'Inno Peptides', labName: 'Chemtest', purity: 99.8, dosageDeviation: '-1%', testedMg: 5, labelMg: 5, batch: 'Batch #1812', sender: 'User' },
-      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 2, 15)), result: 'fail' as const, vendorName: 'ZLZ Peptide', labName: 'Janoshik', purity: 94.1, dosageDeviation: '+12%', testedMg: 8.8, labelMg: 10, batch: 'Batch #0924', sender: 'Peptrace' },
-      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 3, 10)), result: 'pass' as const, vendorName: 'Bioscience Lab', labName: 'Chemtest', purity: 98.5, dosageDeviation: '-3%', testedMg: 10, labelMg: 10, batch: 'Batch #3301', sender: 'User' },
-      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 4, 5)), result: 'pass' as const, vendorName: 'PureCycle', labName: 'Janoshik', purity: 97.2, dosageDeviation: '+5%', testedMg: 5, labelMg: 5, batch: 'Batch #1102', sender: 'Peptrace' },
-      { date: fmt(new Date(now.getFullYear(), now.getMonth() - 5, 1)), result: 'pass' as const, vendorName: 'Synthetix', labName: 'Eurofins', purity: 96.8, dosageDeviation: '-2%', testedMg: 10, labelMg: 10, batch: 'Batch #2208', sender: 'User' },
-    ];
-    items = demoTests.map((t) => ({
-      date: t.date,
-      result: t.result.toUpperCase() as 'PASS' | 'FAIL',
-      productName: peptideLabel,
-      vendorName: t.vendorName,
-      labName: t.labName,
-      purity: t.purity,
-      identityPass: t.result === 'pass',
-      dosageDeviation: t.dosageDeviation,
-      testedMg: t.testedMg,
-      labelMg: t.labelMg,
-      batch: t.batch,
-      sender: t.sender,
-      coaUrl: '#',
-    }));
   }
 
   const passCount = items.filter((i) => i.result === 'PASS').length;
@@ -592,37 +659,35 @@ app.get('/products/:slug/tests', async (req, res) => {
 });
 
 const authenticate = async (req: express.Request): Promise<Session | null> => {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    return null;
-  }
-  const token = auth.slice(7);
-
-  const secret = sessionSecret();
-  if (secret) {
-    const native = verifySessionToken(token, secret);
-    if (native) {
-      return {
-        userId: native.userId,
-        email: native.email,
-        name: null,
-        db: getServiceClient(),
-      };
+  const rawCustomerSessionToken = parseCookieHeader(req.headers.cookie)[CUSTOMER_SESSION_COOKIE];
+  if (rawCustomerSessionToken) {
+    const db = getServiceClient();
+    const { data: customerSession } = await db.from('customer_sessions')
+      .select('id, user_id, expires_at, revoked_at, last_seen_at')
+      .eq('token_hash', customerTokenHash(rawCustomerSessionToken))
+      .maybeSingle();
+    if (customerSession && !customerSession.revoked_at && new Date(customerSession.expires_at).getTime() > Date.now()) {
+      const [{ data: account }, status] = await Promise.all([
+        db.from('user_accounts').select('email').eq('id', customerSession.user_id).maybeSingle(),
+        getAccountOperationalStatus(customerSession.user_id),
+      ]);
+      if (account && status !== 'suspended' && status !== 'deleted') {
+        if (Date.now() - new Date(customerSession.last_seen_at).getTime() > 5 * 60 * 1000) {
+          void db.from('customer_sessions').update({ last_seen_at: new Date().toISOString() }).eq('id', customerSession.id);
+        }
+        return {
+          userId: customerSession.user_id,
+          email: account.email,
+          name: null,
+          customerSessionId: customerSession.id,
+          rawCustomerSessionToken,
+          db,
+        };
+      }
     }
   }
 
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) {
-    return null;
-  }
-  const name =
-    typeof data.user.user_metadata?.name === 'string' ? data.user.user_metadata.name : null;
-  return {
-    userId: data.user.id,
-    email: data.user.email ?? '',
-    name,
-    db: createUserClient(token),
-  };
+  return null;
 };
 
 app.get('/health', (_req, res) => {
@@ -634,26 +699,39 @@ app.get('/health', (_req, res) => {
 const normalizeEmail = (value: unknown): string =>
   typeof value === 'string' ? value.trim().toLowerCase() : '';
 
-app.post('/auth/check-email', async (req, res) => {
+const authAttempts = new Map<string, { count: number; resetAt: number }>();
+const authRateLimit = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  const forwarded = req.headers['x-forwarded-for'];
+  const source = typeof forwarded === 'string' ? forwarded.split(',')[0] : req.ip;
+  const key = crypto.createHash('sha256').update(String(source ?? 'unknown')).digest('hex');
+  const now = Date.now();
+  const current = authAttempts.get(key);
+  if (!current || current.resetAt <= now) {
+    authAttempts.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    next();
+    return;
+  }
+  if (current.count >= 30) {
+    res.setHeader('Retry-After', Math.ceil((current.resetAt - now) / 1000));
+    res.status(429).json({ error: 'Too many authentication attempts. Try again later.' });
+    return;
+  }
+  current.count += 1;
+  next();
+};
+
+app.post('/auth/check-email', authRateLimit, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   if (!isValidEmail(email)) {
     res.status(400).json({ error: 'A valid email address is required' });
     return;
   }
-  const db = getServiceClient();
-  const { data, error } = await db
-    .from('native_credentials')
-    .select('account_id')
-    .eq('email', email)
-    .maybeSingle();
-  if (error) {
-    res.status(500).json({ error: 'Failed to check email' });
-    return;
-  }
-  res.json({ exists: Boolean(data) });
+  // Do not disclose whether an account exists. Kept for compatibility with
+  // older clients; current clients let the user choose sign-in or sign-up.
+  res.json({ exists: false, deprecated: true });
 });
 
-app.post('/auth/register', async (req, res) => {
+app.post('/auth/register', authRateLimit, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   if (!isValidEmail(email)) {
@@ -682,30 +760,24 @@ app.post('/auth/register', async (req, res) => {
     return;
   }
 
-  const userId = crypto.randomUUID();
-  const { error: accountError } = await db
-    .from('user_accounts')
-    .insert({ id: userId, email });
-  if (accountError) {
+  const { data: userId, error: registrationError } = await db.rpc('register_native_account', {
+    normalized_email: email,
+    credential_hash: hashPassword(password),
+  });
+  if (registrationError || typeof userId !== 'string') {
+    if (registrationError?.code === '23505') {
+      res.status(409).json({ error: 'An account with this email already exists' });
+      return;
+    }
     res.status(500).json({ error: 'Failed to create account' });
     return;
   }
-  const { error: credentialError } = await db
-    .from('native_credentials')
-    .insert({ account_id: userId, email, password_hash: hashPassword(password) });
-  if (credentialError) {
-    await db.from('user_accounts').delete().eq('id', userId);
-    res.status(500).json({ error: 'Failed to create credentials' });
-    return;
-  }
-  // Profile rows are upserted on first save too, so a failure here is not fatal.
-  await db.from('user_profiles').insert({ account_id: userId });
 
-  const secret = sessionSecret()!;
-  res.status(201).json({ token: createSessionToken({ userId, email }, secret) });
+  const csrfToken = await createCustomerSession(req, res, userId, 'native');
+  res.status(201).json({ csrfToken });
 });
 
-app.post('/auth/login', async (req, res) => {
+app.post('/auth/login', authRateLimit, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   if (!isValidEmail(email) || !password) {
@@ -724,16 +796,75 @@ app.post('/auth/login', async (req, res) => {
     return;
   }
   if (!credential) {
-    res.status(404).json({ error: 'No account found for this email' });
+    res.status(401).json({ error: 'Invalid email or password' });
     return;
   }
   if (!verifyPassword(password, credential.password_hash)) {
-    res.status(401).json({ error: 'Incorrect password' });
+    res.status(401).json({ error: 'Invalid email or password' });
     return;
   }
 
-  const secret = sessionSecret()!;
-  res.json({ token: createSessionToken({ userId: credential.account_id, email }, secret) });
+  const csrfToken = await createCustomerSession(req, res, credential.account_id, 'native');
+  res.json({ csrfToken });
+});
+
+app.post('/auth/exchange', authRateLimit, async (req, res) => {
+  const auth = req.headers.authorization;
+  const accessToken = auth?.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!accessToken) {
+    res.status(401).json({ error: 'Provider session is required' });
+    return;
+  }
+  const { data, error } = await supabase.auth.getUser(accessToken);
+  if (error || !data.user?.email || !data.user.email_confirmed_at) {
+    res.status(401).json({ error: 'Provider session is invalid' });
+    return;
+  }
+  const db = getServiceClient();
+  const externalUserId = data.user.id;
+  const email = normalizeEmail(data.user.email);
+  let userId = externalUserId;
+  const { data: existingLink } = await db.from('account_identity_links')
+    .select('account_id')
+    .eq('provider', 'supabase')
+    .eq('provider_subject', externalUserId)
+    .maybeSingle();
+  if (existingLink?.account_id) {
+    userId = existingLink.account_id;
+  } else {
+    const { data: matchingAccount } = await db.from('user_accounts').select('id').eq('email', email).maybeSingle();
+    if (matchingAccount) userId = matchingAccount.id;
+    if (userId !== externalUserId) {
+      const { error: linkError } = await db.from('account_identity_links').insert({
+        provider: 'supabase',
+        provider_subject: externalUserId,
+        account_id: userId,
+      });
+      if (linkError && linkError.code !== '23505') {
+        res.status(500).json({ error: 'Could not link provider identity' });
+        return;
+      }
+    }
+  }
+  const { error: accountError } = await db.from('user_accounts').upsert({ id: userId, email }, { onConflict: 'id' });
+  if (accountError) {
+    res.status(500).json({ error: 'Could not create customer account' });
+    return;
+  }
+  await db.from('user_profiles').upsert({ account_id: userId }, { onConflict: 'account_id', ignoreDuplicates: true });
+  const csrfToken = await createCustomerSession(req, res, userId, 'supabase');
+  res.json({ csrfToken });
+});
+
+app.post('/auth/logout', async (req, res) => {
+  const session = await authenticate(req);
+  if (session?.customerSessionId) {
+    await getServiceClient().from('customer_sessions')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('id', session.customerSessionId);
+  }
+  clearCustomerCookie(res);
+  res.status(204).end();
 });
 
 app.post('/auth/change-password', async (req, res) => {
@@ -782,6 +913,13 @@ app.post('/auth/change-password', async (req, res) => {
   if (updateError) {
     res.status(500).json({ error: 'Failed to update password' });
     return;
+  }
+
+  if (session.customerSessionId) {
+    await db.from('customer_sessions')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('user_id', session.userId)
+      .neq('id', session.customerSessionId);
   }
 
   res.json({ ok: true });
@@ -840,17 +978,23 @@ app.get('/auth/me', async (req, res) => {
 
   const name = profile?.full_name ?? session.name ?? session.email.split('@')[0];
 
+  const avatarPath = profile?.avatar_url ? storagePathFromUrl(profile.avatar_url) : null;
+  const signedAvatar = avatarPath
+    ? await getServiceClient().storage.from(PROFILE_PHOTOS_BUCKET).createSignedUrl(avatarPath, 15 * 60)
+    : null;
+
   res.json({
     id: session.userId,
     email: session.email,
     name,
     isNewAccount,
     memberSince: account?.created_at ?? new Date().toISOString(),
-    profile: profile ?? null,
+    profile: profile ? { ...profile, avatar_url: signedAvatar?.data?.signedUrl ?? null } : null,
+    csrfToken: session.rawCustomerSessionToken ? customerCsrfToken(session.rawCustomerSessionToken) : null,
   });
 });
 
-const PROFILE_FIELDS = ['full_name', 'organization', 'role', 'phone', 'bio', 'avatar_url'] as const;
+const PROFILE_FIELDS = ['full_name', 'organization', 'role', 'phone', 'bio'] as const;
 
 app.put('/account/profile', async (req, res) => {
   const session = await authenticate(req);
@@ -892,16 +1036,52 @@ app.put('/account/profile', async (req, res) => {
     return;
   }
 
-  res.json({ profile });
+  const avatarPath = profile.avatar_url ? storagePathFromUrl(profile.avatar_url) : null;
+  const signedAvatar = avatarPath
+    ? await getServiceClient().storage.from(PROFILE_PHOTOS_BUCKET).createSignedUrl(avatarPath, 15 * 60)
+    : null;
+  res.json({ profile: { ...profile, avatar_url: signedAvatar?.data?.signedUrl ?? null } });
 });
 
 const PROFILE_PHOTOS_BUCKET = 'profile_photos';
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const AVATAR_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+let profileBucketReady: Promise<void> | null = null;
+
+const ensurePrivateBucket = (bucket: string): Promise<void> => {
+  const storage = getServiceClient().storage;
+  return storage.getBucket(bucket).then(async ({ data, error }) => {
+    if (error || !data) {
+      const { error: createError } = await storage.createBucket(bucket, {
+        public: false,
+        fileSizeLimit: MAX_AVATAR_BYTES,
+      });
+      if (createError && !/already exists/i.test(createError.message)) throw createError;
+      return;
+    }
+    if (data.public) {
+      const { error: updateError } = await storage.updateBucket(bucket, { public: false });
+      if (updateError) throw updateError;
+    }
+  });
+};
+
+const ensureProfileBucket = (): Promise<void> => {
+  profileBucketReady ??= ensurePrivateBucket(PROFILE_PHOTOS_BUCKET).catch((error) => {
+    profileBucketReady = null;
+    throw error;
+  });
+  return profileBucketReady;
+};
 
 const storagePathFromUrl = (url: string): string | null => {
-  const marker = `/object/public/${PROFILE_PHOTOS_BUCKET}/`;
-  const index = url.indexOf(marker);
-  return index === -1 ? null : url.slice(index + marker.length);
+  if (!url.includes('://')) return url.replace(/^\/+/, '');
+  for (const marker of [`/object/public/${PROFILE_PHOTOS_BUCKET}/`, `/object/sign/${PROFILE_PHOTOS_BUCKET}/`]) {
+    const index = url.indexOf(marker);
+    if (index !== -1) return decodeURIComponent(url.slice(index + marker.length).split('?')[0]);
+  }
+  return null;
 };
 
 app.post('/account/avatar', async (req, res) => {
@@ -912,8 +1092,8 @@ app.post('/account/avatar', async (req, res) => {
   }
 
   const { image, contentType, extension } = req.body ?? {};
-  if (typeof image !== 'string' || typeof contentType !== 'string' || !contentType.startsWith('image/')) {
-    res.status(400).json({ error: 'An image file is required' });
+  if (typeof image !== 'string' || typeof contentType !== 'string' || !AVATAR_CONTENT_TYPES.has(contentType)) {
+    res.status(400).json({ error: 'A JPEG, PNG, or WebP image is required' });
     return;
   }
   const buffer = Buffer.from(image, 'base64');
@@ -921,8 +1101,17 @@ app.post('/account/avatar', async (req, res) => {
     res.status(400).json({ error: 'Photo must be smaller than 5 MB' });
     return;
   }
-  const ext =
-    typeof extension === 'string' && /^[a-z0-9]{1,5}$/.test(extension) ? extension : 'png';
+  const expectedExtension = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/webp' ? 'webp' : 'png';
+  const ext = typeof extension === 'string' && ['jpg', 'jpeg', 'png', 'webp'].includes(extension.toLowerCase())
+    ? extension.toLowerCase()
+    : expectedExtension;
+
+  try {
+    await ensureProfileBucket();
+  } catch {
+    res.status(503).json({ error: 'Profile photo storage is unavailable' });
+    return;
+  }
 
   const path = `${session.userId}/${crypto.randomUUID()}.${ext}`;
   const storage = getServiceClient().storage.from(PROFILE_PHOTOS_BUCKET);
@@ -931,8 +1120,6 @@ app.post('/account/avatar', async (req, res) => {
     res.status(500).json({ error: 'Could not upload the photo' });
     return;
   }
-  const { data: { publicUrl } } = storage.getPublicUrl(path);
-
   const { data: current } = await session.db
     .from('user_profiles')
     .select('avatar_url')
@@ -943,7 +1130,7 @@ app.post('/account/avatar', async (req, res) => {
   const { error: updateError } = await session.db
     .from('user_profiles')
     .upsert(
-      { account_id: session.userId, avatar_url: publicUrl, updated_at: new Date().toISOString() },
+      { account_id: session.userId, avatar_url: path, updated_at: new Date().toISOString() },
       { onConflict: 'account_id' },
     );
   if (updateError) {
@@ -955,7 +1142,8 @@ app.post('/account/avatar', async (req, res) => {
     await storage.remove([oldPath]);
   }
 
-  res.json({ avatar_url: publicUrl });
+  const { data: signed } = await storage.createSignedUrl(path, 15 * 60);
+  res.json({ avatar_url: signed?.signedUrl ?? null });
 });
 
 app.delete('/account/avatar', async (req, res) => {
@@ -988,30 +1176,8 @@ const MAX_FORM_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 let formBucketReady: Promise<void> | null = null;
 
-// The wizard renders previews straight from the public object URL, so the
-// bucket must exist and allow public reads.
 const ensureFormUploadsBucket = (): Promise<void> => {
-  formBucketReady ??= (async () => {
-    const storage = getServiceClient().storage;
-    const { data, error } = await storage.getBucket(FORM_UPLOADS_BUCKET);
-    if (error || !data) {
-      const { error: createError } = await storage.createBucket(FORM_UPLOADS_BUCKET, {
-        public: true,
-      });
-      if (createError && !/already exists/i.test(createError.message)) {
-        throw createError;
-      }
-      return;
-    }
-    if (!data.public) {
-      const { error: updateError } = await storage.updateBucket(FORM_UPLOADS_BUCKET, {
-        public: true,
-      });
-      if (updateError) {
-        throw updateError;
-      }
-    }
-  })().catch((err) => {
+  formBucketReady ??= ensurePrivateBucket(FORM_UPLOADS_BUCKET).catch((err) => {
     formBucketReady = null;
     throw err;
   });
@@ -1060,18 +1226,459 @@ app.post('/uploads/form', async (req, res) => {
     return;
   }
 
-  const path = `${uploadType}/${crypto.randomUUID()}.${ext}`;
+  const path = `${session.userId}/${uploadType}/${crypto.randomUUID()}.${ext}`;
   const storage = getServiceClient().storage.from(FORM_UPLOADS_BUCKET);
   const { error: uploadError } = await storage.upload(path, buffer, { contentType });
   if (uploadError) {
     res.status(500).json({ error: 'Could not upload the file' });
     return;
   }
-  const {
-    data: { publicUrl },
-  } = storage.getPublicUrl(path);
+  const { data: signed, error: signedError } = await storage.createSignedUrl(path, 15 * 60);
+  if (signedError || !signed) {
+    await storage.remove([path]);
+    res.status(500).json({ error: 'Could not create a private file preview' });
+    return;
+  }
 
-  res.json({ url: publicUrl, path, contentType });
+  res.json({ path, previewUrl: signed.signedUrl, contentType });
+});
+
+// ---- Persisted account operations ----
+
+const CONSENT_TYPES = ['privacy_policy', 'terms', 'ai_processing', 'marketing', 'analytics'] as const;
+const CONSENT_VERSION = process.env.CONSENT_POLICY_VERSION ?? '2026-10-02';
+const DATA_EXPORTS_BUCKET = 'data-exports';
+let dataExportsBucketReady: Promise<void> | null = null;
+
+const cleanTextValue = (value: unknown, maxLength: number): string | null => {
+  if (typeof value !== 'string') return null;
+  const cleaned = value.trim().slice(0, maxLength);
+  return cleaned || null;
+};
+
+const ensureDataExportsBucket = (): Promise<void> => {
+  dataExportsBucketReady ??= ensurePrivateBucket(DATA_EXPORTS_BUCKET).catch((error) => {
+    dataExportsBucketReady = null;
+    throw error;
+  });
+  return dataExportsBucketReady;
+};
+
+app.get('/account/notifications', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const { data, error } = await getServiceClient()
+    .from('notification_preferences')
+    .select('email_test_results, email_shipment_updates, email_rankings, email_marketing, push_test_results, push_shipment_updates, push_marketing, frequency, updated_at')
+    .eq('user_id', session.userId)
+    .maybeSingle();
+  if (error) {
+    res.status(500).json({ error: 'Failed to load notification preferences' });
+    return;
+  }
+  res.json({
+    preferences: data ?? {
+      email_test_results: true,
+      email_shipment_updates: true,
+      email_rankings: false,
+      email_marketing: false,
+      push_test_results: false,
+      push_shipment_updates: false,
+      push_marketing: false,
+      frequency: 'instant',
+      updated_at: null,
+    },
+  });
+});
+
+app.put('/account/notifications', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const booleanFields = [
+    'email_test_results',
+    'email_shipment_updates',
+    'email_rankings',
+    'email_marketing',
+    'push_test_results',
+    'push_shipment_updates',
+    'push_marketing',
+  ] as const;
+  const updates: Record<string, boolean | string> = {};
+  for (const field of booleanFields) {
+    if (req.body?.[field] !== undefined) {
+      if (typeof req.body[field] !== 'boolean') {
+        res.status(400).json({ error: `${field} must be a boolean` });
+        return;
+      }
+      updates[field] = req.body[field];
+    }
+  }
+  if (req.body?.frequency !== undefined) {
+    if (!['instant', 'daily', 'weekly'].includes(req.body.frequency)) {
+      res.status(400).json({ error: 'Invalid notification frequency' });
+      return;
+    }
+    updates.frequency = req.body.frequency;
+  }
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: 'No notification preferences provided' });
+    return;
+  }
+  const db = getServiceClient();
+  const now = new Date().toISOString();
+  const { data, error } = await db.from('notification_preferences').upsert({
+    user_id: session.userId,
+    ...updates,
+    updated_at: now,
+  }, { onConflict: 'user_id' }).select(
+    'email_test_results, email_shipment_updates, email_rankings, email_marketing, push_test_results, push_shipment_updates, push_marketing, frequency, updated_at',
+  ).single();
+  if (error) {
+    res.status(500).json({ error: 'Failed to save notification preferences' });
+    return;
+  }
+  if (typeof updates.email_marketing === 'boolean') {
+    await db.from('user_consents').insert({
+      user_id: session.userId,
+      subject_hash: hashUserSubject(session.userId),
+      consent_type: 'marketing',
+      policy_version: CONSENT_VERSION,
+      accepted: updates.email_marketing,
+      withdrawn_at: updates.email_marketing ? null : now,
+      source: 'notification_preferences',
+      request_id: typeof req.headers['x-request-id'] === 'string' ? req.headers['x-request-id'] : null,
+    });
+  }
+  res.json({ preferences: data });
+});
+
+app.get('/account/billing', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const { data, error } = await getServiceClient().from('subscriptions')
+    .select('id, provider, plan, status, trial_start, trial_end, current_period_start, current_period_end, cancel_at_period_end, canceled_at, expires_at, currency, amount_cents, created_at, updated_at')
+    .eq('user_id', session.userId)
+    .order('updated_at', { ascending: false })
+    .limit(20);
+  if (error) {
+    res.status(500).json({ error: 'Failed to load billing information' });
+    return;
+  }
+  res.json({ current: data?.[0] ?? null, history: data ?? [], providerConfigured: Boolean(process.env.BILLING_PROVIDER) });
+});
+
+app.get('/account/consents', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const { data, error } = await getServiceClient().from('user_consents')
+    .select('id, consent_type, policy_version, accepted, recorded_at, withdrawn_at, source')
+    .eq('user_id', session.userId)
+    .order('recorded_at', { ascending: false });
+  if (error) {
+    res.status(500).json({ error: 'Failed to load consent history' });
+    return;
+  }
+  const current: Record<string, unknown> = {};
+  for (const consent of data ?? []) {
+    if (!(consent.consent_type in current)) current[consent.consent_type] = consent;
+  }
+  res.json({ current, history: data ?? [] });
+});
+
+app.post('/account/consents', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const consentType = req.body?.consentType;
+  const accepted = req.body?.accepted;
+  if (!(CONSENT_TYPES as readonly unknown[]).includes(consentType) || typeof accepted !== 'boolean') {
+    res.status(400).json({ error: 'A valid consent type and state are required' });
+    return;
+  }
+  const now = new Date().toISOString();
+  const { data, error } = await getServiceClient().from('user_consents').insert({
+    user_id: session.userId,
+    subject_hash: hashUserSubject(session.userId),
+    consent_type: consentType,
+    policy_version: cleanTextValue(req.body?.policyVersion, 50) ?? CONSENT_VERSION,
+    accepted,
+    withdrawn_at: accepted ? null : now,
+    source: 'account',
+    request_id: typeof req.headers['x-request-id'] === 'string' ? req.headers['x-request-id'] : null,
+  }).select('id, consent_type, policy_version, accepted, recorded_at, withdrawn_at, source').single();
+  if (error) {
+    res.status(500).json({ error: 'Failed to record consent' });
+    return;
+  }
+  res.status(201).json({ consent: data });
+});
+
+app.get('/account/data-exports', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const { data, error } = await getServiceClient().from('data_export_requests')
+    .select('id, status, expires_at, error_code, requested_at, completed_at, updated_at')
+    .eq('user_id', session.userId)
+    .order('requested_at', { ascending: false })
+    .limit(20);
+  if (error) {
+    res.status(500).json({ error: 'Failed to load export requests' });
+    return;
+  }
+  res.json({ requests: data ?? [] });
+});
+
+app.post('/account/data-exports', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const db = getServiceClient();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count: recentCount } = await db.from('data_export_requests')
+    .select('*', { head: true, count: 'exact' })
+    .eq('user_id', session.userId)
+    .gte('requested_at', since);
+  if ((recentCount ?? 0) >= 3) {
+    res.status(429).json({ error: 'You can request up to three exports per day' });
+    return;
+  }
+  const { data: requestRecord, error: requestError } = await db.from('data_export_requests').insert({
+    user_id: session.userId,
+    subject_hash: hashUserSubject(session.userId),
+    status: 'processing',
+  }).select('id, requested_at').single();
+  if (requestError || !requestRecord) {
+    res.status(500).json({ error: 'Failed to create export request' });
+    return;
+  }
+
+  try {
+    const [{ data: account }, { data: profile }, { data: addresses }, { data: shipments }, { data: preferences }, { data: consents }, { data: support }] = await Promise.all([
+      db.from('user_accounts').select('id, email, created_at, last_sign_in_at').eq('id', session.userId).maybeSingle(),
+      db.from('user_profiles').select('full_name, organization, role, phone, bio, updated_at').eq('account_id', session.userId).maybeSingle(),
+      db.from('shipping_addresses').select('*').eq('account_id', session.userId),
+      db.from('shipments').select('*, shipment_samples(*), test_results(*)').eq('account_id', session.userId),
+      db.from('notification_preferences').select('*').eq('user_id', session.userId).maybeSingle(),
+      db.from('user_consents').select('consent_type, policy_version, accepted, recorded_at, withdrawn_at, source').eq('user_id', session.userId).order('recorded_at'),
+      db.from('support_requests').select('id, category, subject, message, status, created_at, resolved_at').eq('user_id', session.userId).order('created_at'),
+    ]);
+    await ensureDataExportsBucket();
+    const path = `${session.userId}/${requestRecord.id}.json`;
+    const payload = Buffer.from(JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      account,
+      profile,
+      addresses: addresses ?? [],
+      shipments: shipments ?? [],
+      notificationPreferences: preferences,
+      consentHistory: consents ?? [],
+      supportRequests: support ?? [],
+    }, null, 2));
+    const { error: uploadError } = await db.storage.from(DATA_EXPORTS_BUCKET).upload(path, payload, {
+      contentType: 'application/json',
+      upsert: false,
+    });
+    if (uploadError) throw uploadError;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+    await db.from('data_export_requests').update({
+      status: 'complete',
+      storage_path: path,
+      expires_at: expiresAt,
+      completed_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    }).eq('id', requestRecord.id);
+    res.status(201).json({ id: requestRecord.id, status: 'complete', expiresAt });
+  } catch {
+    await db.from('data_export_requests').update({
+      status: 'failed',
+      error_code: 'generation_failed',
+      updated_at: new Date().toISOString(),
+    }).eq('id', requestRecord.id);
+    res.status(500).json({ error: 'Failed to generate data export' });
+  }
+});
+
+app.get('/account/data-exports/:id/download', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const db = getServiceClient();
+  const { data } = await db.from('data_export_requests')
+    .select('storage_path, status, expires_at')
+    .eq('id', req.params.id)
+    .eq('user_id', session.userId)
+    .maybeSingle();
+  if (!data || data.status !== 'complete' || !data.storage_path || !data.expires_at) {
+    res.status(404).json({ error: 'Export is not available' });
+    return;
+  }
+  if (new Date(data.expires_at).getTime() <= Date.now()) {
+    await db.from('data_export_requests').update({ status: 'expired', updated_at: new Date().toISOString() }).eq('id', req.params.id);
+    res.status(410).json({ error: 'Export has expired' });
+    return;
+  }
+  const { data: signed, error } = await db.storage.from(DATA_EXPORTS_BUCKET).createSignedUrl(data.storage_path, 10 * 60, {
+    download: `peptrace-export-${req.params.id}.json`,
+  });
+  if (error || !signed) {
+    res.status(500).json({ error: 'Could not create export download' });
+    return;
+  }
+  res.json({ url: signed.signedUrl, expiresIn: 600 });
+});
+
+app.get('/account/deletion-request', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const { data, error } = await getServiceClient().from('account_deletion_requests')
+    .select('id, status, reason, requested_at, scheduled_for, completed_at, canceled_at, failure_code, updated_at')
+    .eq('user_id', session.userId)
+    .order('requested_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    res.status(500).json({ error: 'Failed to load deletion request' });
+    return;
+  }
+  res.json({ request: data ?? null });
+});
+
+app.post('/account/deletion-request', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const db = getServiceClient();
+  const { data: credential } = await db.from('native_credentials').select('password_hash').eq('account_id', session.userId).maybeSingle();
+  const confirmed = credential
+    ? typeof req.body?.currentPassword === 'string' && verifyPassword(req.body.currentPassword, credential.password_hash)
+    : normalizeEmail(req.body?.confirmEmail) === normalizeEmail(session.email);
+  if (!confirmed) {
+    res.status(401).json({ error: 'Account confirmation failed' });
+    return;
+  }
+  const scheduledFor = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const reason = cleanTextValue(req.body?.reason, 500);
+  const { data, error } = await db.from('account_deletion_requests').insert({
+    user_id: session.userId,
+    subject_hash: hashUserSubject(session.userId),
+    status: 'scheduled',
+    reason,
+    scheduled_for: scheduledFor,
+  }).select('id, status, requested_at, scheduled_for').single();
+  if (error) {
+    if (error.code === '23505') {
+      res.status(409).json({ error: 'An active deletion request already exists' });
+      return;
+    }
+    res.status(500).json({ error: 'Failed to schedule account deletion' });
+    return;
+  }
+  await db.from('account_admin_state').upsert({
+    account_id: session.userId,
+    status: 'deletion_pending',
+    reason: 'User requested account deletion',
+    updated_at: new Date().toISOString(),
+  });
+  res.status(201).json({ request: data });
+});
+
+app.post('/account/deletion-request/cancel', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const db = getServiceClient();
+  const now = new Date().toISOString();
+  const { data, error } = await db.from('account_deletion_requests').update({
+    status: 'canceled',
+    canceled_at: now,
+    updated_at: now,
+  }).eq('user_id', session.userId).in('status', ['requested', 'scheduled']).select('id').maybeSingle();
+  if (error || !data) {
+    res.status(404).json({ error: 'No cancelable deletion request was found' });
+    return;
+  }
+  await db.from('account_admin_state').upsert({
+    account_id: session.userId,
+    status: 'active',
+    reason: 'User canceled account deletion',
+    restored_at: now,
+    updated_at: now,
+  });
+  res.json({ canceled: true });
+});
+
+app.post('/support/requests', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const category = cleanTextValue(req.body?.category, 50);
+  const subject = cleanTextValue(req.body?.subject, 150);
+  const message = cleanTextValue(req.body?.message, 5000);
+  if (!category || !subject || !message) {
+    res.status(400).json({ error: 'Category, subject, and message are required' });
+    return;
+  }
+  const { data, error } = await getServiceClient().from('support_requests').insert({
+    user_id: session.userId,
+    subject_hash: hashUserSubject(session.userId),
+    contact_email: session.email,
+    category,
+    subject,
+    message,
+  }).select('id, category, subject, status, created_at').single();
+  if (error) {
+    res.status(500).json({ error: 'Failed to submit support request' });
+    return;
+  }
+  res.status(201).json({ request: data });
+});
+
+app.get('/support/requests', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const { data, error } = await getServiceClient().from('support_requests')
+    .select('id, category, subject, status, created_at, updated_at, resolved_at')
+    .eq('user_id', session.userId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    res.status(500).json({ error: 'Failed to load support requests' });
+    return;
+  }
+  res.json({ requests: data ?? [] });
 });
 
 const ADDRESS_SELECT =
@@ -1330,7 +1937,11 @@ app.post('/shipments', async (req, res) => {
     return;
   }
 
-  const { samples, newsletterOptIn } = req.body ?? {};
+  const { samples, newsletterOptIn, termsAccepted } = req.body ?? {};
+  if (termsAccepted !== true) {
+    res.status(400).json({ error: 'Terms must be accepted before registering a shipment' });
+    return;
+  }
   if (!Array.isArray(samples) || samples.length === 0 || samples.length > 20) {
     res.status(400).json({ error: 'At least one sample is required' });
     return;
@@ -1340,6 +1951,36 @@ app.post('/shipments', async (req, res) => {
       res.status(400).json({ error: 'Each sample needs a product' });
       return;
     }
+    const privateFiles: Array<[unknown, string]> = [
+      [s.batchProofFile, 'batch-id-proof'],
+      [s.coaFile, 'coa'],
+      [s.proofFile, 'purchase-proof'],
+    ];
+    if (privateFiles.some(([value, kind]) =>
+      value != null && value !== '' && (
+        typeof value !== 'string' || !value.startsWith(`${session.userId}/${kind}/`)
+      ))) {
+      res.status(400).json({ error: 'One or more uploaded files do not belong to this account' });
+      return;
+    }
+    if (Array.isArray(s.addons) && s.addons.length > 0) {
+      res.status(503).json({ error: 'Paid testing add-ons are not available yet' });
+      return;
+    }
+  }
+
+  const peptideIds = [...new Set((samples as ShipmentSampleInput[]).map((sample) => sample.peptideId as string))];
+  const { data: selectedPeptides, error: peptideError } = await getServiceClient()
+    .from('peptides')
+    .select('id, testing_price')
+    .in('id', peptideIds);
+  if (peptideError || (selectedPeptides ?? []).length !== peptideIds.length) {
+    res.status(400).json({ error: 'One or more selected products are unavailable' });
+    return;
+  }
+  if ((selectedPeptides ?? []).some((peptide) => Number(peptide.testing_price ?? 0) > 0)) {
+    res.status(503).json({ error: 'Online payment is not configured for paid testing' });
+    return;
   }
 
   // The wizard collects the vendor as a free-text name; link it to a catalog
@@ -1356,35 +1997,17 @@ app.post('/shipments', async (req, res) => {
     const { data: vendorRows } = await getServiceClient()
       .from('vendors')
       .select('id, name')
+      .eq('is_demo', false)
       .in('name', vendorNames);
     for (const v of vendorRows ?? []) {
       vendorIdByName.set(v.name, v.id);
     }
   }
 
-  // One shipment per submission (single tracking ID); one shipment_samples
-  // row per sample added in the wizard.
   const db = getServiceClient();
-  const trackingId = `PT-${Math.floor(1000 + Math.random() * 9000)}`;
-  const { data: shipment, error: shipmentError } = await db
-    .from('shipments')
-    .insert({
-      account_id: session.userId,
-      tracking_id: trackingId,
-      status: 'submitted',
-      newsletter_opt_in: newsletterOptIn === true,
-    })
-    .select('id')
-    .single();
-  if (shipmentError || !shipment) {
-    res.status(500).json({ error: 'Failed to register the shipment' });
-    return;
-  }
-
   const sampleRows = (samples as ShipmentSampleInput[]).map((s) => {
     const vendorName = textOrNull(s.vendor);
     return {
-      shipment_id: shipment.id,
       peptide_id: s.peptideId as string,
       vendor_id: vendorName ? (vendorIdByName.get(vendorName) ?? null) : null,
       vendor_name: vendorName,
@@ -1393,7 +2016,7 @@ app.post('/shipments', async (req, res) => {
       batch_proof_url: textOrNull(s.batchProofFile),
       quantity_mg: numberOrNull(s.quantityMg),
       lab: textOrNull(s.lab),
-      addons: Array.isArray(s.addons) ? s.addons.filter((a) => typeof a === 'string') : [],
+      addons: [],
       vendor_provided_coa: boolOrNull(s.vendorProvidedCOA),
       coa_when: textOrNull(s.coaWhen),
       coa_other_text: textOrNull(s.coaOtherText),
@@ -1406,25 +2029,49 @@ app.post('/shipments', async (req, res) => {
       num_vials: intOrNull(s.numVials),
       price_per_vial: numberOrNull(s.pricePerVial),
       price_currency: textOrNull(s.priceCurrency),
-      sample_price: numberOrNull(s.samplePrice),
+      sample_price: 0,
     };
   });
 
-  const { data: inserted, error } = await db
-    .from('shipment_samples')
-    .insert(sampleRows)
-    .select('id');
-  if (error) {
-    await db.from('shipments').delete().eq('id', shipment.id);
+  const consentRows = [
+    {
+      user_id: session.userId,
+      subject_hash: hashUserSubject(session.userId),
+      consent_type: 'terms',
+      policy_version: CONSENT_VERSION,
+      accepted: true,
+      source: 'shipment_registration',
+      request_id: req.headers['x-request-id'],
+    },
+  ];
+  if (newsletterOptIn === true) {
+    consentRows.push({
+      user_id: session.userId,
+      subject_hash: hashUserSubject(session.userId),
+      consent_type: 'marketing',
+      policy_version: CONSENT_VERSION,
+      accepted: true,
+      source: 'shipment_registration',
+      request_id: req.headers['x-request-id'],
+    });
+  }
+  const { error: consentError } = await db.from('user_consents').insert(consentRows);
+  if (consentError) {
+    res.status(500).json({ error: 'Failed to record shipment consent' });
+    return;
+  }
+
+  const { data: shipment, error } = await db.rpc('create_shipment_with_samples', {
+    owner_id: session.userId,
+    newsletter: newsletterOptIn === true,
+    samples: sampleRows,
+  });
+  if (error || !shipment) {
     res.status(500).json({ error: 'Failed to register the shipment' });
     return;
   }
 
-  res.json({
-    id: shipment.id,
-    trackingId,
-    sampleIds: (inserted ?? []).map((r) => r.id),
-  });
+  res.status(201).json(shipment);
 });
 
 app.get('/account/dashboard', async (req, res) => {
@@ -1604,13 +2251,6 @@ app.get('/shipment/:id', async (req, res) => {
     return;
   }
 
-  const safeDate = (iso: string | null) => {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
-  };
-
   const safeArray = (value: unknown) => {
     if (Array.isArray(value)) return value;
     try {
@@ -1621,75 +2261,163 @@ app.get('/shipment/:id', async (req, res) => {
     }
   };
 
-  const milestones = safeArray(data.milestones);
-  const timelineEvents = safeArray(data.timeline_events);
-  const billingItems = safeArray(data.billing_items);
-
-  // Synthesize plausible detail data when columns are empty so the UI renders.
-  const originCity = data.origin_city ?? 'San Diego, CA';
-  const originAddress = data.origin_address ?? 'PetTrace Labs\n4720 Sorrento Valley Rd.\nSan Diego, CA 92121';
-  const destinationCity = data.destination_city ?? 'Austin, TX';
-  const destinationAddress = data.destination_address ?? 'Dr. Maya Patel\nAustin Veterinary Center\nAustin, TX 78704';
-
-  const shipmentMilestones = milestones.length > 0 ? milestones : [
-    { name: 'Shipping Label Created', date: '2026-08-12', completed: true },
-    { name: 'In Transit', date: '2026-08-13', completed: true },
-    { name: 'Lab Received', date: '2026-08-14', completed: true },
-    { name: 'In Transit', date: '2026-08-15', completed: false },
-    { name: 'Peptrace Received', date: '', completed: false },
-  ];
-
-  const shipmentTimeline = timelineEvents.length > 0 ? timelineEvents : [
-    { event: 'Shipping Label Created', meta: 'Aug 12 · 2:24 PM · PetTrace Labs', timestamp: '2026-08-12T14:24:00Z' },
-    { event: 'In Transit', meta: 'Aug 13 · 5:06 PM · San Diego, CA', timestamp: '2026-08-13T17:06:00Z' },
-    { event: 'Lab Received', meta: 'Aug 14 · 3:18 AM · Phoenix, AZ', timestamp: '2026-08-14T03:18:00Z' },
-    { event: 'In Transit', meta: 'Today · 9:42 AM · Phoenix, AZ', timestamp: '2026-08-15T09:42:00Z' },
-    { event: 'Peptrace Received', meta: 'Today · 10:15 AM · Peptrace Labs', timestamp: '2026-08-15T10:15:00Z' },
-  ];
-
-  const shipmentBilling = billingItems.length > 0 ? billingItems : [
-    { label: 'Priority Overnight', value: 86.00 },
-    { label: 'Fuel surcharge', value: 8.60 },
-    { label: 'Sample handling', value: 12.00 },
-    { label: 'Insurance', value: 4.50 },
-  ];
-
   res.json({
     id: data.id,
     trackingNumber: data.tracking_id,
     status: data.status,
     origin: {
-      city: originCity,
-      address: originAddress,
+      city: data.origin_city ?? null,
+      address: data.origin_address ?? null,
     },
     destination: {
-      city: destinationCity,
-      address: destinationAddress,
+      city: data.destination_city ?? null,
+      address: data.destination_address ?? null,
     },
-    milestones: shipmentMilestones,
-    timelineEvents: shipmentTimeline,
-    billingItems: shipmentBilling,
-    totalAmount: data.total_amount ?? 111.10,
-    invoiceNumber: data.invoice_number ?? 'INV-2026-08142',
-    invoiceUrl: data.invoice_url ?? '',
-    paymentStatus: data.payment_status ?? 'unpaid',
-    paymentNotice: {
-      title: data.payment_notice_title ?? 'Payment required',
-      body: data.payment_notice_body ?? 'Pay by the due date to avoid delays or account restrictions.',
-    },
-    service: data.service ?? 'FedEx Priority Overnight',
-    packageType: data.package_type ?? 'Diagnostic sample kit',
-    weight: data.weight ?? '2.4 lb',
-    dimensions: data.dimensions ?? '12 × 9 × 6 in',
-    temperature: data.temperature ?? 'Ambient',
-    paymentMethod: data.payment_method ?? 'No method selected',
-    amountDue: data.amount_due ?? 111.10,
-    dueDate: data.due_date ?? 'Aug 17, 2026',
+    milestones: safeArray(data.milestones),
+    timelineEvents: safeArray(data.timeline_events),
+    billingItems: safeArray(data.billing_items),
+    totalAmount: data.total_amount == null ? null : Number(data.total_amount),
+    invoiceNumber: data.invoice_number ?? null,
+    invoiceUrl: data.invoice_url ?? null,
+    paymentStatus: data.payment_status ?? null,
+    paymentNotice: data.payment_notice_title || data.payment_notice_body ? {
+      title: data.payment_notice_title ?? '',
+      body: data.payment_notice_body ?? '',
+    } : null,
+    service: data.service ?? null,
+    packageType: data.package_type ?? null,
+    weight: data.weight ?? null,
+    dimensions: data.dimensions ?? null,
+    temperature: data.temperature ?? null,
+    paymentMethod: data.payment_method ?? null,
+    amountDue: data.amount_due == null ? null : Number(data.amount_due),
+    dueDate: data.due_date ?? null,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   });
 });
 
-app.listen(port, () => {
-  console.log(`peptrace-api listening on port ${port}`);
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Not found' });
 });
+
+app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const requestId = typeof req.headers['x-request-id'] === 'string' ? req.headers['x-request-id'] : null;
+  const originRejected = error instanceof Error && error.message === 'Origin is not allowed';
+  console.error(JSON.stringify({
+    event: 'request_failed',
+    requestId,
+    method: req.method,
+    path: req.path,
+    errorType: error instanceof Error ? error.name : 'UnknownError',
+  }));
+  res.status(originRejected ? 403 : 500).json({
+    error: originRejected ? 'Request origin is not allowed' : 'Internal server error',
+    requestId,
+  });
+});
+
+const privacyWorkerEnabled = process.env.PRIVACY_WORKER_ENABLED !== 'false';
+let privacyWorkerRunning = false;
+
+const manifestStrings = (manifest: Record<string, unknown>, key: string): string[] => {
+  const value = manifest[key];
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item): item is string => (
+    typeof item === 'string' && item.length > 0 && item.length <= 500 && !item.includes('://') && !item.includes('..')
+  )))];
+};
+
+const runPrivacyWorker = async (): Promise<void> => {
+  if (!privacyWorkerEnabled || privacyWorkerRunning) return;
+  privacyWorkerRunning = true;
+  const db = getServiceClient();
+  try {
+    const now = new Date().toISOString();
+    const { data: dueRequests, error } = await db.from('account_deletion_requests')
+      .select('id')
+      .or(`and(status.eq.scheduled,scheduled_for.lte.${now}),and(status.eq.failed,cleanup_attempts.lt.10)`)
+      .order('scheduled_for', { ascending: true })
+      .limit(10);
+    if (error) throw error;
+
+    for (const request of dueRequests ?? []) {
+      try {
+        const { data, error: prepareError } = await db.rpc('prepare_account_deletion', {
+          deletion_request_id: request.id,
+        });
+        if (prepareError || !data || typeof data !== 'object') throw prepareError ?? new Error('Missing cleanup manifest');
+        const manifest = data as Record<string, unknown>;
+        const removals: Array<[string, string[]]> = [
+          [PROFILE_PHOTOS_BUCKET, manifestStrings(manifest, 'profilePhotos')],
+          [FORM_UPLOADS_BUCKET, manifestStrings(manifest, 'formUploads')],
+          [DATA_EXPORTS_BUCKET, manifestStrings(manifest, 'dataExports')],
+        ];
+        for (const [bucket, paths] of removals) {
+          if (paths.length === 0) continue;
+          const { error: removeError } = await db.storage.from(bucket).remove(paths);
+          if (removeError) throw removeError;
+        }
+        for (const subject of manifestStrings(manifest, 'authSubjects')) {
+          if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(subject)) continue;
+          const { error: authError } = await db.auth.admin.deleteUser(subject);
+          if (authError && authError.status !== 404) throw authError;
+        }
+        await db.from('account_deletion_requests').update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          failure_code: null,
+          updated_at: new Date().toISOString(),
+        }).eq('id', request.id);
+      } catch (workerError) {
+        const errorCode = workerError && typeof workerError === 'object' && 'code' in workerError
+          ? String(workerError.code).slice(0, 100)
+          : 'cleanup_failed';
+        await db.from('account_deletion_requests').update({
+          status: 'failed',
+          failure_code: errorCode,
+          updated_at: new Date().toISOString(),
+        }).eq('id', request.id);
+        console.error(JSON.stringify({ event: 'account_deletion_failed', requestId: request.id, errorCode }));
+      }
+    }
+
+    const { data: expiredExports } = await db.from('data_export_requests')
+      .select('id, storage_path')
+      .eq('status', 'complete')
+      .lt('expires_at', now)
+      .limit(100);
+    const exportPaths = (expiredExports ?? []).map((item) => item.storage_path).filter((path): path is string => Boolean(path));
+    if (exportPaths.length > 0) await db.storage.from(DATA_EXPORTS_BUCKET).remove(exportPaths);
+    if ((expiredExports ?? []).length > 0) {
+      await db.from('data_export_requests').update({ status: 'expired', updated_at: now })
+        .in('id', (expiredExports ?? []).map((item) => item.id));
+    }
+  } finally {
+    privacyWorkerRunning = false;
+  }
+};
+
+const start = async (): Promise<void> => {
+  await Promise.allSettled([ensureProfileBucket(), ensureFormUploadsBucket()]);
+  await ensureAdminBootstrap().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : 'unknown';
+    console.error(JSON.stringify({ event: 'admin_bootstrap_failed', message }));
+  });
+  if (privacyWorkerEnabled) {
+    void runPrivacyWorker().catch((error: unknown) => {
+      console.error(JSON.stringify({ event: 'privacy_worker_failed', errorType: error instanceof Error ? error.name : 'UnknownError' }));
+    });
+    const timer = setInterval(() => {
+      void runPrivacyWorker().catch((error: unknown) => {
+        console.error(JSON.stringify({ event: 'privacy_worker_failed', errorType: error instanceof Error ? error.name : 'UnknownError' }));
+      });
+    }, 5 * 60 * 1000);
+    timer.unref();
+  }
+  app.listen(port, () => {
+    console.log(JSON.stringify({ event: 'api_started', port }));
+  });
+};
+
+void start();

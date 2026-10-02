@@ -28,6 +28,8 @@ jobs:
         working-directory: api
       - run: npm run build
         working-directory: api
+      - run: npm test
+        working-directory: api
 
       - uses: actions/setup-node@v4
         with:

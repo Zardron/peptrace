@@ -9,24 +9,24 @@ interface ShipmentData {
   id: string
   trackingNumber: string
   status: string
-  origin: { city: string; address: string }
-  destination: { city: string; address: string }
+  origin: { city: string | null; address: string | null }
+  destination: { city: string | null; address: string | null }
   milestones: { name: string; date: string; completed: boolean }[]
   timelineEvents: { event: string; meta: string; timestamp: string }[]
   billingItems: { label: string; value: number }[]
-  totalAmount: number
-  invoiceNumber: string
-  invoiceUrl: string
-  paymentStatus: string
-  paymentNotice: { title: string; body: string }
-  service: string
-  packageType: string
-  weight: string
-  dimensions: string
-  temperature: string
-  paymentMethod: string
-  amountDue: number
-  dueDate: string
+  totalAmount: number | null
+  invoiceNumber: string | null
+  invoiceUrl: string | null
+  paymentStatus: string | null
+  paymentNotice: { title: string; body: string } | null
+  service: string | null
+  packageType: string | null
+  weight: string | null
+  dimensions: string | null
+  temperature: string | null
+  paymentMethod: string | null
+  amountDue: number | null
+  dueDate: string | null
   createdAt: string
   updatedAt: string
 }
@@ -117,13 +117,13 @@ export default function ShipmentDetails({ shipmentId }: ShipmentDetailsProps) {
     { label: 'Weight', value: data.weight },
     { label: 'Dimensions', value: data.dimensions },
     { label: 'Temperature', value: data.temperature },
-  ]
+  ].filter((row): row is { label: string; value: string } => row.value != null)
 
   const paymentRows = [
-    { label: 'Amount due', value: `$${data.amountDue.toFixed(2)}` },
+    { label: 'Amount due', value: data.amountDue == null ? null : `$${data.amountDue.toFixed(2)}` },
     { label: 'Due date', value: data.dueDate },
     { label: 'Payment method', value: data.paymentMethod },
-  ]
+  ].filter((row): row is { label: string; value: string } => row.value != null)
 
   const tone = statusTone(data.status)
 
@@ -142,55 +142,50 @@ export default function ShipmentDetails({ shipmentId }: ShipmentDetailsProps) {
           <div className="shipment-identity">
             <h1 className="shipment-title">Shipment {data.trackingNumber}</h1>
             <p className="shipment-subtitle">
-              {data.service} · Created {formatShipmentDate(data.createdAt)}
+              {data.service ? `${data.service} · ` : ''}Created {formatShipmentDate(data.createdAt)}
             </p>
           </div>
           <span className={`shipment-status-pill ${tone}`}>
             <span className="shipment-status-dot" />
-            {statusLabel(data.status)} · On time
+            {statusLabel(data.status)}
           </span>
         </div>
 
         {/* Progress */}
         <section className="shipment-card">
           <h2 className="shipment-section-title">Tracking progress</h2>
-          <ShipmentProgress milestones={data.milestones} />
+          {data.milestones.length > 0
+            ? <ShipmentProgress milestones={data.milestones} />
+            : <p className="shipment-info-value">No carrier tracking events are available yet.</p>}
         </section>
 
         {/* Detail grid */}
         <div className="shipment-details-grid">
           <div className="shipment-primary">
             {/* Route */}
-            <section className="shipment-card">
+            {data.origin.city || data.origin.address || data.destination.city || data.destination.address ? <section className="shipment-card">
               <h2 className="shipment-section-title">Route</h2>
               <div className="shipment-route">
                 <div className="shipment-route-point">
                   <span className="shipment-route-label">Origin</span>
-                  <span className="shipment-route-city">{data.origin.city}</span>
-                  <span className="shipment-route-address">{data.origin.address}</span>
+                  <span className="shipment-route-city">{data.origin.city ?? '—'}</span>
+                  <span className="shipment-route-address">{data.origin.address ?? '—'}</span>
                 </div>
                 <div className="shipment-route-arrow">
                   <ArrowRight />
                 </div>
                 <div className="shipment-route-point">
                   <span className="shipment-route-label">Destination</span>
-                  <span className="shipment-route-city">{data.destination.city}</span>
-                  <span className="shipment-route-address">{data.destination.address}</span>
+                  <span className="shipment-route-city">{data.destination.city ?? '—'}</span>
+                  <span className="shipment-route-address">{data.destination.address ?? '—'}</span>
                 </div>
               </div>
-            </section>
+            </section> : null}
 
             {/* Shipment & package */}
             <section className="shipment-card">
               <div className="shipment-section-header">
                 <h2 className="shipment-section-title">Shipment & package</h2>
-                <button
-                  type="button"
-                  className="shipment-label-button"
-                  onClick={() => window.print()}
-                >
-                  Print shipping label
-                </button>
               </div>
               <div className="shipment-info-rows">
                 {infoRows.map((row, i) => (
@@ -205,13 +200,15 @@ export default function ShipmentDetails({ shipmentId }: ShipmentDetailsProps) {
             {/* Timeline */}
             <section className="shipment-card">
               <h2 className="shipment-section-title">Shipment activity</h2>
-              <ShipmentTimeline events={data.timelineEvents} />
+              {data.timelineEvents.length > 0
+                ? <ShipmentTimeline events={data.timelineEvents} />
+                : <p className="shipment-info-value">No shipment activity has been recorded yet.</p>}
             </section>
           </div>
 
           <div className="shipment-billing">
             {/* Shipping cost */}
-            <section className="shipment-card">
+            {data.billingItems.length > 0 || data.totalAmount != null || data.invoiceNumber ? <section className="shipment-card">
               <h2 className="shipment-section-title">Shipping cost</h2>
               <div className="shipment-info-rows">
                 {data.billingItems.map((item, i) => (
@@ -223,28 +220,28 @@ export default function ShipmentDetails({ shipmentId }: ShipmentDetailsProps) {
                 <div className="shipment-divider" />
                 <div className="shipment-info-row">
                   <span className="shipment-info-label">Total (USD)</span>
-                  <span className="shipment-info-value">${data.totalAmount.toFixed(2)}</span>
+                  <span className="shipment-info-value">{data.totalAmount == null ? '—' : `$${data.totalAmount.toFixed(2)}`}</span>
                 </div>
               </div>
               <div className="shipment-invoice-action">
-                <span className="shipment-invoice-number">Invoice {data.invoiceNumber}</span>
+                <span className="shipment-invoice-number">{data.invoiceNumber ? `Invoice ${data.invoiceNumber}` : 'Invoice unavailable'}</span>
                 {data.invoiceUrl ? (
                   <a href={data.invoiceUrl} className="shipment-invoice-link" target="_blank" rel="noreferrer">
                     View invoice →
                   </a>
                 ) : (
-                  <span className="shipment-invoice-link">View invoice →</span>
+                  null
                 )}
               </div>
-            </section>
+            </section> : null}
 
             {/* Payment */}
-            <section className="shipment-card">
+            {data.paymentStatus || paymentRows.length > 0 || data.paymentNotice ? <section className="shipment-card">
               <h2 className="shipment-section-title">Payment</h2>
               <div className="shipment-info-rows">
                 <div className="shipment-info-row">
                   <span className="shipment-info-label">Payment status</span>
-                  <span className="shipment-payment-badge">{data.paymentStatus.toUpperCase()}</span>
+                  <span className="shipment-payment-badge">{data.paymentStatus?.toUpperCase() ?? 'NOT CONFIGURED'}</span>
                 </div>
                 {paymentRows.map((row, i) => (
                   <div key={i} className="shipment-info-row">
@@ -253,12 +250,12 @@ export default function ShipmentDetails({ shipmentId }: ShipmentDetailsProps) {
                   </div>
                 ))}
               </div>
-              <div className="shipment-payment-notice">
+              {data.paymentNotice ? <div className="shipment-payment-notice">
                 <strong>{data.paymentNotice.title}</strong>
                 <p>{data.paymentNotice.body}</p>
-              </div>
-              <button className="shipment-pay-button">Submit Payment</button>
-            </section>
+              </div> : null}
+              <button className="shipment-pay-button" disabled>Payments unavailable</button>
+            </section> : null}
           </div>
         </div>
       </div>

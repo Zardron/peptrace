@@ -162,16 +162,6 @@ const steps = [
   { label: 'Ship', key: 'ship' },
 ]
 
-const vendorList = [
-  'Peptide Sciences',
-  'ZLC Peptides',
-  'SRV Labs',
-  'BNZ Peptides',
-  'Super Peptides',
-  'PeptiCo',
-  'Dosagenetics',
-]
-
 const formFactorOptions = [
   { label: 'Lyophilized Powder', value: 'lyophilized', image: lyophilizedImage },
   { label: 'Reconstituted Peptide', value: 'reconstituted', image: reconstitutedImage },
@@ -180,33 +170,17 @@ const formFactorOptions = [
   { label: 'Other', value: 'other', image: otherImage },
 ]
 
-const testAddons = [
-  {
-    id: 'different-lab',
-    title: 'Choose a different lab',
-    price: 49.99,
-    body: 'Select an alternative certified lab for your test.',
-    options: ['ABC Labs', 'XYZ Labs', 'Global Lab'],
-  },
-  {
-    id: 'endotoxin',
-    title: 'Endotoxin',
-    price: 49.0,
-    body: 'Perform an test for endotoxin contamination. No need to send an extra vial.',
-  },
-  {
-    id: 'heavy-metals',
-    title: 'Heavy metals (Pb, Cd, As, Hg)',
-    price: 120.0,
-    body: 'Perform an additional test for the following heavy metals: arsenic, lead, cadmium and mercury. No need to send an extra vial.',
-  },
-  {
-    id: 'solvents',
-    title: 'Solvents',
-    price: 120.0,
-    body: 'Perform an additional test for residual solvents contamination. No need to send an extra vial.',
-  },
-]
+interface TestAddon {
+  id: string
+  title: string
+  price: number
+  body: string
+  options?: string[]
+}
+
+// Paid add-ons remain unavailable until the lab catalog and payment provider
+// are connected. An empty catalog prevents selling unconfigured services.
+const testAddons: TestAddon[] = []
 
 export default function FormWizard({ initialStep = 1, onStepChange, onComplete }: FormWizardProps) {
   const { user } = useAuth()
@@ -272,10 +246,29 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [activeSample])
 
   // Step 3 state
   const [vendorSearch, setVendorSearch] = useState('')
+  const [vendorList, setVendorList] = useState<string[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`${API_BASE}/vendors`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Request failed')
+        return res.json()
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setVendorList((data.vendors ?? []).map((vendor: { name: string }) => vendor.name))
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setVendorList([])
+      })
+    return () => { cancelled = true }
+  }, [])
 
   // Step 7 state
   const [warningDismissed, setWarningDismissed] = useState(false)
@@ -317,9 +310,14 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
     if (currentStep < 7) {
       goToStep(currentStep + 1)
     } else {
+      if (!termsAccepted.every(Boolean)) {
+        setSubmitError('Accept all required terms before continuing.')
+        return
+      }
+      setSubmitError('')
       setShowPayment(true)
     }
-  }, [currentStep, user, goToStep])
+  }, [currentStep, user, goToStep, termsAccepted])
 
   // After a successful login, close the gate and continue to the next step.
   useEffect(() => {
@@ -362,14 +360,6 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
     v.toLowerCase().includes(vendorSearch.toLowerCase()),
   )
 
-  const toggleAddon = (id: string) => {
-    updateSample({
-      addons: sample.addons.includes(id)
-        ? sample.addons.filter((a) => a !== id)
-        : [...sample.addons, id],
-    })
-  }
-
   // Save the current sample as-is and start a fresh one from step 1.
   const addSample = () => {
     const firstFree = peptides.find((p) => peptidePrice(p) === 0) ?? peptides[0]
@@ -392,7 +382,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
     }
   }
 
-  // Dummy payment is "approved" on click; submit every sample as a shipment.
+  // Only free registrations can be submitted until billing is connected.
   const submitShipment = async () => {
     setSubmitting(true)
     setSubmitError('')
@@ -401,6 +391,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
         method: 'POST',
         body: JSON.stringify({
           newsletterOptIn,
+          termsAccepted: true,
           samples: samples.map((s) => ({
             peptideId: s.peptideId,
             vendor: s.vendor,
@@ -482,30 +473,10 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
                 <span>Payment</span>
               </div>
               <p className="fw-payment-note">
-                This is a test payment processor — no card details are needed and no charge will
-                be made. A real payment provider will be integrated here later.
+                {totalPrice === 0
+                  ? 'No payment is required for this registration.'
+                  : 'Online payment is not configured. Paid tests cannot be registered yet.'}
               </p>
-              <div className="fw-payment-form">
-                <div className="fw-field">
-                  <span className="fw-field-label">Card number</span>
-                  <input
-                    type="text"
-                    className="fw-input"
-                    placeholder="4242 4242 4242 4242"
-                    readOnly
-                  />
-                </div>
-                <div className="fw-payment-form-row">
-                  <div className="fw-field">
-                    <span className="fw-field-label">Expiry</span>
-                    <input type="text" className="fw-input" placeholder="12 / 34" readOnly />
-                  </div>
-                  <div className="fw-field">
-                    <span className="fw-field-label">CVC</span>
-                    <input type="text" className="fw-input" placeholder="123" readOnly />
-                  </div>
-                </div>
-              </div>
               {submitError && <span className="fw-upload-error">{submitError}</span>}
               <div className="fw-payment-screen-actions">
                 <button
@@ -520,14 +491,14 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
                   type="button"
                   className="fw-btn-next"
                   onClick={() => void submitShipment()}
-                  disabled={submitting}
+                  disabled={submitting || totalPrice > 0}
                 >
                   <span>
                     {submitting
                       ? 'Processing…'
                       : totalPrice === 0
                         ? 'Complete Registration'
-                        : `Pay $${totalPrice.toFixed(2)} USD`}
+                        : 'Payment unavailable'}
                   </span>
                 </button>
               </div>
@@ -623,53 +594,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
 
               <div className="fw-field">
                 <span className="fw-field-label">Add-ons</span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {testAddons.map((addon) => {
-                    const isSelected = sample.addons.includes(addon.id)
-                    return (
-                      <div
-                        key={addon.id}
-                        className={`fw-test-card ${isSelected ? 'selected' : ''}`}
-                        onClick={() => toggleAddon(addon.id)}
-                        role="button"
-                        tabIndex={0}
-                      >
-                        <div className="fw-test-card-header">
-                          {isSelected && (
-                            <img
-                              src={checkmarkIcon}
-                              alt=""
-                              className="fw-test-card-check"
-                              width={12}
-                              height={12}
-                            />
-                          )}
-                          <span className="fw-test-card-title">{addon.title}</span>
-                          <span className="fw-test-card-price">${addon.price.toFixed(2)}</span>
-                        </div>
-                        <p className="fw-test-card-body">{addon.body}</p>
-                        {addon.options && (
-                          <select
-                            className="fw-test-card-select"
-                            value={sample.lab}
-                            onChange={(e) => {
-                              e.stopPropagation()
-                              updateSample({ lab: e.target.value })
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <option value="">Select lab</option>
-                            {addon.options.map((o) => (
-                              <option key={o} value={o}>
-                                {o}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
+                <p className="fw-field-hint">Paid add-on tests are unavailable until the lab catalog and billing provider are connected.</p>
               </div>
             </>
           )}
@@ -694,10 +619,12 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
                 type="button"
                 className="fw-btn-add-sample"
                 onClick={() => {
-                  /* stub */
+                  const customVendor = vendorSearch.trim()
+                  if (customVendor) updateSample({ vendor: customVendor })
                 }}
+                disabled={!vendorSearch.trim()}
               >
-                + Add new vendor
+                {vendorSearch.trim() ? `Use “${vendorSearch.trim()}”` : 'Enter a vendor name'}
               </button>
 
               <div className="fw-list">

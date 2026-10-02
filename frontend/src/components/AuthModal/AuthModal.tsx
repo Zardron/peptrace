@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCaretRight, faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { useAuth } from '../../context/AuthContext'
 import { navigate } from '../../lib/navigation'
+import { supabase } from '../../lib/supabase'
 import './AuthModal.css'
 import closeIcon from '../../assets/auth/close.svg'
 import googleIcon from '../../assets/auth/google.png'
@@ -52,27 +53,23 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
     }
   }, [onClose, open])
 
-  const handleEmailSubmit = async (event: React.FormEvent) => {
+  const handleEmailSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     const trimmed = email.trim()
     if (!trimmed) return
+    setError('')
+    setStep('password')
+  }
+
+  const handleGoogleSignIn = async () => {
     setSubmitting(true)
     setError('')
-    try {
-      const res = await fetch(`${API_BASE}/auth/check-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmed }),
-      })
-      if (!res.ok) {
-        throw new Error('Check failed')
-      }
-      const data = await res.json()
-      setMode(data.exists ? 'login' : 'register')
-      setStep('password')
-    } catch {
-      setError('Something went wrong. Please try again.')
-    } finally {
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/account` },
+    })
+    if (oauthError) {
+      setError('Google sign-in is unavailable. Please use email instead.')
       setSubmitting(false)
     }
   }
@@ -85,6 +82,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
     try {
       const res = await fetch(`${API_BASE}/auth/${mode}`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
       })
@@ -100,7 +98,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
         }
         return
       }
-      const result = await login(data.token)
+      const result = await login(data.csrfToken)
       if (!result) {
         setError('Could not finish signing you in. Please try again.')
         return
@@ -142,7 +140,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
         </div>
 
         <div className="auth-social-section" aria-label="Social sign in options">
-          <button type="button" className="auth-provider-button auth-google-button">
+          <button type="button" className="auth-provider-button auth-google-button" onClick={handleGoogleSignIn} disabled={submitting}>
             <img src={googleIcon} alt="" />
             <span>Continue with Google</span>
           </button>
@@ -172,6 +170,14 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
               <span>Continue</span>
               <FontAwesomeIcon icon={faCaretRight} />
             </button>
+            <button
+              type="button"
+              className="auth-back-button"
+              onClick={() => setMode((current) => current === 'login' ? 'register' : 'login')}
+              disabled={submitting}
+            >
+              {mode === 'login' ? 'New to PepTrace? Create an account' : 'Already have an account? Sign in'}
+            </button>
           </form>
         ) : (
           <form className="auth-email-form" onSubmit={handlePasswordSubmit}>
@@ -185,7 +191,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
                 id="auth-password"
                 name="password"
                 type={showPassword ? 'text' : 'password'}
-                placeholder={mode === 'register' ? 'At least 8 characters' : 'Your password'}
+                placeholder={mode === 'register' ? 'At least 12 characters' : 'Your password'}
                 autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -220,6 +226,18 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
               disabled={submitting}
             >
               Use a different email
+            </button>
+            <button
+              type="button"
+              className="auth-back-button"
+              onClick={() => {
+                setMode((current) => current === 'login' ? 'register' : 'login')
+                setPassword('')
+                setError('')
+              }}
+              disabled={submitting}
+            >
+              {mode === 'login' ? 'Create an account instead' : 'Sign in instead'}
             </button>
           </form>
         )}

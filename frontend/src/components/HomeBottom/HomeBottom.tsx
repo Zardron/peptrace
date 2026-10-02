@@ -1,10 +1,6 @@
-import { useState } from 'react'
 import './HomeBottom.css'
-import arrowSvg from '../../assets/arrow-subscribe.svg'
 
 export default function HomeBottom() {
-  const [email, setEmail] = useState('')
-
   return (
     <section className="home-bottom">
       <div className="home-bottom-inner">
@@ -18,24 +14,7 @@ export default function HomeBottom() {
 
         <div className="newsletter-block">
           <h3 className="newsletter-heading">Subscribe to Peptrace News and Updates</h3>
-          <form
-            className="newsletter-form"
-            onSubmit={(e) => {
-              e.preventDefault()
-            }}
-          >
-            <input
-              type="email"
-              className="newsletter-input"
-              placeholder="email@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <button type="submit" className="newsletter-button">
-              <span>subscribe</span>
-              <img src={arrowSvg} alt="" />
-            </button>
-          </form>
+          <p className="newsletter-privacy">Newsletter signup is temporarily unavailable while email delivery is being configured.</p>
           <p className="newsletter-privacy">
             Your privacy is our top priority. We&apos;ll never sell or share your email address to a third party.
           </p>

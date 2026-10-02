@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { getStoredToken, storeToken, clearStoredToken, isNativeToken } from '../lib/authToken'
+import { apiFetch, setApiCsrfToken } from '../lib/api'
 
 interface UserProfile {
   full_name: string | null
@@ -26,7 +26,7 @@ interface LoginResult {
 interface AuthContextValue {
   user: User | null
   isLoading: boolean
-  login: (token: string) => Promise<LoginResult | null>
+  login: (csrfToken?: string) => Promise<LoginResult | null>
   logout: () => void
   refresh: () => Promise<void>
 }
@@ -49,64 +49,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const logout = useCallback(() => {
-    clearStoredToken()
-    void supabase.auth.signOut()
+    void apiFetch('/auth/logout', { method: 'POST' }).catch(() => undefined)
+    void supabase.auth.signOut({ scope: 'local' })
+    localStorage.removeItem('peptrace.auth_token')
+    setApiCsrfToken(null)
     setUser(null)
     setIsLoading(false)
   }, [])
 
   const login = useCallback(
-    async (token: string): Promise<LoginResult | null> => {
+    async (csrfToken?: string): Promise<LoginResult | null> => {
+      if (csrfToken) setApiCsrfToken(csrfToken)
       try {
         const res = await fetch(`${API_BASE}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
         })
         if (!res.ok) {
           throw new Error('Invalid token')
         }
         const data = await res.json()
+        setApiCsrfToken(data.csrfToken)
         setUser(data)
-        // Supabase sessions are persisted by the supabase client; native
-        // session tokens are ours to keep.
-        if (isNativeToken(token)) {
-          storeToken(token)
-        }
         return { isNewAccount: Boolean(data.isNewAccount) }
       } catch {
-        logout()
+        setApiCsrfToken(null)
+        setUser(null)
         return null
-      } finally {
-        setIsLoading(false)
       }
     },
-    [logout]
+    []
   )
 
   useEffect(() => {
-    const stored = getStoredToken()
-    if (stored) {
-      void login(stored)
-      return
+    let cancelled = false
+    localStorage.removeItem('peptrace.auth_token')
+    const restore = async () => {
+      if (await login()) return
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session || cancelled) return
+      const exchange = await fetch(`${API_BASE}/auth/exchange`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (!exchange.ok || cancelled) return
+      const payload = await exchange.json()
+      setApiCsrfToken(payload.csrfToken)
+      await supabase.auth.signOut({ scope: 'local' })
+      if (!cancelled) await login(payload.csrfToken)
     }
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        void login(session.access_token)
-      } else {
-        setIsLoading(false)
-      }
+    void restore().finally(() => {
+      if (!cancelled) setIsLoading(false)
     })
+    return () => { cancelled = true }
   }, [login])
 
   const refresh = useCallback(async () => {
-    const stored = getStoredToken()
-    if (stored) {
-      await login(stored)
-      return
-    }
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session) {
-      await login(session.access_token)
-    }
+    await login()
   }, [login])
 
   return (
