@@ -12,6 +12,14 @@ import {
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_LENGTH,
 } from './auth.js';
+import {
+  detectUploadType,
+  extensionForUploadType,
+  isUuid,
+  revokeAllOwnedSessions,
+  trustedClientAddress,
+  type SafeUploadType,
+} from './security.js';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -722,9 +730,7 @@ const rejectBlockedAccountLogin = async (
 
 const authAttempts = new Map<string, { count: number; resetAt: number }>();
 const authRateLimit = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
-  const forwarded = req.headers['x-forwarded-for'];
-  const source = typeof forwarded === 'string' ? forwarded.split(',')[0] : req.ip;
-  const key = crypto.createHash('sha256').update(String(source ?? 'unknown')).digest('hex');
+  const key = crypto.createHash('sha256').update(trustedClientAddress(req)).digest('hex');
   const now = Date.now();
   const current = authAttempts.get(key);
   if (!current || current.resetAt <= now) {
@@ -741,7 +747,15 @@ const authRateLimit = (req: express.Request, res: express.Response, next: expres
   next();
 };
 
-app.post('/auth/check-email', authRateLimit, async (req, res) => {
+const requireJsonRequest = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+  if (!req.is('application/json')) {
+    res.status(415).json({ error: 'Content-Type must be application/json' });
+    return;
+  }
+  next();
+};
+
+app.post('/auth/check-email', requireJsonRequest, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   if (!isValidEmail(email)) {
     res.status(400).json({ error: 'A valid email address is required' });
@@ -752,7 +766,7 @@ app.post('/auth/check-email', authRateLimit, async (req, res) => {
   res.json({ exists: false, deprecated: true });
 });
 
-app.post('/auth/register', authRateLimit, async (req, res) => {
+app.post('/auth/register', requireJsonRequest, authRateLimit, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   if (!isValidEmail(email)) {
@@ -798,7 +812,7 @@ app.post('/auth/register', authRateLimit, async (req, res) => {
   res.status(201).json({ csrfToken });
 });
 
-app.post('/auth/login', authRateLimit, async (req, res) => {
+app.post('/auth/login', requireJsonRequest, authRateLimit, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   if (!isValidEmail(email) || !password) {
@@ -929,23 +943,31 @@ app.post('/auth/change-password', async (req, res) => {
     return;
   }
 
+  if (session.customerSessionId) {
+    const { error: revokeError } = await revokeAllOwnedSessions(
+      db,
+      'customer',
+      session.userId,
+      new Date().toISOString(),
+    );
+    if (revokeError) {
+      res.status(503).json({ error: 'Could not revoke active sessions' });
+      return;
+    }
+  }
+
   const { error: updateError } = await db
     .from('native_credentials')
     .update({ password_hash: hashPassword(newPassword) })
     .eq('account_id', session.userId);
   if (updateError) {
+    clearCustomerCookie(res);
     res.status(500).json({ error: 'Failed to update password' });
     return;
   }
 
-  if (session.customerSessionId) {
-    await db.from('customer_sessions')
-      .update({ revoked_at: new Date().toISOString() })
-      .eq('user_id', session.userId)
-      .neq('id', session.customerSessionId);
-  }
-
-  res.json({ ok: true });
+  clearCustomerCookie(res);
+  res.json({ ok: true, reauthenticationRequired: true });
 });
 
 // ---- Account routes (Supabase Auth or native session) ----
@@ -1072,26 +1094,45 @@ const AVATAR_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 let profileBucketReady: Promise<void> | null = null;
 
-const ensurePrivateBucket = (bucket: string): Promise<void> => {
+const ensurePrivateBucket = (
+  bucket: string,
+  allowedMimeTypes: string[],
+  fileSizeLimit: number,
+): Promise<void> => {
   const storage = getServiceClient().storage;
   return storage.getBucket(bucket).then(async ({ data, error }) => {
     if (error || !data) {
       const { error: createError } = await storage.createBucket(bucket, {
         public: false,
-        fileSizeLimit: MAX_AVATAR_BYTES,
+        fileSizeLimit,
+        allowedMimeTypes,
       });
       if (createError && !/already exists/i.test(createError.message)) throw createError;
       return;
     }
-    if (data.public) {
-      const { error: updateError } = await storage.updateBucket(bucket, { public: false });
+    const configuredMimeTypes = [...(data.allowed_mime_types ?? [])].sort();
+    const expectedMimeTypes = [...allowedMimeTypes].sort();
+    if (
+      data.public ||
+      Number(data.file_size_limit) !== fileSizeLimit ||
+      JSON.stringify(configuredMimeTypes) !== JSON.stringify(expectedMimeTypes)
+    ) {
+      const { error: updateError } = await storage.updateBucket(bucket, {
+        public: false,
+        fileSizeLimit,
+        allowedMimeTypes,
+      });
       if (updateError) throw updateError;
     }
   });
 };
 
 const ensureProfileBucket = (): Promise<void> => {
-  profileBucketReady ??= ensurePrivateBucket(PROFILE_PHOTOS_BUCKET).catch((error) => {
+  profileBucketReady ??= ensurePrivateBucket(
+    PROFILE_PHOTOS_BUCKET,
+    [...AVATAR_CONTENT_TYPES],
+    MAX_AVATAR_BYTES,
+  ).catch((error) => {
     profileBucketReady = null;
     throw error;
   });
@@ -1114,7 +1155,7 @@ app.post('/account/avatar', async (req, res) => {
     return;
   }
 
-  const { image, contentType, extension } = req.body ?? {};
+  const { image, contentType } = req.body ?? {};
   if (typeof image !== 'string' || typeof contentType !== 'string' || !AVATAR_CONTENT_TYPES.has(contentType)) {
     res.status(400).json({ error: 'A JPEG, PNG, or WebP image is required' });
     return;
@@ -1124,10 +1165,12 @@ app.post('/account/avatar', async (req, res) => {
     res.status(400).json({ error: 'Photo must be smaller than 5 MB' });
     return;
   }
-  const expectedExtension = contentType === 'image/jpeg' ? 'jpg' : contentType === 'image/webp' ? 'webp' : 'png';
-  const ext = typeof extension === 'string' && ['jpg', 'jpeg', 'png', 'webp'].includes(extension.toLowerCase())
-    ? extension.toLowerCase()
-    : expectedExtension;
+  const detectedType = detectUploadType(buffer);
+  if (!detectedType || detectedType !== contentType || !AVATAR_CONTENT_TYPES.has(detectedType)) {
+    res.status(400).json({ error: 'File contents do not match the declared image type' });
+    return;
+  }
+  const ext = extensionForUploadType(detectedType);
 
   try {
     await ensureProfileBucket();
@@ -1196,11 +1239,21 @@ app.delete('/account/avatar', async (req, res) => {
 const FORM_UPLOADS_BUCKET = 'form-uploads';
 const FORM_UPLOAD_TYPES = ['batch-id-proof', 'coa', 'purchase-proof'] as const;
 const MAX_FORM_UPLOAD_BYTES = 5 * 1024 * 1024;
+const FORM_UPLOAD_CONTENT_TYPES = new Set<SafeUploadType>([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+]);
 
 let formBucketReady: Promise<void> | null = null;
 
 const ensureFormUploadsBucket = (): Promise<void> => {
-  formBucketReady ??= ensurePrivateBucket(FORM_UPLOADS_BUCKET).catch((err) => {
+  formBucketReady ??= ensurePrivateBucket(
+    FORM_UPLOADS_BUCKET,
+    [...FORM_UPLOAD_CONTENT_TYPES],
+    MAX_FORM_UPLOAD_BYTES,
+  ).catch((err) => {
     formBucketReady = null;
     throw err;
   });
@@ -1214,7 +1267,7 @@ app.post('/uploads/form', async (req, res) => {
     return;
   }
 
-  const { file, contentType, extension, uploadType } = req.body ?? {};
+  const { file, contentType, uploadType } = req.body ?? {};
   if (
     typeof uploadType !== 'string' ||
     !(FORM_UPLOAD_TYPES as readonly string[]).includes(uploadType)
@@ -1225,7 +1278,7 @@ app.post('/uploads/form', async (req, res) => {
   if (
     typeof file !== 'string' ||
     typeof contentType !== 'string' ||
-    !(contentType.startsWith('image/') || contentType === 'application/pdf')
+    !FORM_UPLOAD_CONTENT_TYPES.has(contentType as SafeUploadType)
   ) {
     res.status(400).json({ error: 'An image or PDF file is required' });
     return;
@@ -1235,12 +1288,12 @@ app.post('/uploads/form', async (req, res) => {
     res.status(400).json({ error: 'File must be smaller than 5 MB' });
     return;
   }
-  const ext =
-    typeof extension === 'string' && /^[a-z0-9]{1,5}$/.test(extension)
-      ? extension
-      : contentType === 'application/pdf'
-        ? 'pdf'
-        : 'png';
+  const detectedType = detectUploadType(buffer);
+  if (!detectedType || detectedType !== contentType || !FORM_UPLOAD_CONTENT_TYPES.has(detectedType)) {
+    res.status(400).json({ error: 'File contents do not match the declared file type' });
+    return;
+  }
+  const ext = extensionForUploadType(detectedType);
 
   try {
     await ensureFormUploadsBucket();
@@ -1280,7 +1333,11 @@ const cleanTextValue = (value: unknown, maxLength: number): string | null => {
 };
 
 const ensureDataExportsBucket = (): Promise<void> => {
-  dataExportsBucketReady ??= ensurePrivateBucket(DATA_EXPORTS_BUCKET).catch((error) => {
+  dataExportsBucketReady ??= ensurePrivateBucket(
+    DATA_EXPORTS_BUCKET,
+    ['application/json'],
+    MAX_AVATAR_BYTES,
+  ).catch((error) => {
     dataExportsBucketReady = null;
     throw error;
   });
@@ -1547,6 +1604,10 @@ app.get('/account/data-exports/:id/download', async (req, res) => {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
+  if (!isUuid(req.params.id)) {
+    res.status(400).json({ error: 'Invalid export identifier' });
+    return;
+  }
   const db = getServiceClient();
   const { data } = await db.from('data_export_requests')
     .select('storage_path, status, expires_at')
@@ -1797,6 +1858,10 @@ app.put('/account/addresses/:id', async (req, res) => {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
+  if (!isUuid(req.params.id)) {
+    res.status(400).json({ error: 'Invalid address identifier' });
+    return;
+  }
   const parsed = parseAddressBody(req.body ?? {}, false);
   if (!parsed.values) {
     res.status(400).json({ error: parsed.error });
@@ -1827,6 +1892,10 @@ app.delete('/account/addresses/:id', async (req, res) => {
   const session = await authenticate(req);
   if (!session) {
     res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  if (!isUuid(req.params.id)) {
+    res.status(400).json({ error: 'Invalid address identifier' });
     return;
   }
   const userDb = session.db;
@@ -1872,6 +1941,10 @@ app.post('/account/addresses/:id/primary', async (req, res) => {
   const session = await authenticate(req);
   if (!session) {
     res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  if (!isUuid(req.params.id)) {
+    res.status(400).json({ error: 'Invalid address identifier' });
     return;
   }
   const userDb = session.db;
@@ -2252,6 +2325,10 @@ app.get('/shipment/:id', async (req, res) => {
   const session = await authenticate(req);
   if (!session) {
     res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  if (!isUuid(req.params.id)) {
+    res.status(400).json({ error: 'Invalid shipment identifier' });
     return;
   }
   const userDb = session.db;

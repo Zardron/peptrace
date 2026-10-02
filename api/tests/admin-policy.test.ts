@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { roleHasPermission, type AdminPermission, type AdminRole } from '../src/admin-policy.js';
+
+const expected: Record<AdminRole, AdminPermission[]> = {
+  super_admin: [
+    'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
+    'billing:read', 'privacy:read', 'support:read', 'support:manage', 'audit:read', 'system:read',
+  ],
+  support_admin: [
+    'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
+    'privacy:read', 'support:read', 'support:manage',
+  ],
+  billing_admin: ['dashboard:read', 'billing:read'],
+  content_admin: ['dashboard:read'],
+  analyst: ['dashboard:read', 'system:read'],
+};
+
+const permissions = expected.super_admin;
+
+test('every Admin role has exactly its server-side permission matrix', () => {
+  for (const [role, allowed] of Object.entries(expected) as [AdminRole, AdminPermission[]][]) {
+    for (const permission of permissions) {
+      assert.equal(
+        roleHasPermission(role, permission),
+        allowed.includes(permission),
+        `${role} ${permission}`,
+      );
+    }
+  }
+});
+
+test('read-only and specialist roles cannot mutate unrelated resources', () => {
+  assert.equal(roleHasPermission('analyst', 'users:manage'), false);
+  assert.equal(roleHasPermission('analyst', 'support:manage'), false);
+  assert.equal(roleHasPermission('billing_admin', 'users:manage'), false);
+  assert.equal(roleHasPermission('billing_admin', 'support:manage'), false);
+  assert.equal(roleHasPermission('support_admin', 'billing:read'), false);
+  assert.equal(roleHasPermission('content_admin', 'shipments:manage'), false);
+});

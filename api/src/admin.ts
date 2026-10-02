@@ -1,7 +1,14 @@
 import crypto from 'node:crypto';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { hashPassword, isValidEmail, verifyPassword } from './auth.js';
+import { isUuid, normalizeAdminSearch, revokeAllOwnedSessions } from './security.js';
 import { getServiceClient, sessionSecret } from './supabase.js';
+import {
+  isAdminRole,
+  roleHasPermission,
+  type AdminPermission,
+  type AdminRole,
+} from './admin-policy.js';
 
 const ADMIN_COOKIE = 'peptrace_admin_session';
 const ADMIN_SESSION_SECONDS = 12 * 60 * 60;
@@ -9,56 +16,6 @@ const ADMIN_SESSION_SECONDS_REMEMBERED = 7 * 24 * 60 * 60;
 const MAX_FAILED_LOGINS = 5;
 const LOCK_SECONDS = 15 * 60;
 
-export const ADMIN_ROLES = [
-  'super_admin',
-  'support_admin',
-  'billing_admin',
-  'content_admin',
-  'analyst',
-] as const;
-
-type AdminRole = (typeof ADMIN_ROLES)[number];
-type AdminPermission =
-  | 'dashboard:read'
-  | 'users:read'
-  | 'users:manage'
-  | 'shipments:read'
-  | 'shipments:manage'
-  | 'billing:read'
-  | 'privacy:read'
-  | 'support:read'
-  | 'support:manage'
-  | 'audit:read'
-  | 'system:read';
-
-const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
-  super_admin: new Set([
-    'dashboard:read',
-    'users:read',
-    'users:manage',
-    'shipments:read',
-    'shipments:manage',
-    'billing:read',
-    'privacy:read',
-    'support:read',
-    'support:manage',
-    'audit:read',
-    'system:read',
-  ]),
-  support_admin: new Set([
-    'dashboard:read',
-    'users:read',
-    'users:manage',
-    'shipments:read',
-    'shipments:manage',
-    'privacy:read',
-    'support:read',
-    'support:manage',
-  ]),
-  billing_admin: new Set(['dashboard:read', 'billing:read']),
-  content_admin: new Set(['dashboard:read']),
-  analyst: new Set(['dashboard:read', 'system:read']),
-};
 
 interface AdminUserRecord {
   id: string;
@@ -92,9 +49,6 @@ const normalizeEmail = (value: unknown): string =>
 
 const cleanText = (value: unknown, maxLength: number): string =>
   typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
-
-const isAdminRole = (value: unknown): value is AdminRole =>
-  typeof value === 'string' && (ADMIN_ROLES as readonly string[]).includes(value);
 
 const sha256 = (value: string): string =>
   crypto.createHash('sha256').update(value).digest('hex');
@@ -194,7 +148,7 @@ const audit = async (
     reason?: string;
     metadata?: Record<string, unknown>;
   },
-): Promise<void> => {
+): Promise<boolean> => {
   const { error } = await getServiceClient().from('admin_audit_log').insert({
     actor_id: details.actor?.id ?? null,
     actor_email: details.actor?.email ?? null,
@@ -208,7 +162,19 @@ const audit = async (
   });
   if (error) {
     console.error(JSON.stringify({ event: 'admin_audit_write_failed', code: error.code }));
+    return false;
   }
+  return true;
+};
+
+const requireAuditRecord = async (
+  req: AdminRequest,
+  res: Response,
+  details: Parameters<typeof audit>[1],
+): Promise<boolean> => {
+  if (await audit(req, details)) return true;
+  res.status(503).json({ error: 'The action could not be recorded securely' });
+  return false;
 };
 
 const toSessionResponse = (admin: AdminContext) => ({
@@ -311,7 +277,7 @@ const requireCsrf = (req: AdminRequest, res: Response, next: NextFunction): void
 const requirePermission = (permission: AdminPermission) =>
   (req: AdminRequest, res: Response, next: NextFunction): void => {
     const role = req.admin?.role;
-    if (!role || !ROLE_PERMISSIONS[role].has(permission)) {
+    if (!role || !roleHasPermission(role, permission)) {
       res.status(403).json({ error: 'You do not have permission to perform this action' });
       return;
     }
@@ -646,15 +612,33 @@ export const createAdminRouter = (): Router => {
       res.status(401).json({ error: 'Current password is incorrect' });
       return;
     }
-    await db.from('admin_users').update({
+    if (!await requireAuditRecord(req, res, {
+      actor: req.admin!,
+      action: 'admin.password.change.authorized',
+      targetType: 'admin_user',
+      targetId: req.admin!.id,
+      reason: 'Authenticated password change',
+    })) return;
+    const now = new Date().toISOString();
+    const { error: revokeError } = await revokeAllOwnedSessions(db, 'admin', req.admin!.id, now);
+    if (revokeError) {
+      res.status(503).json({ error: 'Could not revoke active Admin sessions' });
+      return;
+    }
+    const { error: passwordError } = await db.from('admin_users').update({
       password_hash: hashPassword(newPassword),
-      password_changed_at: new Date().toISOString(),
+      password_changed_at: now,
       must_change_password: false,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     }).eq('id', req.admin!.id);
-    await db.from('admin_sessions').update({ revoked_at: new Date().toISOString() }).eq('admin_user_id', req.admin!.id).neq('id', req.admin!.sessionId);
+    if (passwordError) {
+      clearAdminCookie(res);
+      res.status(500).json({ error: 'Could not update Admin password' });
+      return;
+    }
     await audit(req, { actor: req.admin!, action: 'admin.password.changed', targetType: 'admin_user', targetId: req.admin!.id });
-    res.json({ updated: true });
+    clearAdminCookie(res);
+    res.json({ updated: true, reauthenticationRequired: true });
   });
 
   router.use((req: AdminRequest, res, next) => {
@@ -680,8 +664,23 @@ export const createAdminRouter = (): Router => {
 
   router.get('/users', requirePermission('users:read'), async (req, res) => {
     const { page, pageSize, from, to } = pagination(req);
-    const search = cleanText(req.query.search, 100).replace(/[%_(),]/g, '');
+    const search = normalizeAdminSearch(req.query.search);
+    if (search === null) {
+      res.status(400).json({ error: 'Invalid user search' });
+      return;
+    }
     const status = cleanText(req.query.status, 30);
+    if (status && !['active', 'inactive'].includes(status)) {
+      res.status(400).json({ error: 'Invalid user status filter' });
+      return;
+    }
+    if (!await requireAuditRecord(req as AdminRequest, res, {
+      actor: (req as AdminRequest).admin!,
+      action: 'users.directory.viewed',
+      targetType: 'user_directory',
+      reason: 'Administrative user directory access',
+      metadata: { page, pageSize, status: status || null, searched: Boolean(search) },
+    })) return;
     const db = getServiceClient();
     let inactiveAccountIds: string[] = [];
     if (status === 'active' || status === 'inactive') {
@@ -740,6 +739,10 @@ export const createAdminRouter = (): Router => {
   });
 
   router.get('/users/:id', requirePermission('users:read'), async (req, res) => {
+    if (!isUuid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid user identifier' });
+      return;
+    }
     const db = getServiceClient();
     const [{ data: account }, { data: profile }, { data: state }, shipmentCount, exportCount, deletionCount] = await Promise.all([
       db.from('user_accounts').select('id, email, created_at, last_sign_in_at').eq('id', req.params.id).maybeSingle(),
@@ -753,6 +756,13 @@ export const createAdminRouter = (): Router => {
       res.status(404).json({ error: 'User not found' });
       return;
     }
+    if (!await requireAuditRecord(req as AdminRequest, res, {
+      actor: (req as AdminRequest).admin!,
+      action: 'user.record.viewed',
+      targetType: 'user_account',
+      targetId: account.id,
+      reason: 'Administrative user record access',
+    })) return;
     res.json({
       id: account.id,
       email: account.email,
@@ -770,6 +780,10 @@ export const createAdminRouter = (): Router => {
   });
 
   router.patch('/users/:id/status', requirePermission('users:manage'), async (req: AdminRequest, res) => {
+    if (!isUuid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid user identifier' });
+      return;
+    }
     const status = req.body?.status;
     const reason = cleanText(req.body?.reason, 500);
     if (!['active', 'suspended'].includes(status) || !reason) {
@@ -782,7 +796,22 @@ export const createAdminRouter = (): Router => {
       res.status(404).json({ error: 'User not found' });
       return;
     }
+    if (!await requireAuditRecord(req, res, {
+      actor: req.admin!,
+      action: 'user.status.change.authorized',
+      targetType: 'user_account',
+      targetId: account.id,
+      reason,
+      metadata: { status },
+    })) return;
     const now = new Date().toISOString();
+    if (status === 'suspended') {
+      const { error: revokeError } = await revokeAllOwnedSessions(db, 'customer', account.id, now);
+      if (revokeError) {
+        res.status(503).json({ error: 'Active sessions could not be revoked' });
+        return;
+      }
+    }
     const { error } = await db.from('account_admin_state').upsert({
       account_id: account.id,
       status,
@@ -796,9 +825,6 @@ export const createAdminRouter = (): Router => {
       res.status(500).json({ error: 'Could not update account status' });
       return;
     }
-    if (status === 'suspended') {
-      await db.from('native_credentials').update({ updated_at: now }).eq('account_id', account.id);
-    }
     await audit(req, {
       actor: req.admin!,
       action: status === 'suspended' ? 'user.suspended' : 'user.restored',
@@ -811,8 +837,23 @@ export const createAdminRouter = (): Router => {
 
   router.get('/shipments', requirePermission('shipments:read'), async (req, res) => {
     const { page, pageSize, from, to } = pagination(req);
-    const search = cleanText(req.query.search, 100).replace(/[%_(),]/g, '');
+    const search = normalizeAdminSearch(req.query.search);
+    if (search === null) {
+      res.status(400).json({ error: 'Invalid shipment search' });
+      return;
+    }
     const status = cleanText(req.query.status, 30);
+    if (status && !['submitted', 'in_transit', 'testing', 'delivered'].includes(status)) {
+      res.status(400).json({ error: 'Invalid shipment status filter' });
+      return;
+    }
+    if (!await requireAuditRecord(req as AdminRequest, res, {
+      actor: (req as AdminRequest).admin!,
+      action: 'shipments.directory.viewed',
+      targetType: 'shipment_directory',
+      reason: 'Administrative shipment directory access',
+      metadata: { page, pageSize, status: status || null, searched: Boolean(search) },
+    })) return;
     const db = getServiceClient();
     let query = db.from('shipments')
       .select('id, account_id, tracking_id, status, created_at, updated_at', { count: 'exact' });
@@ -853,6 +894,10 @@ export const createAdminRouter = (): Router => {
   });
 
   router.patch('/shipments/:id/status', requirePermission('shipments:manage'), async (req: AdminRequest, res) => {
+    if (!isUuid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid shipment identifier' });
+      return;
+    }
     const status = cleanText(req.body?.status, 30);
     const reason = cleanText(req.body?.reason, 500);
     if (!['submitted', 'in_transit', 'testing', 'delivered'].includes(status) || !reason) {
@@ -860,6 +905,22 @@ export const createAdminRouter = (): Router => {
       return;
     }
     const now = new Date().toISOString();
+    const { data: existing } = await getServiceClient().from('shipments')
+      .select('id, account_id')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (!existing) {
+      res.status(404).json({ error: 'Shipment not found' });
+      return;
+    }
+    if (!await requireAuditRecord(req, res, {
+      actor: req.admin!,
+      action: 'shipment.status.change.authorized',
+      targetType: 'shipment',
+      targetId: existing.id,
+      reason,
+      metadata: { accountId: existing.account_id, status },
+    })) return;
     const { data, error } = await getServiceClient().from('shipments')
       .update({ status, updated_at: now })
       .eq('id', req.params.id)
@@ -887,6 +948,17 @@ export const createAdminRouter = (): Router => {
   router.get('/billing/subscriptions', requirePermission('billing:read'), async (req, res) => {
     const { page, pageSize, from, to } = pagination(req);
     const status = cleanText(req.query.status, 30);
+    if (status && !['trialing', 'active', 'past_due', 'paused', 'canceled', 'expired', 'incomplete'].includes(status)) {
+      res.status(400).json({ error: 'Invalid subscription status filter' });
+      return;
+    }
+    if (!await requireAuditRecord(req as AdminRequest, res, {
+      actor: (req as AdminRequest).admin!,
+      action: 'billing.subscriptions.viewed',
+      targetType: 'subscription_directory',
+      reason: 'Administrative billing access',
+      metadata: { page, pageSize, status: status || null },
+    })) return;
     let query = getServiceClient().from('subscriptions').select(
       'id, user_id, provider, plan, status, trial_start, trial_end, current_period_start, current_period_end, cancel_at_period_end, canceled_at, expires_at, currency, amount_cents, last_webhook_at, created_at, updated_at',
       { count: 'exact' },
@@ -902,6 +974,10 @@ export const createAdminRouter = (): Router => {
 
   router.get('/privacy/consents', requirePermission('privacy:read'), async (req, res) => {
     const { page, pageSize, from, to } = pagination(req);
+    if (!await requireAuditRecord(req as AdminRequest, res, {
+      actor: (req as AdminRequest).admin!, action: 'privacy.consents.viewed', targetType: 'consent_directory',
+      reason: 'Administrative privacy access', metadata: { page, pageSize },
+    })) return;
     const { data, count, error } = await getServiceClient().from('user_consents')
       .select('id, user_id, consent_type, policy_version, accepted, recorded_at, withdrawn_at, source', { count: 'exact' })
       .order('recorded_at', { ascending: false }).range(from, to);
@@ -914,6 +990,10 @@ export const createAdminRouter = (): Router => {
 
   router.get('/privacy/exports', requirePermission('privacy:read'), async (req, res) => {
     const { page, pageSize, from, to } = pagination(req);
+    if (!await requireAuditRecord(req as AdminRequest, res, {
+      actor: (req as AdminRequest).admin!, action: 'privacy.exports.viewed', targetType: 'data_export_directory',
+      reason: 'Administrative privacy access', metadata: { page, pageSize },
+    })) return;
     const { data, count, error } = await getServiceClient().from('data_export_requests')
       .select('id, user_id, status, expires_at, error_code, requested_at, completed_at, updated_at', { count: 'exact' })
       .order('requested_at', { ascending: false }).range(from, to);
@@ -926,6 +1006,10 @@ export const createAdminRouter = (): Router => {
 
   router.get('/privacy/deletions', requirePermission('privacy:read'), async (req, res) => {
     const { page, pageSize, from, to } = pagination(req);
+    if (!await requireAuditRecord(req as AdminRequest, res, {
+      actor: (req as AdminRequest).admin!, action: 'privacy.deletions.viewed', targetType: 'deletion_directory',
+      reason: 'Administrative privacy access', metadata: { page, pageSize },
+    })) return;
     const { data, count, error } = await getServiceClient().from('account_deletion_requests')
       .select('id, user_id, status, reason, requested_at, scheduled_for, completed_at, canceled_at, failure_code, updated_at', { count: 'exact' })
       .order('requested_at', { ascending: false }).range(from, to);
@@ -939,6 +1023,14 @@ export const createAdminRouter = (): Router => {
   router.get('/support/requests', requirePermission('support:read'), async (req, res) => {
     const { page, pageSize, from, to } = pagination(req);
     const status = cleanText(req.query.status, 30);
+    if (status && !['open', 'pending', 'resolved', 'closed'].includes(status)) {
+      res.status(400).json({ error: 'Invalid support status filter' });
+      return;
+    }
+    if (!await requireAuditRecord(req as AdminRequest, res, {
+      actor: (req as AdminRequest).admin!, action: 'support.requests.viewed', targetType: 'support_directory',
+      reason: 'Administrative support access', metadata: { page, pageSize, status: status || null },
+    })) return;
     let query = getServiceClient().from('support_requests')
       .select('id, user_id, category, subject, status, assigned_admin_id, created_at, updated_at, resolved_at', { count: 'exact' });
     if (status) query = query.eq('status', status);
@@ -951,6 +1043,10 @@ export const createAdminRouter = (): Router => {
   });
 
   router.get('/support/requests/:id', requirePermission('support:read'), async (req, res) => {
+    if (!isUuid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid support request identifier' });
+      return;
+    }
     const db = getServiceClient();
     const [{ data: request, error }, { data: notes }] = await Promise.all([
       db.from('support_requests')
@@ -970,10 +1066,18 @@ export const createAdminRouter = (): Router => {
       res.status(404).json({ error: 'Support request not found' });
       return;
     }
+    if (!await requireAuditRecord(req as AdminRequest, res, {
+      actor: (req as AdminRequest).admin!, action: 'support.request.viewed', targetType: 'support_request',
+      targetId: request.id, reason: 'Administrative support record access',
+    })) return;
     res.json({ ...request, notes: notes ?? [] });
   });
 
   router.patch('/support/requests/:id', requirePermission('support:manage'), async (req: AdminRequest, res) => {
+    if (!isUuid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid support request identifier' });
+      return;
+    }
     const status = req.body?.status;
     const assignToSelf = req.body?.assignToSelf === true;
     const unassign = req.body?.unassign === true;
@@ -1001,6 +1105,11 @@ export const createAdminRouter = (): Router => {
       res.status(404).json({ error: 'Support request not found' });
       return;
     }
+    if (!await requireAuditRecord(req, res, {
+      actor: req.admin!, action: 'support.request.change.authorized', targetType: 'support_request',
+      targetId: existing.id, reason,
+      metadata: { status: status ?? null, assignment: assignToSelf ? 'self' : unassign ? 'none' : 'unchanged' },
+    })) return;
     const now = new Date().toISOString();
     const updates: Record<string, unknown> = { updated_at: now };
     if (status !== undefined) {
@@ -1029,6 +1138,10 @@ export const createAdminRouter = (): Router => {
   });
 
   router.post('/support/requests/:id/notes', requirePermission('support:manage'), async (req: AdminRequest, res) => {
+    if (!isUuid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid support request identifier' });
+      return;
+    }
     const note = cleanText(req.body?.note, 5000);
     if (!note) {
       res.status(400).json({ error: 'A note is required' });
@@ -1040,6 +1153,10 @@ export const createAdminRouter = (): Router => {
       res.status(404).json({ error: 'Support request not found' });
       return;
     }
+    if (!await requireAuditRecord(req, res, {
+      actor: req.admin!, action: 'support.note.create.authorized', targetType: 'support_request',
+      targetId: existing.id, reason: 'Internal support note creation',
+    })) return;
     const { data, error } = await db.from('support_internal_notes').insert({
       request_id: req.params.id,
       admin_id: req.admin!.id,
@@ -1062,6 +1179,14 @@ export const createAdminRouter = (): Router => {
   router.get('/audit', requirePermission('audit:read'), async (req, res) => {
     const { page, pageSize, from, to } = pagination(req);
     const action = cleanText(req.query.action, 100);
+    if (action && !/^[a-z0-9._-]{1,100}$/i.test(action)) {
+      res.status(400).json({ error: 'Invalid audit action filter' });
+      return;
+    }
+    if (!await requireAuditRecord(req as AdminRequest, res, {
+      actor: (req as AdminRequest).admin!, action: 'audit.log.viewed', targetType: 'admin_audit_log',
+      reason: 'Administrative audit access', metadata: { page, pageSize, filtered: Boolean(action) },
+    })) return;
     let query = getServiceClient().from('admin_audit_log')
       .select('id, actor_id, actor_email, action, target_type, target_id, reason, metadata, request_id, created_at', { count: 'exact' });
     if (action) query = query.eq('action', action);
