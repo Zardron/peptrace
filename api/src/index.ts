@@ -1148,6 +1148,33 @@ const storagePathFromUrl = (url: string): string | null => {
   return null;
 };
 
+const recordUserUpload = async (details: {
+  userId: string;
+  bucket: string;
+  path: string;
+  uploadType?: string | null;
+  contentType: string;
+  sizeBytes: number;
+}): Promise<'ok' | 'quota' | 'error'> => {
+  const { error } = await getServiceClient().from('user_uploads').insert({
+    user_id: details.userId,
+    bucket_id: details.bucket,
+    object_path: details.path,
+    upload_type: details.uploadType ?? null,
+    content_type: details.contentType,
+    size_bytes: details.sizeBytes,
+  });
+  if (!error) return 'ok';
+  return error.code === '23514' ? 'quota' : 'error';
+};
+
+const forgetUserUpload = async (bucket: string, path: string): Promise<void> => {
+  await getServiceClient().from('user_uploads')
+    .delete()
+    .eq('bucket_id', bucket)
+    .eq('object_path', path);
+};
+
 app.post('/account/avatar', async (req, res) => {
   const session = await authenticate(req);
   if (!session) {
@@ -1186,6 +1213,21 @@ app.post('/account/avatar', async (req, res) => {
     res.status(500).json({ error: 'Could not upload the photo' });
     return;
   }
+  const uploadInventory = await recordUserUpload({
+    userId: session.userId,
+    bucket: PROFILE_PHOTOS_BUCKET,
+    path,
+    uploadType: 'avatar',
+    contentType,
+    sizeBytes: buffer.length,
+  });
+  if (uploadInventory !== 'ok') {
+    await storage.remove([path]);
+    res.status(uploadInventory === 'quota' ? 429 : 500).json({
+      error: uploadInventory === 'quota' ? 'Private upload quota exceeded' : 'Could not inventory the private upload',
+    });
+    return;
+  }
   const { data: current } = await session.db
     .from('user_profiles')
     .select('avatar_url')
@@ -1201,11 +1243,13 @@ app.post('/account/avatar', async (req, res) => {
     );
   if (updateError) {
     await storage.remove([path]);
+    await forgetUserUpload(PROFILE_PHOTOS_BUCKET, path);
     res.status(500).json({ error: 'Failed to save the photo' });
     return;
   }
   if (oldPath && oldPath !== path) {
     await storage.remove([oldPath]);
+    await forgetUserUpload(PROFILE_PHOTOS_BUCKET, oldPath);
   }
 
   const { data: signed } = await storage.createSignedUrl(path, 15 * 60);
@@ -1227,6 +1271,7 @@ app.delete('/account/avatar', async (req, res) => {
   const path = current?.avatar_url ? storagePathFromUrl(current.avatar_url) : null;
   if (path) {
     await getServiceClient().storage.from(PROFILE_PHOTOS_BUCKET).remove([path]);
+    await forgetUserUpload(PROFILE_PHOTOS_BUCKET, path);
   }
   await session.db
     .from('user_profiles')
@@ -1309,9 +1354,25 @@ app.post('/uploads/form', async (req, res) => {
     res.status(500).json({ error: 'Could not upload the file' });
     return;
   }
+  const uploadInventory = await recordUserUpload({
+    userId: session.userId,
+    bucket: FORM_UPLOADS_BUCKET,
+    path,
+    uploadType,
+    contentType,
+    sizeBytes: buffer.length,
+  });
+  if (uploadInventory !== 'ok') {
+    await storage.remove([path]);
+    res.status(uploadInventory === 'quota' ? 429 : 500).json({
+      error: uploadInventory === 'quota' ? 'Private upload quota exceeded' : 'Could not inventory the private upload',
+    });
+    return;
+  }
   const { data: signed, error: signedError } = await storage.createSignedUrl(path, 15 * 60);
   if (signedError || !signed) {
     await storage.remove([path]);
+    await forgetUserUpload(FORM_UPLOADS_BUCKET, path);
     res.status(500).json({ error: 'Could not create a private file preview' });
     return;
   }
@@ -1578,6 +1639,18 @@ app.post('/account/data-exports', async (req, res) => {
       upsert: false,
     });
     if (uploadError) throw uploadError;
+    const uploadInventory = await recordUserUpload({
+      userId: session.userId,
+      bucket: DATA_EXPORTS_BUCKET,
+      path,
+      uploadType: 'data-export',
+      contentType: 'application/json',
+      sizeBytes: payload.length,
+    });
+    if (uploadInventory !== 'ok') {
+      await db.storage.from(DATA_EXPORTS_BUCKET).remove([path]);
+      throw new Error(uploadInventory === 'quota' ? 'upload_quota_exceeded' : 'upload_inventory_failed');
+    }
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
     await db.from('data_export_requests').update({
@@ -2488,7 +2561,12 @@ const runPrivacyWorker = async (): Promise<void> => {
       .lt('expires_at', now)
       .limit(100);
     const exportPaths = (expiredExports ?? []).map((item) => item.storage_path).filter((path): path is string => Boolean(path));
-    if (exportPaths.length > 0) await db.storage.from(DATA_EXPORTS_BUCKET).remove(exportPaths);
+    if (exportPaths.length > 0) {
+      await db.storage.from(DATA_EXPORTS_BUCKET).remove(exportPaths);
+      await db.from('user_uploads').delete()
+        .eq('bucket_id', DATA_EXPORTS_BUCKET)
+        .in('object_path', exportPaths);
+    }
     if ((expiredExports ?? []).length > 0) {
       await db.from('data_export_requests').update({ status: 'expired', updated_at: now })
         .in('id', (expiredExports ?? []).map((item) => item.id));
