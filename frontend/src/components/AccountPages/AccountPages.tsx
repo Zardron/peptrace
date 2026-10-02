@@ -21,6 +21,7 @@ export type AccountView =
   | 'billing'
   | 'shipping'
   | 'privacy'
+  | 'support'
 
 interface AccountPagesProps {
   view: AccountView
@@ -33,6 +34,7 @@ const settingsNav: Array<{ id: Exclude<AccountView, 'dashboard'>; label: string;
   { id: 'billing', label: 'Membership & Billing', href: '/account/billing' },
   { id: 'shipping', label: 'Shipping Addresses', href: '/account/shipping' },
   { id: 'privacy', label: 'Data & Privacy', href: '/account/privacy' },
+  { id: 'support', label: 'Support Requests', href: '/account/support' },
 ]
 
 function StatusPill({ children, tone = 'success' }: { children: ReactNode; tone?: 'success' | 'warning' | 'info' | 'danger' }) {
@@ -386,7 +388,6 @@ function ProfileSettings() {
       phone: user?.profile?.phone ?? '',
       bio: user?.profile?.bio ?? '',
     })
-    setStatus('idle')
   }, [user])
 
   const setField = (field: keyof typeof emptyProfileForm) =>
@@ -1090,6 +1091,105 @@ function PrivacySettings() {
   )
 }
 
+function SupportSettings() {
+  type SupportRequest = {
+    id: string
+    category: string
+    subject: string
+    status: string
+    created_at: string
+    updated_at: string
+    resolved_at: string | null
+  }
+
+  const [requests, setRequests] = useState<SupportRequest[]>([])
+  const [category, setCategory] = useState('account')
+  const [subject, setSubject] = useState('')
+  const [message, setMessage] = useState('')
+  const [status, setStatus] = useState<'loading' | 'idle' | 'submitting' | 'saved' | 'error'>('loading')
+  const [error, setError] = useState('')
+
+  const load = useCallback(async () => {
+    const data = await apiFetch('/support/requests')
+    setRequests(data.requests ?? [])
+  }, [])
+
+  useEffect(() => {
+    load()
+      .then(() => setStatus('idle'))
+      .catch(() => {
+        setError('Could not load your support requests.')
+        setStatus('error')
+      })
+  }, [load])
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setStatus('submitting')
+    setError('')
+    try {
+      await apiFetch('/support/requests', {
+        method: 'POST',
+        body: JSON.stringify({ category, subject, message }),
+      })
+      setSubject('')
+      setMessage('')
+      await load()
+      setStatus('saved')
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not submit the support request.')
+      setStatus('error')
+    }
+  }
+
+  const rows = requests.map((request) => [
+    request.category,
+    request.subject,
+    <StatusPill key={request.id} tone={request.status === 'resolved' || request.status === 'closed' ? 'success' : 'info'}>
+      {request.status}
+    </StatusPill>,
+    new Date(request.created_at).toLocaleString(),
+  ])
+
+  return (
+    <>
+      <AccountContentHeader title="Support Requests" subtitle="Contact PepTrace support and track the status of your requests." />
+      <section className="settings-inner-card">
+        <h2>New Support Request</h2>
+        <form onSubmit={submit}>
+          <Field label="Category">
+            <select value={category} onChange={(event) => setCategory(event.target.value)} disabled={status === 'submitting'}>
+              <option value="account">Account</option>
+              <option value="testing">Testing</option>
+              <option value="billing">Billing</option>
+              <option value="privacy">Privacy</option>
+              <option value="general">General</option>
+            </select>
+          </Field>
+          <Field label="Subject">
+            <input required maxLength={150} value={subject} onChange={(event) => setSubject(event.target.value)} disabled={status === 'submitting'} />
+          </Field>
+          <Field label="Message">
+            <textarea required maxLength={5000} value={message} onChange={(event) => setMessage(event.target.value)} disabled={status === 'submitting'} />
+          </Field>
+          {status === 'saved' ? <p className="settings-feedback success">Support request submitted.</p> : null}
+          {error ? <p className="settings-feedback error">{error}</p> : null}
+          <button type="submit" className="account-pill primary" disabled={status === 'submitting'}>
+            {status === 'submitting' ? 'Submitting…' : 'Submit Request'}
+          </button>
+        </form>
+      </section>
+      <section className="settings-inner-card subtle-card">
+        <h2>Your Requests</h2>
+        {status === 'loading' ? <p>Loading support requests…</p> : null}
+        {rows.length > 0
+          ? <AccountTable columns={['Category', 'Subject', 'Status', 'Created']} rows={rows} />
+          : status !== 'loading' ? <p>No support requests.</p> : null}
+      </section>
+    </>
+  )
+}
+
 function SettingsContent({ view }: { view: Exclude<AccountView, 'dashboard'> }) {
   const content = {
     profile: <ProfileSettings />,
@@ -1098,6 +1198,7 @@ function SettingsContent({ view }: { view: Exclude<AccountView, 'dashboard'> }) 
     billing: <BillingSettings />,
     shipping: <ShippingSettings />,
     privacy: <PrivacySettings />,
+    support: <SupportSettings />,
   }[view]
 
   return (

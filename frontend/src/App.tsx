@@ -27,6 +27,8 @@ const accountRoutes = new Map<string, AccountView>([
   ['/account/billing', 'billing'],
   ['/account/shipping', 'shipping'],
   ['/account/privacy', 'privacy'],
+  ['/account/support', 'support'],
+  ['/support', 'support'],
 ])
 
 const routedPaths = new Set(['/membership', '/vendors', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', '/products', ...accountRoutes.keys()])

@@ -14,7 +14,7 @@ const columns = [
       { label: 'Testing Methodology', href: '/methodology' },
       // { label: 'Corrections', href: '/corrections' },
       // { label: 'Company', href: '/company' },
-      // { label: 'Customer Support', href: '/customer-support' },
+      { label: 'Customer Support', href: '/support' },
     ] as FooterLink[],
   },
   {
