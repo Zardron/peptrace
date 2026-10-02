@@ -30,6 +30,7 @@ import {
   passwordMeetsPolicy,
   providerMayUseBearerExchange,
 } from './provider-auth.js';
+import { consumeRateLimit } from './rate-limit.js';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -749,22 +750,25 @@ const rejectBlockedAccountLogin = async (
   }
 };
 
-const authAttempts = new Map<string, { count: number; resetAt: number }>();
-const authRateLimit = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
-  const key = crypto.createHash('sha256').update(trustedClientAddress(req)).digest('hex');
-  const now = Date.now();
-  const current = authAttempts.get(key);
-  if (!current || current.resetAt <= now) {
-    authAttempts.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
-    next();
+const authRateLimit = async (req: express.Request, res: express.Response, next: express.NextFunction): Promise<void> => {
+  const secret = sessionSecret();
+  if (!secret) {
+    res.status(503).json({ error: 'Authentication protection is unavailable' });
     return;
   }
-  if (current.count >= 30) {
-    res.setHeader('Retry-After', Math.ceil((current.resetAt - now) / 1000));
+  const key = crypto.createHmac('sha256', secret)
+    .update(`customer-auth-ip:${trustedClientAddress(req)}`)
+    .digest('hex');
+  const result = await consumeRateLimit('customer-auth-ip', key, 15 * 60, 30);
+  if (!result) {
+    res.status(503).json({ error: 'Authentication protection is unavailable' });
+    return;
+  }
+  if (!result.allowed) {
+    res.setHeader('Retry-After', result.retryAfterSeconds);
     res.status(429).json({ error: 'Too many authentication attempts. Try again later.' });
     return;
   }
-  current.count += 1;
   next();
 };
 

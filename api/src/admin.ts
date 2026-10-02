@@ -9,6 +9,7 @@ import {
   type AdminPermission,
   type AdminRole,
 } from './admin-policy.js';
+import { consumeRateLimit } from './rate-limit.js';
 
 const ADMIN_COOKIE = 'peptrace_admin_session';
 const ADMIN_SESSION_SECONDS = 12 * 60 * 60;
@@ -284,23 +285,22 @@ const requirePermission = (permission: AdminPermission) =>
     next();
   };
 
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-
-const loginRateLimit = (req: Request, res: Response, next: NextFunction): void => {
-  const key = sha256(`${requestIpHash(req) ?? 'unknown'}:${normalizeEmail(req.body?.email)}`);
-  const now = Date.now();
-  const state = loginAttempts.get(key);
-  if (!state || state.resetAt <= now) {
-    loginAttempts.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
-    next();
+const loginRateLimit = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const ipHash = requestIpHash(req) ?? sha256('unknown-admin-ip');
+  const credentialHash = sha256(`${ipHash}:${normalizeEmail(req.body?.email)}`);
+  const [ipResult, credentialResult] = await Promise.all([
+    consumeRateLimit('admin-auth-ip', ipHash, 15 * 60, 30),
+    consumeRateLimit('admin-auth-credential', credentialHash, 15 * 60, 10),
+  ]);
+  if (!ipResult || !credentialResult) {
+    res.status(503).json({ error: 'Sign-in protection is unavailable' });
     return;
   }
-  if (state.count >= 10) {
-    res.setHeader('Retry-After', Math.ceil((state.resetAt - now) / 1000));
+  if (!ipResult.allowed || !credentialResult.allowed) {
+    res.setHeader('Retry-After', Math.max(ipResult.retryAfterSeconds, credentialResult.retryAfterSeconds));
     res.status(429).json({ error: 'Too many sign-in attempts. Try again later.' });
     return;
   }
-  state.count += 1;
   next();
 };
 
