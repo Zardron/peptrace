@@ -851,6 +851,115 @@ export const createAdminRouter = (): Router => {
     res.json({ items: data ?? [], page, pageSize, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / pageSize) });
   });
 
+  router.get('/support/requests/:id', requirePermission('support:read'), async (req, res) => {
+    const db = getServiceClient();
+    const [{ data: request, error }, { data: notes }] = await Promise.all([
+      db.from('support_requests')
+        .select('id, user_id, contact_email, category, subject, message, status, assigned_admin_id, created_at, updated_at, resolved_at')
+        .eq('id', req.params.id)
+        .maybeSingle(),
+      db.from('support_internal_notes')
+        .select('id, admin_id, note, created_at')
+        .eq('request_id', req.params.id)
+        .order('created_at', { ascending: true }),
+    ]);
+    if (error) {
+      res.status(500).json({ error: 'Could not load support request' });
+      return;
+    }
+    if (!request) {
+      res.status(404).json({ error: 'Support request not found' });
+      return;
+    }
+    res.json({ ...request, notes: notes ?? [] });
+  });
+
+  router.patch('/support/requests/:id', requirePermission('support:manage'), async (req: AdminRequest, res) => {
+    const status = req.body?.status;
+    const assignToSelf = req.body?.assignToSelf === true;
+    const unassign = req.body?.unassign === true;
+    const reason = cleanText(req.body?.reason, 500);
+    if (status !== undefined && !['open', 'pending', 'resolved', 'closed'].includes(status)) {
+      res.status(400).json({ error: 'Invalid support status' });
+      return;
+    }
+    if (assignToSelf && unassign) {
+      res.status(400).json({ error: 'Choose either assignment or unassignment' });
+      return;
+    }
+    if (status === undefined && !assignToSelf && !unassign) {
+      res.status(400).json({ error: 'No support changes were provided' });
+      return;
+    }
+    if (!reason) {
+      res.status(400).json({ error: 'A reason is required' });
+      return;
+    }
+
+    const db = getServiceClient();
+    const { data: existing } = await db.from('support_requests').select('id').eq('id', req.params.id).maybeSingle();
+    if (!existing) {
+      res.status(404).json({ error: 'Support request not found' });
+      return;
+    }
+    const now = new Date().toISOString();
+    const updates: Record<string, unknown> = { updated_at: now };
+    if (status !== undefined) {
+      updates.status = status;
+      updates.resolved_at = ['resolved', 'closed'].includes(status) ? now : null;
+    }
+    if (assignToSelf) updates.assigned_admin_id = req.admin!.id;
+    if (unassign) updates.assigned_admin_id = null;
+    const { data, error } = await db.from('support_requests').update(updates)
+      .eq('id', req.params.id)
+      .select('id, status, assigned_admin_id, updated_at, resolved_at')
+      .single();
+    if (error || !data) {
+      res.status(500).json({ error: 'Could not update support request' });
+      return;
+    }
+    await audit(req, {
+      actor: req.admin!,
+      action: 'support.request.updated',
+      targetType: 'support_request',
+      targetId: String(req.params.id),
+      reason,
+      metadata: { status: status ?? null, assignment: assignToSelf ? 'self' : unassign ? 'none' : 'unchanged' },
+    });
+    res.json(data);
+  });
+
+  router.post('/support/requests/:id/notes', requirePermission('support:manage'), async (req: AdminRequest, res) => {
+    const note = cleanText(req.body?.note, 5000);
+    if (!note) {
+      res.status(400).json({ error: 'A note is required' });
+      return;
+    }
+    const db = getServiceClient();
+    const { data: existing } = await db.from('support_requests').select('id').eq('id', req.params.id).maybeSingle();
+    if (!existing) {
+      res.status(404).json({ error: 'Support request not found' });
+      return;
+    }
+    const { data, error } = await db.from('support_internal_notes').insert({
+      request_id: req.params.id,
+      admin_id: req.admin!.id,
+      note,
+    }).select('id, admin_id, note, created_at').single();
+    if (error || !data) {
+      res.status(500).json({ error: 'Could not add support note' });
+      return;
+    }
+    await audit(req, {
+      actor: req.admin!,
+      action: 'support.note.created',
+      targetType: 'support_request',
+      targetId: String(req.params.id),
+      metadata: { noteId: data.id },
+    });
+    res.status(201).json(data);
+  });
+
   router.get('/audit', requirePermission('audit:read'), async (req, res) => {
     const { page, pageSize, from, to } = pagination(req);
     const action = cleanText(req.query.action, 100);
