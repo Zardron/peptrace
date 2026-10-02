@@ -9,6 +9,7 @@ interface UserProfile {
   phone: string | null
   bio: string | null
   avatar_url: string | null
+  updated_at: string
 }
 
 interface User {
@@ -27,7 +28,7 @@ interface AuthContextValue {
   user: User | null
   isLoading: boolean
   login: (csrfToken?: string) => Promise<LoginResult | null>
-  logout: () => void
+  logout: (notifyServer?: boolean) => void
   refresh: () => Promise<void>
 }
 
@@ -48,8 +49,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const logout = useCallback(() => {
-    void apiFetch('/auth/logout', { method: 'POST' }).catch(() => undefined)
+  const logout = useCallback((notifyServer = true) => {
+    if (notifyServer) void apiFetch('/auth/logout', { method: 'POST' }).catch(() => undefined)
     void supabase.auth.signOut({ scope: 'local' })
     localStorage.removeItem('peptrace.auth_token')
     setApiCsrfToken(null)

@@ -325,6 +325,7 @@ function ProfileSettings() {
   const { user, refresh } = useAuth()
   const [form, setForm] = useState(emptyProfileForm)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [profileError, setProfileError] = useState('')
   const [photoStatus, setPhotoStatus] = useState<'idle' | 'uploading' | 'error'>('idle')
   const [photoError, setPhotoError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -394,19 +395,22 @@ function ProfileSettings() {
     (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       setForm((current) => ({ ...current, [field]: event.target.value }))
       setStatus('idle')
+      setProfileError('')
     }
 
   const handleSave = async () => {
     setStatus('saving')
+    setProfileError('')
     try {
       await apiFetch('/account/profile', {
         method: 'PUT',
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, expectedUpdatedAt: user?.profile?.updated_at }),
       })
       await refresh()
       setStatus('saved')
-    } catch {
+    } catch (error) {
       setStatus('error')
+      setProfileError(error instanceof Error ? error.message : 'Could not save your profile. Please try again.')
     }
   }
 
@@ -419,6 +423,7 @@ function ProfileSettings() {
       bio: user?.profile?.bio ?? '',
     })
     setStatus('idle')
+    setProfileError('')
   }
 
   return (
@@ -474,7 +479,7 @@ function ProfileSettings() {
         <textarea value={form.bio} onChange={setField('bio')} disabled={status === 'saving'} />
       </Field>
       {status === 'saved' ? <p className="settings-feedback success">Profile saved.</p> : null}
-      {status === 'error' ? <p className="settings-feedback error">Could not save your profile. Please try again.</p> : null}
+      {status === 'error' ? <p className="settings-feedback error">{profileError}</p> : null}
       <div className="settings-actions">
         <button type="button" className="account-pill primary" onClick={handleSave} disabled={status === 'saving'}>
           {status === 'saving' ? 'Saving…' : 'Save Changes'}
@@ -558,7 +563,10 @@ function SecuritySettings() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      logout()
+      // The backend has already revoked every session and cleared the cookie.
+      // Leave the confirmation visible briefly before returning to sign-in,
+      // and avoid a redundant logout request against an invalidated session.
+      window.setTimeout(() => logout(false), 1500)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not update password. Please try again.')
     } finally {

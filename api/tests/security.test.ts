@@ -88,3 +88,18 @@ test('shipment writes are atomically idempotent with consent records', () => {
   assert.match(sql, /'replayed', was_replayed/i);
   assert.match(sql, /revoke all on function public\.create_shipment_with_samples/i);
 });
+
+test('container health is a database-backed readiness check', () => {
+  const source = fs.readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
+  assert.match(source, /app\.get\('\/health', async/i);
+  assert.match(source, /from\('user_accounts'\)[\s\S]{0,200}head: true/i);
+  assert.match(source, /status\(503\)\.json\(\{ status: 'degraded'/i);
+});
+
+test('profile updates require optimistic concurrency control', () => {
+  const source = fs.readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
+  assert.match(source, /expectedUpdatedAt/);
+  assert.match(source, /status\(428\).*current profile version/is);
+  assert.match(source, /eq\('updated_at', expectedUpdatedAt\)/);
+  assert.match(source, /status\(409\).*Profile changed in another session/is);
+});

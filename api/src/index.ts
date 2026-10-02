@@ -721,8 +721,19 @@ const authenticate = async (req: express.Request): Promise<Session | null> => {
   return null;
 };
 
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'peptrace-api' });
+app.get('/health', async (_req, res) => {
+  try {
+    const { error } = await getServiceClient()
+      .from('user_accounts')
+      .select('id', { head: true, count: 'exact' });
+    if (error) {
+      res.status(503).json({ status: 'degraded', service: 'peptrace-api' });
+      return;
+    }
+    res.json({ status: 'ok', service: 'peptrace-api' });
+  } catch {
+    res.status(503).json({ status: 'degraded', service: 'peptrace-api' });
+  }
 });
 
 // ---- Verified provider authentication ----
@@ -1076,7 +1087,7 @@ app.get('/auth/me', async (req, res) => {
 
   const { data: profile } = await userDb
     .from('user_profiles')
-    .select('full_name, organization, role, phone, bio, avatar_url')
+    .select('full_name, organization, role, phone, bio, avatar_url, updated_at')
     .eq('account_id', session.userId)
     .maybeSingle();
 
@@ -1125,18 +1136,27 @@ app.put('/account/profile', async (req, res) => {
     return;
   }
 
+  const expectedUpdatedAt = req.body?.expectedUpdatedAt;
+  if (typeof expectedUpdatedAt !== 'string' || !Number.isFinite(Date.parse(expectedUpdatedAt))) {
+    res.status(428).json({ error: 'A current profile version is required' });
+    return;
+  }
+
   const userDb = session.db;
   const { data: profile, error: profileError } = await userDb
     .from('user_profiles')
-    .upsert(
-      { account_id: session.userId, ...updates, updated_at: new Date().toISOString() },
-      { onConflict: 'account_id' },
-    )
-    .select('full_name, organization, role, phone, bio, avatar_url')
-    .single();
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('account_id', session.userId)
+    .eq('updated_at', expectedUpdatedAt)
+    .select('full_name, organization, role, phone, bio, avatar_url, updated_at')
+    .maybeSingle();
 
   if (profileError) {
     res.status(500).json({ error: 'Failed to save profile' });
+    return;
+  }
+  if (!profile) {
+    res.status(409).json({ error: 'Profile changed in another session. Refresh and try again.' });
     return;
   }
 
