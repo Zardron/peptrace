@@ -5,10 +5,7 @@ import {
   faGlobe,
   faExternalLinkAlt,
   faFileLines,
-  faChevronRight,
   faChevronDown,
-  faBell,
-
   faMessage,
   faEnvelope,
   faCreditCard,
@@ -27,8 +24,9 @@ interface VendorContact {
 interface PeptideRow {
   id: string
   name: string
-  pricePerMg: number
-  rating: number
+  pricePerMg: number | null
+  rating: number | null
+  averagePurity: number | null
   testCount: number
 }
 
@@ -62,14 +60,14 @@ interface VendorData {
   avatarUrl: string | null
   testsCount: number
   peptidesCount: number
-  latestUpdate: string
-  rating: number
-  rank: number
+  latestUpdate: string | null
+  rating: number | null
+  rank: number | null
   rankedVendorsCount: number
   testsPassed: number
   testsTotal: number
-  analysisText: string
-  about: string
+  analysisText: string | null
+  about: string | null
   correctionsCount: number
   corrections: unknown[]
   contactChannels: VendorContact[]
@@ -80,13 +78,13 @@ interface VendorData {
     riskFactorsAssessed: number
     publishedDate: string
     previewUrl: string | null
-  }
+  } | null
   peptides: PeptideRow[]
   ratingTrend: {
     bands: { label: string; threshold: number }[]
     points: TrendPoint[]
     xAxisLabels: string[]
-  }
+  } | null
   testHistory: {
     total: number
     passCount: number
@@ -102,7 +100,8 @@ interface VendorDetailsProps {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-const formatDate = (iso: string): string => {
+const formatDate = (iso: string | null): string => {
+  if (!iso) return '—'
   const [y, m, d] = iso.split('-').map(Number)
   if (!y || !m || !d) return iso
   return `${d} ${MONTHS[m - 1]} ${y}`
@@ -153,7 +152,7 @@ const SegmentedProgress = ({ total, passed }: { total: number; passed: number })
   )
 }
 
-const RatingTrendChart = ({ trend }: { trend: VendorData['ratingTrend'] }) => {
+const RatingTrendChart = ({ trend }: { trend: NonNullable<VendorData['ratingTrend']> }) => {
   const bands = trend.bands
   const points = trend.points
   const width = 320
@@ -168,7 +167,7 @@ const RatingTrendChart = ({ trend }: { trend: VendorData['ratingTrend'] }) => {
   const minY = 0
   const maxY = 100
 
-  const xFor = (i: number) => padLeft + (i / (points.length - 1)) * chartW
+  const xFor = (i: number) => padLeft + (points.length < 2 ? chartW / 2 : (i / (points.length - 1)) * chartW)
   const yFor = (v: number) => padTop + chartH - ((v - minY) / (maxY - minY)) * chartH
 
   const bandColors = ['#d1fae5', '#a7f3d0', '#fef9c3', '#ffedd5', '#fee2e2']
@@ -224,7 +223,7 @@ const RatingTrendChart = ({ trend }: { trend: VendorData['ratingTrend'] }) => {
 
         {/* X-axis labels */}
         {trend.xAxisLabels.map((label, i) => {
-          const x = padLeft + (i / (trend.xAxisLabels.length - 1)) * chartW
+          const x = padLeft + (trend.xAxisLabels.length < 2 ? chartW / 2 : (i / (trend.xAxisLabels.length - 1)) * chartW)
           return (
             <text key={label} x={x} y={height - 6} textAnchor="middle" fontSize="11" fill="#7e7e7e">
               {label}
@@ -337,20 +336,20 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
 
         {/* Action cards */}
         <div className="vd-action-cards">
-          <a href={vendor.websiteUrl || '#'} className="vd-action-card" target="_blank" rel="noreferrer">
+          {vendor.websiteUrl ? <a href={vendor.websiteUrl} className="vd-action-card" target="_blank" rel="noreferrer">
             <div className="vd-action-card-left">
               <span className="vd-action-icon-wrap">
                 <FontAwesomeIcon icon={faGlobe} className="vd-action-icon" />
               </span>
               <div className="vd-action-text">
                 <span className="vd-action-title">Visit Website</span>
-                <span className="vd-action-sub">{vendor.websiteUrl || '—'}</span>
+                <span className="vd-action-sub">{vendor.websiteUrl}</span>
               </div>
             </div>
             <FontAwesomeIcon icon={faExternalLinkAlt} className="vd-action-arrow" />
-          </a>
+          </a> : null}
 
-          <div className="vd-action-card">
+          {vendor.intelligenceReport ? <div className="vd-action-card">
             <div className="vd-action-card-left">
               <span className="vd-action-icon-wrap">
                 <FontAwesomeIcon icon={faFileLines} className="vd-action-icon" />
@@ -362,21 +361,7 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
                 </span>
               </div>
             </div>
-            <FontAwesomeIcon icon={faChevronRight} className="vd-action-arrow" />
-          </div>
-
-          <div className="vd-action-card">
-            <div className="vd-action-card-left">
-              <span className="vd-action-icon-wrap">
-                <FontAwesomeIcon icon={faBell} className="vd-action-icon" />
-              </span>
-              <div className="vd-action-text">
-                <span className="vd-action-title">Monitor This Vendor</span>
-                <span className="vd-action-sub">24/7 safety alerts · Peptrace G...</span>
-              </div>
-            </div>
-            <FontAwesomeIcon icon={faChevronRight} className="vd-action-arrow" />
-          </div>
+          </div> : null}
         </div>
 
         {/* Test supply CTA */}
@@ -388,12 +373,7 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
         <div className="vd-overview-card">
           <div className="vd-tab-bar">
             {tabs.map((tab) => {
-              const badge =
-                tab === 'Retatrutide'
-                  ? '86%'
-                  : tab === 'GHK-Cu'
-                    ? '91%'
-                    : null
+              const badge = data.peptides.find((peptide) => peptide.name === tab)?.rating
               return (
                 <button
                   key={tab}
@@ -402,7 +382,7 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
                   onClick={() => setActiveTab(tab)}
                 >
                   {tab}
-                  {badge ? <span className="vd-tab-badge">{badge}</span> : null}
+                  {badge != null ? <span className="vd-tab-badge">{badge}%</span> : null}
                 </button>
               )
             })}
@@ -410,13 +390,13 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
 
           <div className="vd-overview-content">
             <div className="vd-rating-column">
-              <div className="vd-rating-big-desktop">{vendor.rating}%</div>
+              <div className="vd-rating-big-desktop">{vendor.rating == null ? '—' : `${vendor.rating}%`}</div>
               <div className="vd-rating-big-mobile">
-                <CircularProgress value={vendor.rating} />
+                {vendor.rating == null ? '—' : <CircularProgress value={vendor.rating} />}
               </div>
               <div className="vd-rating-label">PEPTRACE RATING</div>
               <div className="vd-rank-text">
-                #{vendor.rank} of {vendor.rankedVendorsCount} ranked vendors
+                {vendor.rank == null ? 'Not yet ranked' : `#${vendor.rank} of ${vendor.rankedVendorsCount} ranked vendors`}
               </div>
               <div className="vd-tests-passed">
                 {vendor.testsPassed} of {vendor.testsTotal} classifiable tests passed
@@ -431,7 +411,7 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
 
             <div className="vd-analysis-column">
               <h3 className="vd-analysis-heading">peptrace Analysis</h3>
-              <p className="vd-analysis-text">{vendor.analysisText}</p>
+              <p className="vd-analysis-text">{vendor.analysisText ?? 'No editorial analysis has been published for this vendor.'}</p>
               <div className="vd-filter-row">
                 <div className="vd-filter-select">
                   <span>Purity focus — purity 99.5%+, dose ±35%</span>
@@ -444,7 +424,7 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
         </div>
 
         {/* Intelligence Report */}
-        <div className="vd-intel-card">
+        {vendor.intelligenceReport ? <div className="vd-intel-card">
           <div className="vd-intel-header">
             <span className="vd-action-icon-wrap dark">
               <FontAwesomeIcon icon={faFileLines} className="vd-action-icon light" />
@@ -464,7 +444,7 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
             READ THE REPORT
             <FontAwesomeIcon icon={faExternalLinkAlt} className="vd-intel-btn-icon" />
           </button>
-        </div>
+        </div> : null}
 
         {/* Two-column section */}
         <div className="vd-two-column">
@@ -493,15 +473,16 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
                       <tr key={p.id}>
                         <td>{i + 1}</td>
                         <td>{p.name}</td>
-                        <td>${p.pricePerMg.toFixed(2)}</td>
+                        <td>{p.pricePerMg == null ? '—' : `$${p.pricePerMg.toFixed(2)}`}</td>
                         <td>
-                          <span className="vd-rating-badge">{p.rating}%</span>
+                          <span className="vd-rating-badge">{p.rating == null ? '—' : `${p.rating}%`}</span>
                         </td>
                         <td>{p.testCount}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                {vendor.peptides.length === 0 ? <p className="vd-corrections-body">No verified peptide tests yet.</p> : null}
               </div>
             </div>
 
@@ -537,20 +518,21 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
                     <FontAwesomeIcon icon={faExternalLinkAlt} className="vd-contact-arrow" />
                   </a>
                 ))}
+                {vendor.contactChannels.length === 0 ? <p className="vd-corrections-body">No verified contact channels on file.</p> : null}
               </div>
             </div>
           </div>
 
           <div className="vd-right-column">
             {/* Rating trend */}
-            <div className="vd-card">
+            {vendor.ratingTrend ? <div className="vd-card">
               <div className="vd-card-header">
                 <h3 className="vd-card-title">Rating trend</h3>
                 <span className="vd-card-sub">ALL PEPTIDES, AFTER EACH TEST</span>
               </div>
               <div className="vd-chart-label">CUMULATIVE PEPTRACE RATING</div>
               <RatingTrendChart trend={vendor.ratingTrend} />
-            </div>
+            </div> : null}
 
             {/* Membership */}
             <div className="vd-membership-card">
@@ -562,10 +544,10 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
               <p className="vd-membership-desc">
                 View and download original lab PDFs for Peptrace-verified tests for {vendor.name}.
               </p>
-              <div className="vd-membership-price">$9.99 / month</div>
-              <button type="button" className="vd-membership-button">
+              <div className="vd-membership-price">Billing is not configured</div>
+              <button type="button" className="vd-membership-button" disabled>
                 <FontAwesomeIcon icon={faCreditCard} className="vd-membership-btn-icon" />
-                BECOME A MEMBER
+                COMING SOON
               </button>
               <ul className="vd-membership-features">
                 <li>
@@ -581,7 +563,7 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
                   Priority support
                 </li>
               </ul>
-              <p className="vd-membership-cancel">Cancel anytime</p>
+              <p className="vd-membership-cancel">Membership purchases are currently unavailable.</p>
             </div>
           </div>
         </div>
@@ -671,7 +653,7 @@ export default function VendorDetails({ vendorSlug }: VendorDetailsProps) {
         <div className="vd-card vd-about-card">
           <h3 className="vd-about-title">About {vendor.name} test results from Peptrace</h3>
           <div className="vd-about-text">
-            {vendor.about.split('\n\n').map((para, i) => (
+            {(vendor.about ?? 'No vendor profile has been published.').split('\n\n').map((para, i) => (
               <p key={i}>{para}</p>
             ))}
           </div>

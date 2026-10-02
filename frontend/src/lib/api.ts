@@ -1,20 +1,20 @@
-import { supabase } from './supabase'
-import { getStoredToken } from './authToken'
-
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+let csrfToken: string | null = null
+
+export const setApiCsrfToken = (token: string | null | undefined) => {
+  csrfToken = token || null
+}
 
 export const apiFetch = async (path: string, options: RequestInit = {}) => {
-  const token =
-    getStoredToken() ??
-    (await supabase.auth.getSession()).data.session?.access_token
-  if (!token) {
-    throw new Error('Not signed in')
-  }
+  const method = (options.method ?? 'GET').toUpperCase()
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...(!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken
+        ? { 'X-CSRF-Token': csrfToken }
+        : {}),
       ...options.headers,
     },
   })
@@ -22,5 +22,6 @@ export const apiFetch = async (path: string, options: RequestInit = {}) => {
     const body = await res.json().catch(() => null)
     throw new Error(body?.error ?? `Request failed (${res.status})`)
   }
+  if (res.status === 204) return null
   return res.json()
 }

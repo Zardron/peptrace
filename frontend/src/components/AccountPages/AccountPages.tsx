@@ -5,14 +5,12 @@ import AddressModal, { type ShippingAddress } from './AddressModal'
 import './AccountPages.css'
 import alertTriangle from '../../assets/account/alert-triangle.svg'
 import eyeOff from '../../assets/account/eye-off.svg'
-import fileIcon from '../../assets/account/file.svg'
 import moreAction from '../../assets/account/more-action.png'
 import plusIcon from '../../assets/account/plus.svg'
 import profilePhoto from '../../assets/account/profile-photo.png'
 import settingsIcon from '../../assets/account/settings.svg'
 import toggleOff from '../../assets/account/toggle-off.svg'
 import toggleOn from '../../assets/account/toggle-on.svg'
-import checkGreen from '../../assets/membership/check-green.svg'
 import SiteFooter from '../SiteFooter/SiteFooter'
 
 export type AccountView =
@@ -190,7 +188,7 @@ function DashboardPage() {
           <div>
             <h1>Welcome back, {user?.name ?? 'there'}</h1>
             <div className="dashboard-membership">
-              <span>Researcher Premium</span>
+              <span>Free account</span>
               {memberSince ? <small>Member since {memberSince}</small> : null}
             </div>
           </div>
@@ -243,7 +241,6 @@ function DashboardPage() {
           <section className="account-card">
             <div className="account-card-title-row">
               <h2>Recent Test Results</h2>
-              <a href="/results">download certificates</a>
             </div>
             <AccountTable columns={['Peptide Name', 'Batch Code', 'Purity', 'Test Date', 'Outcome']} rows={resultRows} className="results-table" />
           </section>
@@ -251,7 +248,6 @@ function DashboardPage() {
           <section className="account-card">
             <div className="account-card-title-row">
               <h2>My Supply</h2>
-              <a href="/supply">manage supply</a>
             </div>
             <AccountTable columns={['Peptide Name', 'Quantity (mg)', 'Vendor', 'Purity', 'Status']} rows={supplyRows} className="supply-table" />
           </section>
@@ -260,13 +256,9 @@ function DashboardPage() {
         <aside className="dashboard-sidebar">
           <section className="account-card quick-actions">
             <h2>Quick Actions</h2>
-            <a href="/submit-sample" className="quick-action primary">
+            <a href="/testing" className="quick-action primary">
               <img src={plusIcon} alt="" />
               <span>Submit New Sample</span>
-            </a>
-            <a href="/results" className="quick-action outlined">
-              <img src={fileIcon} alt="" />
-              <span>View All Results</span>
             </a>
             <a href="/account" className="quick-action muted">
               <img src={settingsIcon} alt="" />
@@ -274,19 +266,6 @@ function DashboardPage() {
             </a>
           </section>
 
-          <section className="account-card lab-dates">
-            <h2>Next Lab Delivery Dates</h2>
-            <div className="lab-date-list">
-              <div className="lab-date-item">
-                <strong>Aug 18, 2026</strong>
-                <span>Tirzepatide Batch T-4</span>
-              </div>
-              <div className="lab-date-item">
-                <strong>Aug 22, 2026</strong>
-                <span>Retatrutide Batch R-2</span>
-              </div>
-            </div>
-          </section>
         </aside>
       </div>
     </main>
@@ -463,7 +442,7 @@ function ProfileSettings() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/png,image/jpeg,image/gif,image/svg+xml"
+            accept="image/png,image/jpeg,image/webp"
             hidden
             onChange={handlePhotoChange}
           />
@@ -604,89 +583,193 @@ function SecuritySettings() {
   )
 }
 
-function ToggleRow({ label, on = true, detail }: { label: string; on?: boolean; detail?: string }) {
+function ToggleRow({
+  label,
+  on = true,
+  detail,
+  disabled = false,
+  onChange,
+}: {
+  label: string
+  on?: boolean
+  detail?: string
+  disabled?: boolean
+  onChange?: (value: boolean) => void
+}) {
   return (
     <div className="toggle-row">
       <span>
         {label}
         {detail ? <small>{detail}</small> : null}
       </span>
-      <img src={on ? toggleOn : toggleOff} alt="" className="account-toggle" />
+      <button
+        type="button"
+        className="toggle-button"
+        aria-label={`${on ? 'Disable' : 'Enable'} ${label}`}
+        aria-pressed={on}
+        disabled={disabled || !onChange}
+        onClick={() => onChange?.(!on)}
+      >
+        <img src={on ? toggleOn : toggleOff} alt="" className="account-toggle" />
+      </button>
     </div>
   )
 }
 
 function NotificationsSettings() {
+  const [preferences, setPreferences] = useState({
+    email_test_results: true,
+    email_shipment_updates: true,
+    email_rankings: false,
+    email_marketing: false,
+    push_test_results: false,
+    push_shipment_updates: false,
+    push_marketing: false,
+    frequency: 'instant',
+  })
+  const [status, setStatus] = useState<'loading' | 'idle' | 'saving' | 'saved' | 'error'>('loading')
+
+  useEffect(() => {
+    apiFetch('/account/notifications')
+      .then((data) => {
+        setPreferences((current) => ({ ...current, ...data.preferences }))
+        setStatus('idle')
+      })
+      .catch(() => setStatus('error'))
+  }, [])
+
+  const setBoolean = (field: keyof typeof preferences) => (value: boolean) => {
+    setPreferences((current) => ({ ...current, [field]: value }))
+    setStatus('idle')
+  }
+
+  const save = async () => {
+    setStatus('saving')
+    try {
+      const data = await apiFetch('/account/notifications', {
+        method: 'PUT',
+        body: JSON.stringify(preferences),
+      })
+      setPreferences((current) => ({ ...current, ...data.preferences }))
+      setStatus('saved')
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  const disabled = status === 'loading' || status === 'saving'
   return (
     <>
       <AccountContentHeader title="Notification Preferences" subtitle="Control how and when Peptrace contacts you." />
       <section className="settings-inner-card">
         <h2>Email Notifications</h2>
-        <ToggleRow label="Test Results Ready" />
-        <ToggleRow label="Shipment Status Updates" />
-        <ToggleRow label="New Leaderboard Rankings" on={false} />
-        <ToggleRow label="Newsletter & Product Updates" on={false} />
-        <ToggleRow label="Security Alerts" detail="(Required)" />
+        <ToggleRow label="Test Results Ready" on={preferences.email_test_results} onChange={setBoolean('email_test_results')} disabled={disabled} />
+        <ToggleRow label="Shipment Status Updates" on={preferences.email_shipment_updates} onChange={setBoolean('email_shipment_updates')} disabled={disabled} />
+        <ToggleRow label="New Leaderboard Rankings" on={preferences.email_rankings} onChange={setBoolean('email_rankings')} disabled={disabled} />
+        <ToggleRow label="Newsletter & Product Updates" on={preferences.email_marketing} onChange={setBoolean('email_marketing')} disabled={disabled} />
+        <ToggleRow label="Security Alerts" detail="(Required)" disabled />
       </section>
       <section className="settings-inner-card">
         <h2>Push Notifications</h2>
-        <ToggleRow label="Test Results" />
-        <ToggleRow label="Shipment Tracking" />
-        <ToggleRow label="Promotional" on={false} />
+        <ToggleRow label="Test Results" on={preferences.push_test_results} onChange={setBoolean('push_test_results')} disabled={disabled} />
+        <ToggleRow label="Shipment Tracking" on={preferences.push_shipment_updates} onChange={setBoolean('push_shipment_updates')} disabled={disabled} />
+        <ToggleRow label="Promotional" on={preferences.push_marketing} onChange={setBoolean('push_marketing')} disabled={disabled} />
       </section>
       <section className="settings-inner-card">
         <h2>Notification Frequency</h2>
-        <label className="radio-row"><input type="radio" defaultChecked name="frequency" /> Daily Digest</label>
-        <label className="radio-row"><input type="radio" name="frequency" /> Instant</label>
-        <label className="radio-row"><input type="radio" name="frequency" /> Weekly Summary</label>
+        <label className="radio-row"><input type="radio" checked={preferences.frequency === 'daily'} name="frequency" onChange={() => setPreferences((current) => ({ ...current, frequency: 'daily' }))} disabled={disabled} /> Daily Digest</label>
+        <label className="radio-row"><input type="radio" checked={preferences.frequency === 'instant'} name="frequency" onChange={() => setPreferences((current) => ({ ...current, frequency: 'instant' }))} disabled={disabled} /> Instant</label>
+        <label className="radio-row"><input type="radio" checked={preferences.frequency === 'weekly'} name="frequency" onChange={() => setPreferences((current) => ({ ...current, frequency: 'weekly' }))} disabled={disabled} /> Weekly Summary</label>
       </section>
-      <button type="button" className="account-pill primary">Save Preferences</button>
+      {status === 'saved' ? <p className="settings-feedback success">Preferences saved.</p> : null}
+      {status === 'error' ? <p className="settings-feedback error">Could not load or save preferences.</p> : null}
+      <button type="button" className="account-pill primary" onClick={save} disabled={disabled}>
+        {status === 'saving' ? 'Saving…' : 'Save Preferences'}
+      </button>
     </>
   )
 }
 
 function BillingSettings() {
-  const billingRows = [
-    ['15 Aug 2026', 'Researcher Premium', '$29.00', <StatusPill key="status">Paid</StatusPill>],
-    ['15 Jul 2026', 'Researcher Premium', '$29.00', <StatusPill key="status">Paid</StatusPill>],
-    ['15 Jun 2026', 'Researcher Premium', '$29.00', <StatusPill key="status">Paid</StatusPill>],
-  ]
+  type Subscription = {
+    id: string
+    provider: string
+    plan: string
+    status: string
+    current_period_end: string | null
+    cancel_at_period_end: boolean
+    currency: string | null
+    amount_cents: number | null
+    created_at: string
+  }
+  const [current, setCurrent] = useState<Subscription | null>(null)
+  const [history, setHistory] = useState<Subscription[]>([])
+  const [providerConfigured, setProviderConfigured] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    apiFetch('/account/billing')
+      .then((data) => {
+        setCurrent(data.current)
+        setHistory(data.history ?? [])
+        setProviderConfigured(data.providerConfigured === true)
+      })
+      .catch(() => setError('Could not load billing information.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const formatMoney = (subscription: Subscription) => {
+    if (subscription.amount_cents == null) return '—'
+    return new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: subscription.currency ?? 'USD',
+    }).format(subscription.amount_cents / 100)
+  }
+  const billingRows = history.map((subscription) => [
+    new Date(subscription.created_at).toLocaleDateString(),
+    subscription.plan,
+    formatMoney(subscription),
+    <StatusPill key={subscription.id} tone={subscription.status === 'active' ? 'success' : 'warning'}>{subscription.status}</StatusPill>,
+  ])
 
   return (
     <>
       <AccountContentHeader title="Membership & Billing" subtitle="Manage your subscription plan and payment details." />
-      <section className="settings-inner-card subtle-card">
-        <div className="plan-header">
-          <span>
-            <h2>Researcher Premium</h2>
-            <p>$29/month</p>
-          </span>
-          <p>Renews on 15 Sep 2026</p>
-        </div>
-        <ul className="plan-features">
-          {['Unlimited sample submissions', 'Priority testing queue', 'Advanced analytics', 'API access'].map((feature) => (
-            <li key={feature}>
-              <img src={checkGreen} alt="" />
-              {feature}
-            </li>
-          ))}
-        </ul>
-        <div className="settings-inline-actions">
-          <button type="button" className="account-pill primary">Change Plan</button>
-          <button type="button" className="danger-link">Cancel Subscription</button>
-        </div>
-      </section>
-      <section className="settings-inner-card subtle-card payment-card">
-        <h2>Payment Method</h2>
-        <span>
-          <strong>Visa ending in 4582</strong>
-          <small>Expires 08/2028</small>
-        </span>
-        <button type="button" className="account-pill secondary squared">Update Payment Method</button>
-      </section>
+      {loading ? <p>Loading billing information…</p> : null}
+      {error ? <p className="settings-feedback error">{error}</p> : null}
+      {!loading && current ? (
+        <section className="settings-inner-card subtle-card">
+          <div className="plan-header">
+            <span>
+              <h2>{current.plan}</h2>
+              <p>{formatMoney(current)}</p>
+            </span>
+            <p>
+              {current.current_period_end
+                ? `${current.cancel_at_period_end ? 'Ends' : 'Renews'} ${new Date(current.current_period_end).toLocaleDateString()}`
+                : current.status}
+            </p>
+          </div>
+          <p>Billing provider: {current.provider}</p>
+          <div className="settings-inline-actions">
+            <button type="button" className="account-pill primary" disabled>Change Plan</button>
+            <button type="button" className="danger-link" disabled>Cancel Subscription</button>
+          </div>
+          <p className="settings-feedback">Plan changes are unavailable until the billing provider integration is enabled.</p>
+        </section>
+      ) : null}
+      {!loading && !current ? (
+        <section className="settings-inner-card subtle-card">
+          <h2>No active membership</h2>
+          <p>{providerConfigured ? 'Choose a plan from the membership page.' : 'Online billing is not configured yet. No payment method is stored by PepTrace.'}</p>
+        </section>
+      ) : null}
       <section className="settings-inner-card subtle-card">
         <h2>Billing History</h2>
-        <AccountTable columns={['Date', 'Description', 'Amount', 'Status']} rows={billingRows} className="billing-table" />
+        {billingRows.length > 0 ? (
+          <AccountTable columns={['Date', 'Description', 'Amount', 'Status']} rows={billingRows} className="billing-table" />
+        ) : <p>No billing records.</p>}
       </section>
     </>
   )
@@ -831,21 +914,151 @@ function ShippingSettings() {
 }
 
 function PrivacySettings() {
+  const { user } = useAuth()
+  type Consent = { accepted: boolean; policy_version: string; recorded_at: string; withdrawn_at: string | null }
+  type ExportRequest = { id: string; status: string; requested_at: string; expires_at: string | null }
+  type DeletionRequest = { id: string; status: string; requested_at: string; scheduled_for: string | null }
+  const [consents, setConsents] = useState<Record<string, Consent>>({})
+  const [exports, setExports] = useState<ExportRequest[]>([])
+  const [deletion, setDeletion] = useState<DeletionRequest | null>(null)
+  const [confirmation, setConfirmation] = useState('')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+
+  const load = useCallback(async () => {
+    const [consentData, exportData, deletionData] = await Promise.all([
+      apiFetch('/account/consents'),
+      apiFetch('/account/data-exports'),
+      apiFetch('/account/deletion-request'),
+    ])
+    setConsents(consentData.current ?? {})
+    setExports(exportData.requests ?? [])
+    setDeletion(deletionData.request ?? null)
+  }, [])
+
+  useEffect(() => {
+    load().catch(() => setError('Could not load privacy settings.'))
+  }, [load])
+
+  const updateConsent = async (consentType: string, accepted: boolean) => {
+    setBusy(consentType)
+    setError('')
+    try {
+      const data = await apiFetch('/account/consents', {
+        method: 'POST',
+        body: JSON.stringify({ consentType, accepted }),
+      })
+      setConsents((current) => ({ ...current, [consentType]: data.consent }))
+      setMessage('Consent preference recorded.')
+    } catch {
+      setError('Could not record consent preference.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const requestExport = async () => {
+    setBusy('export')
+    setError('')
+    try {
+      await apiFetch('/account/data-exports', { method: 'POST' })
+      await load()
+      setMessage('Your private export is ready for 24 hours.')
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not generate export.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const downloadExport = async (id: string) => {
+    setBusy(id)
+    setError('')
+    try {
+      const data = await apiFetch(`/account/data-exports/${id}/download`)
+      window.location.assign(data.url)
+    } catch {
+      setError('Could not download this export.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const requestDeletion = async () => {
+    if (!window.confirm('Schedule permanent account deletion after a 7-day grace period?')) return
+    setBusy('deletion')
+    setError('')
+    try {
+      await apiFetch('/account/deletion-request', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword: confirmation, confirmEmail: confirmation, reason }),
+      })
+      setConfirmation('')
+      setReason('')
+      await load()
+      setMessage('Account deletion is scheduled. You can cancel during the grace period.')
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not schedule deletion.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const cancelDeletion = async () => {
+    setBusy('deletion')
+    setError('')
+    try {
+      await apiFetch('/account/deletion-request/cancel', { method: 'POST' })
+      await load()
+      setMessage('Account deletion canceled.')
+    } catch {
+      setError('Could not cancel deletion.')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const latestExport = exports[0]
+  const deletionActive = deletion && ['requested', 'scheduled', 'processing'].includes(deletion.status)
   return (
     <>
       <AccountContentHeader title="Data & Privacy" subtitle="Control your data, privacy settings, and account deletion." />
       <section className="settings-inner-card subtle-card">
         <h2>Data Sharing</h2>
-        <ToggleRow label="Share anonymized test results with community leaderboards" />
-        <ToggleRow label="Allow Peptrace to use my data for research improvements" on={false} />
-        <ToggleRow label="Visible on public vendor rankings" />
+        <ToggleRow
+          label="Allow anonymized analytics"
+          on={consents.analytics?.accepted ?? false}
+          onChange={(value) => updateConsent('analytics', value)}
+          disabled={busy === 'analytics'}
+        />
+        <ToggleRow
+          label="Allow AI-assisted processing"
+          on={consents.ai_processing?.accepted ?? false}
+          onChange={(value) => updateConsent('ai_processing', value)}
+          disabled={busy === 'ai_processing'}
+        />
+        <ToggleRow
+          label="Marketing communications"
+          on={consents.marketing?.accepted ?? false}
+          onChange={(value) => updateConsent('marketing', value)}
+          disabled={busy === 'marketing'}
+        />
       </section>
       <section className="settings-inner-card subtle-card data-export-card">
         <h2>Data Export</h2>
         <p>Download a copy of all your Peptrace data including test results, shipments, and account information.</p>
         <div>
-          <small>Last export: 12 Jul 2026</small>
-          <button type="button" className="account-pill primary">Request Data Export</button>
+          <small>{latestExport ? `Last request: ${new Date(latestExport.requested_at).toLocaleString()} (${latestExport.status})` : 'No exports requested'}</small>
+          {latestExport?.status === 'complete' ? (
+            <button type="button" className="account-pill secondary" onClick={() => downloadExport(latestExport.id)} disabled={busy === latestExport.id}>
+              Download Export
+            </button>
+          ) : null}
+          <button type="button" className="account-pill primary" onClick={requestExport} disabled={busy === 'export'}>
+            {busy === 'export' ? 'Generating…' : 'Request Data Export'}
+          </button>
         </div>
       </section>
       <section className="settings-inner-card delete-card">
@@ -853,9 +1066,26 @@ function PrivacySettings() {
           <img src={alertTriangle} alt="" />
           Delete Account
         </h2>
-        <p>Permanently delete your account and all associated data. This action cannot be undone.</p>
-        <button type="button" className="account-pill danger">Delete My Account</button>
+        {deletionActive ? (
+          <>
+            <p>Deletion is {deletion.status}{deletion.scheduled_for ? ` for ${new Date(deletion.scheduled_for).toLocaleString()}` : ''}.</p>
+            <button type="button" className="account-pill secondary" onClick={cancelDeletion} disabled={busy === 'deletion'}>Cancel Deletion</button>
+          </>
+        ) : (
+          <>
+            <p>Deletion is scheduled after a 7-day grace period and cannot be reversed after processing completes.</p>
+            <Field label={`Confirm with your current password${user?.email ? ' or account email' : ''}`}>
+              <input type="password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="current-password" />
+            </Field>
+            <Field label="Reason (optional)">
+              <textarea value={reason} onChange={(event) => setReason(event.target.value)} />
+            </Field>
+            <button type="button" className="account-pill danger" onClick={requestDeletion} disabled={busy === 'deletion' || !confirmation}>Delete My Account</button>
+          </>
+        )}
       </section>
+      {message ? <p className="settings-feedback success">{message}</p> : null}
+      {error ? <p className="settings-feedback error">{error}</p> : null}
     </>
   )
 }

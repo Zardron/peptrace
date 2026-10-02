@@ -10,9 +10,9 @@ interface Vendor {
   slug: string
   initials: string
   isVerified: boolean
-  pricePerMg: number
+  pricePerMg: number | null
   customerRating: number
-  purityRating: number
+  purityRating: number | null
   nCount: number
 }
 
@@ -61,9 +61,9 @@ export default function VendorsPanel({ vendors }: VendorsPanelProps) {
     } else if (ratingSort === 'Rating: Low to High') {
       result = [...result].sort((a, b) => a.customerRating - b.customerRating)
     } else if (ratingSort === 'Price: Low to High') {
-      result = [...result].sort((a, b) => a.pricePerMg - b.pricePerMg)
+      result = [...result].sort((a, b) => (a.pricePerMg ?? Number.MAX_VALUE) - (b.pricePerMg ?? Number.MAX_VALUE))
     } else if (ratingSort === 'Price: High to Low') {
-      result = [...result].sort((a, b) => b.pricePerMg - a.pricePerMg)
+      result = [...result].sort((a, b) => (b.pricePerMg ?? -1) - (a.pricePerMg ?? -1))
     }
     return result
   }, [vendors, search, ratingSort])
@@ -129,12 +129,12 @@ export default function VendorsPanel({ vendors }: VendorsPanelProps) {
                   </a>
                 </span>
               </span>
-              <span className="col-price">${row.pricePerMg.toFixed(2)}</span>
+              <span className="col-price">{row.pricePerMg == null ? '—' : `$${row.pricePerMg.toFixed(2)}`}</span>
               <span className="col-rating">
                 <FontAwesomeIcon icon={faStar} className="fl-star-icon" />
                 {row.customerRating}%
               </span>
-              <span className="col-purity">{row.purityRating}%</span>
+              <span className="col-purity">{row.purityRating == null ? '—' : `${row.purityRating}%`}</span>
               <span className="col-n">{row.nCount}</span>
             </div>
           ))}

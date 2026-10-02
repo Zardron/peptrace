@@ -5,10 +5,6 @@ import highlightCoa from '../../assets/membership/highlight-coa.png'
 import highlightIntelligence from '../../assets/membership/highlight-intelligence.png'
 import highlightRating from '../../assets/membership/highlight-rating.png'
 
-interface MembershipPageProps {
-  // No props needed — header actions are handled by the shared HeaderBar
-}
-
 const plans = [
   {
     title: 'PepTrace Free',
@@ -162,14 +158,19 @@ function PricingCard({ plan }: { plan: (typeof plans)[number] }) {
         ))}
       </ul>
 
-      <button type="button" className={`membership-card-button ${plan.buttonVariant}`}>
-        {plan.buttonText}
+      <button
+        type="button"
+        className={`membership-card-button ${plan.buttonVariant}`}
+        disabled={plan.tone !== 'muted'}
+        onClick={plan.tone === 'muted' ? () => { window.location.href = '/signup' } : undefined}
+      >
+        {plan.tone === 'muted' ? 'Create a free account' : 'Billing integration coming soon'}
       </button>
     </article>
   )
 }
 
-export default function MembershipPage(_props: MembershipPageProps) {
+export default function MembershipPage() {
   return (
     <div className="membership-page">
       <main className="membership-main">
@@ -228,8 +229,8 @@ export default function MembershipPage(_props: MembershipPageProps) {
             </p>
           </div>
           <aside className="membership-stat">
-            <strong>$14k+</strong>
-            <span>Spent monthly on independent validation lab tests</span>
+            <strong>Independent</strong>
+            <span>Funding metrics will be published only when backed by verified accounting data.</span>
           </aside>
         </section>
 

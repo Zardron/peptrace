@@ -13,8 +13,8 @@ interface Product {
   slug: string
   vendorCount: number
   testCount: number
-  firstTestDate: string
-  latestTestDate: string
+  firstTestDate: string | null
+  latestTestDate: string | null
 }
 
 interface Methodology {
@@ -29,9 +29,9 @@ interface Vendor {
   slug: string
   initials: string
   isVerified: boolean
-  pricePerMg: number
+  pricePerMg: number | null
   customerRating: number
-  purityRating: number
+  purityRating: number | null
   nCount: number
 }
 
@@ -139,7 +139,7 @@ export default function FullLeaderboard({ slug }: FullLeaderboardProps) {
   // Same effect as the home page: keep vendors meeting the selected
   // standard's purity threshold, then re-rank so ranks stay contiguous.
   const visibleVendors = vendors
-    .filter((v) => v.purityRating >= standard.minPurity)
+    .filter((v) => v.purityRating != null && v.purityRating >= standard.minPurity)
     .map((v, i) => ({ ...v, rank: i + 1 }))
 
   return (

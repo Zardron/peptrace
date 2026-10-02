@@ -86,9 +86,34 @@ jobs:
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             "$SERVER_USER@$HOST" 'echo "SSH OK, logged in as: $(whoami), home: $HOME"'
 
-      - name: Checkout source to sync
-        if: inputs.environment == 'staging'
+      - name: Checkout source
         uses: actions/checkout@v4
+
+      - name: Apply production-control migrations atomically
+        if: inputs.service != 'frontend'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL must be configured for the selected environment."
+            exit 1
+          fi
+          {
+            for file in \
+              api/migrations/011_admin_control_center.sql \
+              api/migrations/012_unify_user_identities.sql \
+              api/migrations/013_make_user_uploads_private.sql \
+              api/migrations/014_atomic_shipment_creation.sql \
+              api/migrations/015_quarantine_demo_catalog_data.sql \
+              api/migrations/016_privacy_deletion_worker.sql \
+              api/migrations/017_customer_sessions.sql \
+              api/migrations/018_force_admin_password_change.sql; do
+              echo "-- applying $file"
+              sed -e '$a\' "$file"
+            done
+          } | docker run --rm -i postgres:17-alpine \
+            psql "$DATABASE_URL" --set ON_ERROR_STOP=1 --single-transaction
 
       - name: Sync source to staging release directory
         if: inputs.environment == 'staging'
@@ -101,6 +126,9 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
+          ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET }}
+          ADMIN_BOOTSTRAP_EMAIL: ${{ vars.ADMIN_BOOTSTRAP_EMAIL }}
+          ADMIN_BOOTSTRAP_PASSWORD: ${{ secrets.ADMIN_BOOTSTRAP_PASSWORD }}
         run: |
           set -euo pipefail
           RELEASE_DIR="/home/$SERVER_USER/services/peptrace/stg/releases/${{ github.sha }}"
@@ -134,6 +162,12 @@ jobs:
           SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
           SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY
           AUTH_SESSION_SECRET=$AUTH_SESSION_SECRET
+          CORS_ORIGIN=https://peptrace.stg.esteemed.engineering,https://admin.peptrace.co
+          ADMIN_CORS_ORIGINS=https://admin.peptrace.co
+          ADMIN_SESSION_SECRET=$ADMIN_SESSION_SECRET
+          ADMIN_BOOTSTRAP_EMAIL=$ADMIN_BOOTSTRAP_EMAIL
+          ADMIN_BOOTSTRAP_PASSWORD=$ADMIN_BOOTSTRAP_PASSWORD
+          ADMIN_BOOTSTRAP_NAME=PepTrace Owner
           ENVEOF
 
       - name: Deploy to VPS
@@ -154,6 +188,9 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
+          ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET }}
+          ADMIN_BOOTSTRAP_EMAIL: ${{ vars.ADMIN_BOOTSTRAP_EMAIL }}
+          ADMIN_BOOTSTRAP_PASSWORD: ${{ secrets.ADMIN_BOOTSTRAP_PASSWORD }}
           LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL }}
           GHCR_USER: ${{ github.actor }}
           GHCR_PAT: ${{ secrets.PAT }}
@@ -162,7 +199,7 @@ jobs:
           host: ${{ vars.SERVER_IP || secrets.SERVER_IP }}
           username: ${{ vars.SERVER_USER || 'github' }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,DEPLOY_SHA,GITHUB_REPO,RELEASE_DIR,PROD_DIR,PEPTRACE_DOMAIN,ADMIN_PORTAL_DOMAIN,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,SUPABASE_ANON_KEY,SUPABASE_SECRET_KEY,AUTH_SESSION_SECRET,LETSENCRYPT_EMAIL,GHCR_USER,GHCR_PAT,GIT_TOKEN
+          envs: DEPLOY_FRONTEND_IMAGE,DEPLOY_API_IMAGE,DEPLOY_SERVICES,DEPLOY_ENVIRONMENT,DEPLOY_SHA,GITHUB_REPO,RELEASE_DIR,PROD_DIR,PEPTRACE_DOMAIN,ADMIN_PORTAL_DOMAIN,SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,SUPABASE_ANON_KEY,SUPABASE_SECRET_KEY,AUTH_SESSION_SECRET,ADMIN_SESSION_SECRET,ADMIN_BOOTSTRAP_EMAIL,ADMIN_BOOTSTRAP_PASSWORD,LETSENCRYPT_EMAIL,GHCR_USER,GHCR_PAT,GIT_TOKEN
           script: |
             set -euo pipefail
             if [ "$DEPLOY_ENVIRONMENT" = "production" ]; then
@@ -201,6 +238,12 @@ jobs:
                 echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
                 echo "SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY"
                 echo "AUTH_SESSION_SECRET=$AUTH_SESSION_SECRET"
+                echo "CORS_ORIGIN=https://${PEPTRACE_DOMAIN:-peptrace.co},https://${ADMIN_PORTAL_DOMAIN:-admin.peptrace.co}"
+                echo "ADMIN_CORS_ORIGINS=https://${ADMIN_PORTAL_DOMAIN:-admin.peptrace.co}"
+                echo "ADMIN_SESSION_SECRET=$ADMIN_SESSION_SECRET"
+                echo "ADMIN_BOOTSTRAP_EMAIL=$ADMIN_BOOTSTRAP_EMAIL"
+                echo "ADMIN_BOOTSTRAP_PASSWORD=$ADMIN_BOOTSTRAP_PASSWORD"
+                echo "ADMIN_BOOTSTRAP_NAME=PepTrace Owner"
               } > .env
               chmod 600 .env
               # TLS: first issuance must happen before the stack starts,

@@ -29,6 +29,7 @@ export default function FileUploadField({ uploadType, value, onChange }: FileUpl
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState('')
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const handleFile = async (file: File | undefined | null) => {
     if (!file || uploading) return
@@ -52,7 +53,8 @@ export default function FileUploadField({ uploadType, value, onChange }: FileUpl
         method: 'POST',
         body: JSON.stringify({ file: base64, contentType: file.type, extension, uploadType }),
       })
-      onChange(data.url)
+      onChange(data.path)
+      setPreviewUrl(data.previewUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not upload the file. Please try again.')
     } finally {
@@ -64,19 +66,26 @@ export default function FileUploadField({ uploadType, value, onChange }: FileUpl
   if (value) {
     return (
       <div className="fw-upload-preview">
-        {isPdfUrl(value) ? (
-          <iframe src={value} title="Uploaded document preview" className="fw-upload-preview-pdf" />
-        ) : (
-          <img src={value} alt="Uploaded file preview" className="fw-upload-preview-image" />
-        )}
+        {previewUrl ? (
+          isPdfUrl(value) ? (
+            <iframe src={previewUrl} title="Uploaded document preview" className="fw-upload-preview-pdf" />
+          ) : (
+            <img src={previewUrl} alt="Uploaded file preview" className="fw-upload-preview-image" />
+          )
+        ) : <span>Private file attached</span>}
         <div className="fw-upload-preview-actions">
-          <a href={value} target="_blank" rel="noreferrer" className="fw-upload-preview-link">
-            View full file
-          </a>
+          {previewUrl ? (
+            <a href={previewUrl} target="_blank" rel="noreferrer" className="fw-upload-preview-link">
+              View full file
+            </a>
+          ) : null}
           <button
             type="button"
             className="fw-upload-preview-remove"
-            onClick={() => onChange(null)}
+            onClick={() => {
+              setPreviewUrl(null)
+              onChange(null)
+            }}
           >
             Remove
           </button>

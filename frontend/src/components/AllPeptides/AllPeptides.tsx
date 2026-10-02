@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './AllPeptides.css'
 import HomeTopInfo from '../HomeTopInfo/HomeTopInfo'
 import StandardFilter, { getStandard, type StandardId } from '../StandardFilter/StandardFilter'
@@ -19,56 +19,19 @@ interface PeptideData {
   vendors: VendorLineData[]
 }
 
-const PEPTIDES: PeptideData[] = [
-  {
-    name: 'Retatrutide',
-    vendors: [
-      { rank: 1, vendorName: 'Peptide Partners', rating: 93, tests: 293, total: 3858, latest: '20 Sept 2026' },
-      { rank: 2, vendorName: 'Inno Peptides', rating: 91, tests: null, total: null, latest: null },
-      { rank: 3, vendorName: 'ZLZ Peptide', rating: 91, tests: null, total: null, latest: null },
-    ],
-  },
-  {
-    name: 'Tirzepatide',
-    vendors: [
-      { rank: 1, vendorName: 'Yiwu Aozuo Trading Co', rating: 93, tests: 202, total: 2478, latest: '20 Sept 2026' },
-      { rank: 2, vendorName: 'SRY Labs', rating: 92, tests: null, total: null, latest: null },
-      { rank: 3, vendorName: 'Andy Peps Studio', rating: 91, tests: null, total: null, latest: null },
-    ],
-  },
-  {
-    name: 'BPC-157',
-    vendors: [
-      { rank: 1, vendorName: 'Nova Peptides', rating: 88, tests: 119, total: 791, latest: '20 Sept 2026' },
-      { rank: 2, vendorName: 'Apex Labs', rating: 84, tests: null, total: null, latest: null },
-      { rank: 3, vendorName: 'Meridian Bio', rating: 79, tests: null, total: null, latest: null },
-    ],
-  },
-  {
-    name: 'Semaglutide',
-    vendors: [
-      { rank: 1, vendorName: 'Peptide Crafters', rating: 82, tests: 61, total: 345, latest: '20 Sept 2026' },
-      { rank: 2, vendorName: 'Paramount Peptides', rating: 81, tests: null, total: null, latest: null },
-      { rank: 3, vendorName: 'Skye Peptides', rating: 81, tests: null, total: null, latest: null },
-    ],
-  },
-  {
-    name: 'CJC-1295',
-    vendors: [
-      { rank: 1, vendorName: 'HXNet', rating: 90, tests: 56, total: 294, latest: '20 Sept 2026' },
-      { rank: 2, vendorName: 'Yimei', rating: 82, tests: null, total: null, latest: null },
-      { rank: 3, vendorName: 'ZLZ Peptide', rating: 44, tests: null, total: null, latest: null },
-    ],
-  },
-  {
-    name: 'TB-500',
-    vendors: [
-      { rank: 1, vendorName: 'Yiwu Aozuo Trading Co', rating: 90, tests: 40, total: 214, latest: '10 Sept 2026' },
-      { rank: 2, vendorName: 'Yimei', rating: 80, tests: null, total: null, latest: null },
-      { rank: 3, vendorName: 'HK Peptides', rating: 43, tests: null, total: null, latest: null },
-    ],
-  },
-]
+const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+
+interface LeaderboardCard {
+  productName: string
+  testCount: number
+  lastUpdated: string | null
+  rows: Array<{
+    vendorName: string
+    pricePerMg: number | null
+    rating: number | null
+    testCount: number
+  }>
+}
 
 function getRatingVariant(rating: number | null): string {
   if (rating == null) return 'empty'
@@ -238,12 +201,41 @@ function MobilePeptideSection({ peptide }: { peptide: PeptideData }) {
 export default function AllPeptides() {
   const [standardId, setStandardId] = useState<StandardId>('purity-focus')
   const [rankBy, setRankBy] = useState<RankBy>('rating')
+  const [cards, setCards] = useState<LeaderboardCard[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  // Data is hardcoded to match Figma exactly. The standard/rankBy state is
-  // wired to the UI controls so future API integration is a drop-in replacement.
+  useEffect(() => {
+    fetch(`${API_BASE}/leaderboards`)
+      .then((response) => {
+        if (!response.ok) throw new Error('Could not load products')
+        return response.json()
+      })
+      .then((data) => setCards(data.cards ?? []))
+      .catch(() => setError('Could not load product rankings.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const peptides = useMemo<PeptideData[]>(() => cards.map((card) => {
+    const sorted = [...card.rows].sort((left, right) => {
+      if (rankBy === 'cost') return (left.pricePerMg ?? Number.MAX_VALUE) - (right.pricePerMg ?? Number.MAX_VALUE)
+      return (right.rating ?? -1) - (left.rating ?? -1)
+    })
+    return {
+      name: card.productName,
+      vendors: sorted.map((vendor, index) => ({
+        rank: index + 1,
+        vendorName: vendor.vendorName,
+        rating: vendor.rating == null ? null : Math.round(vendor.rating * 100),
+        tests: vendor.testCount,
+        total: card.testCount,
+        latest: card.lastUpdated ? new Date(card.lastUpdated).toLocaleDateString() : null,
+      })),
+    }
+  }), [cards, rankBy])
+
   const _standard = getStandard(standardId)
   void _standard
-  void rankBy
 
   return (
     <div className="all-peptides-page">
@@ -260,11 +252,15 @@ export default function AllPeptides() {
           />
           <div className="all-peptides-divider" />
 
+          {loading ? <p>Loading product rankings…</p> : null}
+          {error ? <p>{error}</p> : null}
+          {!loading && !error && peptides.length === 0 ? <p>No product rankings are available yet.</p> : null}
+
           {/* Desktop / Tablet */}
           <div className="desktop-table">
             <TableHeader />
             <div className="all-peptides-table-body">
-              {PEPTIDES.map((peptide) => (
+              {peptides.map((peptide) => (
                 <PeptideRow key={peptide.name} peptide={peptide} />
               ))}
             </div>
@@ -272,8 +268,8 @@ export default function AllPeptides() {
 
           {/* Mobile */}
           <div className="mobile-layout">
-            <PeptideTabs peptides={PEPTIDES} />
-            {PEPTIDES.map((peptide) => (
+            <PeptideTabs peptides={peptides} />
+            {peptides.map((peptide) => (
               <MobilePeptideSection key={peptide.name} peptide={peptide} />
             ))}
           </div>

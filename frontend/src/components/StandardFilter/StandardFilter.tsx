@@ -4,6 +4,7 @@ import './StandardFilter.css'
 // Mirrors the Standards table on the methodology page (/methodology).
 // Leaderboard/vendor rows only carry purity, so filtering is by each
 // standard's purity threshold; the badges carry the rest of the criteria.
+// oxlint-disable-next-line react/only-export-components
 export const STANDARD_OPTIONS = [
   { id: 'purity-focus', label: 'Purity focus', badges: ['purity 99.5%+', 'dose ±20%'], minPurity: 99.5 },
   { id: 'peptrace-standard', label: 'Peptrace Standard', badges: ['purity 99.5%+', 'dose ±20%', 'label 0.5+'], minPurity: 99.5 },
@@ -15,6 +16,7 @@ export const STANDARD_OPTIONS = [
 
 export type StandardId = (typeof STANDARD_OPTIONS)[number]['id']
 
+// oxlint-disable-next-line react/only-export-components
 export const getStandard = (id: StandardId) =>
   STANDARD_OPTIONS.find((option) => option.id === id) ?? STANDARD_OPTIONS[0]
 

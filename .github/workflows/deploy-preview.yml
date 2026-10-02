@@ -167,6 +167,7 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           AUTH_SESSION_SECRET: ${{ secrets.AUTH_SESSION_SECRET }}
+          ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET }}
         run: |
           set -euo pipefail
           RELEASE_DIR="/home/$SERVER_USER/services/peptrace/preview/releases/$SHA"
@@ -200,6 +201,9 @@ jobs:
           SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
           SUPABASE_SECRET_KEY=$SUPABASE_SECRET_KEY
           AUTH_SESSION_SECRET=$AUTH_SESSION_SECRET
+          CORS_ORIGIN=https://preview.peptrace.stg.esteemed.engineering
+          ADMIN_CORS_ORIGINS=https://admin.peptrace.co
+          ADMIN_SESSION_SECRET=$ADMIN_SESSION_SECRET
           ENVEOF
 
       - name: Deploy preview to VPS

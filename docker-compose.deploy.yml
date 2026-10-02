@@ -53,6 +53,12 @@ services:
       SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?set SUPABASE_SECRET_KEY in the slot .env}
       # Optional: signs native session tokens (falls back to SUPABASE_SECRET_KEY).
       AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://peptrace.stg.esteemed.engineering}
+      ADMIN_CORS_ORIGINS: ${ADMIN_CORS_ORIGINS:-https://admin.peptrace.co}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?set ADMIN_SESSION_SECRET in the slot .env}
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+      ADMIN_BOOTSTRAP_NAME: ${ADMIN_BOOTSTRAP_NAME:-PepTrace Owner}
     networks:
       - traefik
     labels:
