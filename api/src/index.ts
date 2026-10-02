@@ -699,6 +699,27 @@ app.get('/health', (_req, res) => {
 const normalizeEmail = (value: unknown): string =>
   typeof value === 'string' ? value.trim().toLowerCase() : '';
 
+const rejectBlockedAccountLogin = async (
+  userId: string,
+  res: express.Response,
+): Promise<boolean> => {
+  try {
+    const status = await getAccountOperationalStatus(userId);
+    if (status === 'suspended') {
+      res.status(403).json({ error: 'Account access is suspended. Contact support for assistance.' });
+      return true;
+    }
+    if (status === 'deleted') {
+      res.status(403).json({ error: 'Account access is unavailable.' });
+      return true;
+    }
+    return false;
+  } catch {
+    res.status(503).json({ error: 'Could not verify account access status' });
+    return true;
+  }
+};
+
 const authAttempts = new Map<string, { count: number; resetAt: number }>();
 const authRateLimit = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
   const forwarded = req.headers['x-forwarded-for'];
@@ -803,6 +824,7 @@ app.post('/auth/login', authRateLimit, async (req, res) => {
     res.status(401).json({ error: 'Invalid email or password' });
     return;
   }
+  if (await rejectBlockedAccountLogin(credential.account_id, res)) return;
 
   const csrfToken = await createCustomerSession(req, res, credential.account_id, 'native');
   res.json({ csrfToken });
@@ -852,6 +874,7 @@ app.post('/auth/exchange', authRateLimit, async (req, res) => {
     return;
   }
   await db.from('user_profiles').upsert({ account_id: userId }, { onConflict: 'account_id', ignoreDuplicates: true });
+  if (await rejectBlockedAccountLogin(userId, res)) return;
   const csrfToken = await createCustomerSession(req, res, userId, 'supabase');
   res.json({ csrfToken });
 });
