@@ -22,6 +22,8 @@ type AdminPermission =
   | 'dashboard:read'
   | 'users:read'
   | 'users:manage'
+  | 'shipments:read'
+  | 'shipments:manage'
   | 'billing:read'
   | 'privacy:read'
   | 'support:read'
@@ -34,6 +36,8 @@ const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
     'dashboard:read',
     'users:read',
     'users:manage',
+    'shipments:read',
+    'shipments:manage',
     'billing:read',
     'privacy:read',
     'support:read',
@@ -45,6 +49,8 @@ const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
     'dashboard:read',
     'users:read',
     'users:manage',
+    'shipments:read',
+    'shipments:manage',
     'privacy:read',
     'support:read',
     'support:manage',
@@ -801,6 +807,81 @@ export const createAdminRouter = (): Router => {
       reason,
     });
     res.json({ id: account.id, status, reason, updatedAt: now });
+  });
+
+  router.get('/shipments', requirePermission('shipments:read'), async (req, res) => {
+    const { page, pageSize, from, to } = pagination(req);
+    const search = cleanText(req.query.search, 100).replace(/[%_(),]/g, '');
+    const status = cleanText(req.query.status, 30);
+    const db = getServiceClient();
+    let query = db.from('shipments')
+      .select('id, account_id, tracking_id, status, created_at, updated_at', { count: 'exact' });
+    if (search) query = query.ilike('tracking_id', `%${search}%`);
+    if (status) query = query.eq('status', status);
+    query = query.order('created_at', { ascending: false }).range(from, to);
+    const { data: shipments, count, error } = await query;
+    if (error) {
+      res.status(500).json({ error: 'Could not load shipments' });
+      return;
+    }
+    const shipmentIds = (shipments ?? []).map((shipment) => shipment.id);
+    const accountIds = [...new Set((shipments ?? []).map((shipment) => shipment.account_id).filter(Boolean))];
+    const [{ data: samples }, { data: accounts }] = await Promise.all([
+      shipmentIds.length
+        ? db.from('shipment_samples').select('shipment_id').in('shipment_id', shipmentIds)
+        : Promise.resolve({ data: [] }),
+      accountIds.length
+        ? db.from('user_accounts').select('id, email').in('id', accountIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+    const sampleCounts = new Map<string, number>();
+    for (const sample of samples ?? []) {
+      sampleCounts.set(sample.shipment_id, (sampleCounts.get(sample.shipment_id) ?? 0) + 1);
+    }
+    const emailById = new Map((accounts ?? []).map((account) => [account.id, account.email]));
+    res.json({
+      items: (shipments ?? []).map((shipment) => ({
+        ...shipment,
+        account_email: emailById.get(shipment.account_id) ?? null,
+        sample_count: sampleCounts.get(shipment.id) ?? 1,
+      })),
+      page,
+      pageSize,
+      total: count ?? 0,
+      totalPages: Math.ceil((count ?? 0) / pageSize),
+    });
+  });
+
+  router.patch('/shipments/:id/status', requirePermission('shipments:manage'), async (req: AdminRequest, res) => {
+    const status = cleanText(req.body?.status, 30);
+    const reason = cleanText(req.body?.reason, 500);
+    if (!['submitted', 'in_transit', 'testing', 'delivered'].includes(status) || !reason) {
+      res.status(400).json({ error: 'A valid status and reason are required' });
+      return;
+    }
+    const now = new Date().toISOString();
+    const { data, error } = await getServiceClient().from('shipments')
+      .update({ status, updated_at: now })
+      .eq('id', req.params.id)
+      .select('id, account_id, tracking_id, status, updated_at')
+      .maybeSingle();
+    if (error) {
+      res.status(500).json({ error: 'Could not update shipment status' });
+      return;
+    }
+    if (!data) {
+      res.status(404).json({ error: 'Shipment not found' });
+      return;
+    }
+    await audit(req, {
+      actor: req.admin!,
+      action: 'shipment.status.updated',
+      targetType: 'shipment',
+      targetId: data.id,
+      reason,
+      metadata: { accountId: data.account_id, status },
+    });
+    res.json(data);
   });
 
   router.get('/billing/subscriptions', requirePermission('billing:read'), async (req, res) => {
