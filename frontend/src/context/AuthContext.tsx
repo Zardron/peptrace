@@ -92,7 +92,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         credentials: 'include',
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
-      if (!exchange.ok || cancelled) return
+      if (!exchange.ok || cancelled) {
+        await supabase.auth.signOut({ scope: 'local' })
+        return
+      }
       const payload = await exchange.json()
       setApiCsrfToken(payload.csrfToken)
       await supabase.auth.signOut({ scope: 'local' })

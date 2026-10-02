@@ -18,6 +18,10 @@ export const hashPassword = (password: string): string => {
   return `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${salt.toString('base64')}$${hash.toString('base64')}`;
 };
 
+// Used when an Admin lookup misses so invalid-user and invalid-password paths
+// perform the same expensive password verification work.
+export const DUMMY_PASSWORD_HASH = hashPassword(crypto.randomBytes(32).toString('base64url'));
+
 export const verifyPassword = (password: string, stored: string): boolean => {
   try {
     const parts = stored.split('$');

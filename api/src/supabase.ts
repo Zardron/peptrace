@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { hasVerifiedEmailProviderConfiguration } from './provider-auth.js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey =
@@ -16,6 +17,34 @@ if (!supabaseUrl || !supabaseKey) {
 const supabaseServiceKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Short-lived provider client for email/password verification. Provider
+// access and refresh tokens stay server-side and are discarded after each
+// request; PepTrace issues its own opaque, revocable cookie session instead.
+export const createProviderAuthClient = () => createClient(supabaseUrl!, supabaseKey!, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+});
+
+let providerSettingsCache: { required: boolean; expiresAt: number } | null = null;
+
+export const providerRequiresEmailConfirmation = async (): Promise<boolean> => {
+  const now = Date.now();
+  if (providerSettingsCache && providerSettingsCache.expiresAt > now) {
+    return providerSettingsCache.required;
+  }
+  const response = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+    headers: { apikey: supabaseKey },
+  });
+  if (!response.ok) throw new Error('Provider authentication settings are unavailable');
+  const settings = await response.json();
+  const required = hasVerifiedEmailProviderConfiguration(settings);
+  providerSettingsCache = { required, expiresAt: now + 5 * 60 * 1000 };
+  return required;
+};
 
 // Queries through this client run as the given user, so RLS policies apply.
 export const createUserClient = (accessToken: string) =>
