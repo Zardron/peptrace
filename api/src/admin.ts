@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import { hashPassword, isValidEmail, verifyPassword } from './auth.js';
+import { DUMMY_PASSWORD_HASH, hashPassword, isValidEmail, verifyPassword } from './auth.js';
 import { isUuid, normalizeAdminSearch, revokeAllOwnedSessions } from './security.js';
 import { getServiceClient, sessionSecret } from './supabase.js';
 import {
@@ -525,7 +525,8 @@ export const createAdminRouter = (): Router => {
       .maybeSingle();
     const user = data as AdminUserRecord | null;
     const locked = user?.locked_until && new Date(user.locked_until).getTime() > Date.now();
-    const valid = Boolean(user && user.is_active && !locked && verifyPassword(password, user.password_hash));
+    const passwordMatches = verifyPassword(password, user?.password_hash ?? DUMMY_PASSWORD_HASH);
+    const valid = Boolean(user && user.is_active && !locked && passwordMatches);
 
     if (error || !valid || !user || !isAdminRole(user.role)) {
       if (user) {

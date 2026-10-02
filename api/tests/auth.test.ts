@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  DUMMY_PASSWORD_HASH,
   hashPassword,
   isValidEmail,
   verifyPassword,
@@ -18,6 +19,11 @@ test('malformed password records fail closed', () => {
   for (const value of ['', 'plain-text', 'scrypt$1$1$1$bad$bad', 'scrypt$16384$8$1$%%%$%%%']) {
     assert.equal(verifyPassword('anything', value), false);
   }
+});
+
+test('a stable dummy hash supports non-enumerating credential checks', () => {
+  assert.equal(verifyPassword('not-the-dummy-password', DUMMY_PASSWORD_HASH), false);
+  assert.match(DUMMY_PASSWORD_HASH, /^scrypt\$/);
 });
 
 test('email validation accepts normal addresses and rejects ambiguous input', () => {

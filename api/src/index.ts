@@ -3,11 +3,16 @@ import crypto from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { supabase, getServiceClient, sessionSecret } from './supabase.js';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
+import {
+  supabase,
+  createProviderAuthClient,
+  getServiceClient,
+  providerRequiresEmailConfirmation,
+  sessionSecret,
+} from './supabase.js';
 import { createAdminRouter, ensureAdminBootstrap, getAccountOperationalStatus, hashUserSubject } from './admin.js';
 import {
-  hashPassword,
-  verifyPassword,
   isValidEmail,
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_LENGTH,
@@ -20,6 +25,11 @@ import {
   trustedClientAddress,
   type SafeUploadType,
 } from './security.js';
+import {
+  isRecentProviderSession,
+  passwordMeetsPolicy,
+  providerMayUseBearerExchange,
+} from './provider-auth.js';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -72,6 +82,8 @@ interface Session {
   name: string | null;
   customerSessionId?: string;
   rawCustomerSessionToken?: string;
+  source: 'supabase';
+  createdAt: string;
   // Opaque sessions resolve to the service client. Every user-data query below
   // carries an explicit account filter; the browser never receives this key.
   db: ReturnType<typeof getServiceClient>;
@@ -122,7 +134,6 @@ const createCustomerSession = async (
   req: express.Request,
   res: express.Response,
   userId: string,
-  source: 'native' | 'supabase',
 ): Promise<string> => {
   const token = crypto.randomBytes(48).toString('base64url');
   const expiresAt = new Date(Date.now() + CUSTOMER_SESSION_SECONDS * 1000).toISOString();
@@ -130,7 +141,7 @@ const createCustomerSession = async (
   const { error } = await getServiceClient().from('customer_sessions').insert({
     user_id: userId,
     token_hash: customerTokenHash(token),
-    source,
+    source: 'supabase',
     expires_at: expiresAt,
     ip_hash: crypto.createHmac('sha256', sessionSecret()!).update(`customer-ip:${address}`).digest('hex'),
     user_agent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'].slice(0, 500) : null,
@@ -679,10 +690,10 @@ const authenticate = async (req: express.Request): Promise<Session | null> => {
   if (rawCustomerSessionToken) {
     const db = getServiceClient();
     const { data: customerSession } = await db.from('customer_sessions')
-      .select('id, user_id, expires_at, revoked_at, last_seen_at')
+      .select('id, user_id, source, expires_at, revoked_at, last_seen_at, created_at')
       .eq('token_hash', customerTokenHash(rawCustomerSessionToken))
       .maybeSingle();
-    if (customerSession && !customerSession.revoked_at && new Date(customerSession.expires_at).getTime() > Date.now()) {
+    if (customerSession && customerSession.source === 'supabase' && !customerSession.revoked_at && new Date(customerSession.expires_at).getTime() > Date.now()) {
       const [{ data: account }, status] = await Promise.all([
         db.from('user_accounts').select('email').eq('id', customerSession.user_id).maybeSingle(),
         getAccountOperationalStatus(customerSession.user_id),
@@ -697,6 +708,8 @@ const authenticate = async (req: express.Request): Promise<Session | null> => {
           name: null,
           customerSessionId: customerSession.id,
           rawCustomerSessionToken,
+          source: 'supabase',
+          createdAt: customerSession.created_at,
           db,
         };
       }
@@ -710,7 +723,7 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'peptrace-api' });
 });
 
-// ---- Native email/password auth (no Supabase Auth) ----
+// ---- Verified provider authentication ----
 
 const normalizeEmail = (value: unknown): string =>
   typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -781,44 +794,85 @@ app.post('/auth/register', requireJsonRequest, authRateLimit, async (req, res) =
     res.status(400).json({ error: 'A valid email address is required' });
     return;
   }
-  if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+  if (!passwordMeetsPolicy(password, MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH)) {
     res
       .status(400)
       .json({ error: `Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters` });
     return;
   }
 
-  const db = getServiceClient();
-  const { data: existing, error: lookupError } = await db
-    .from('native_credentials')
-    .select('account_id')
-    .eq('email', email)
-    .maybeSingle();
-  if (lookupError) {
-    res.status(500).json({ error: 'Failed to check existing account' });
-    return;
-  }
-  if (existing) {
-    res.status(409).json({ error: 'An account with this email already exists' });
-    return;
-  }
-
-  const { data: userId, error: registrationError } = await db.rpc('register_native_account', {
-    normalized_email: email,
-    credential_hash: hashPassword(password),
-  });
-  if (registrationError || typeof userId !== 'string') {
-    if (registrationError?.code === '23505') {
-      res.status(409).json({ error: 'An account with this email already exists' });
+  try {
+    if (!await providerRequiresEmailConfirmation()) {
+      res.status(503).json({ error: 'Verified email registration is temporarily unavailable' });
       return;
     }
-    res.status(500).json({ error: 'Failed to create account' });
-    return;
+    const origin = typeof req.headers.origin === 'string' && allowedOrigins.has(req.headers.origin)
+      ? req.headers.origin
+      : 'https://peptrace.co';
+    const provider = createProviderAuthClient();
+    const { data, error } = await provider.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${origin}/account` },
+    });
+    if (data.session || data.user?.email_confirmed_at) {
+      console.error(JSON.stringify({ event: 'unsafe_provider_registration_configuration' }));
+      res.status(503).json({ error: 'Verified email registration is temporarily unavailable' });
+      return;
+    }
+    if (error?.status === 429) {
+      res.status(429).json({ error: 'Too many registration attempts. Try again later.' });
+      return;
+    }
+    if (error) {
+      // Provider signup responses may vary for an existing address. Return the
+      // same accepted response so this endpoint cannot enumerate accounts.
+      console.error(JSON.stringify({ event: 'provider_registration_deferred', code: error.code ?? null }));
+    }
+    res.status(202).json({
+      verificationRequired: true,
+      message: 'If the address can be registered, a verification email will arrive shortly.',
+    });
+  } catch {
+    res.status(503).json({ error: 'Verified email registration is temporarily unavailable' });
   }
-
-  const csrfToken = await createCustomerSession(req, res, userId, 'native');
-  res.status(201).json({ csrfToken });
 });
+
+const resolveProviderAccount = async (providerUser: SupabaseUser): Promise<string | null> => {
+  const db = getServiceClient();
+  const externalUserId = providerUser.id;
+  const email = normalizeEmail(providerUser.email);
+  if (!email || !providerUser.email_confirmed_at) return null;
+  const { data: existingLink } = await db.from('account_identity_links')
+    .select('account_id')
+    .eq('provider', 'supabase')
+    .eq('provider_subject', externalUserId)
+    .maybeSingle();
+  let userId = existingLink?.account_id ?? externalUserId;
+  if (existingLink?.account_id) {
+    userId = existingLink.account_id;
+  } else {
+    const { data: matchingAccount } = await db.from('user_accounts').select('id').eq('email', email).maybeSingle();
+    if (matchingAccount) userId = matchingAccount.id;
+  }
+  const { error: accountError } = await db.from('user_accounts').upsert({ id: userId, email }, { onConflict: 'id' });
+  if (accountError) return null;
+  const { error: profileError } = await db.from('user_profiles')
+    .upsert({ account_id: userId }, { onConflict: 'account_id', ignoreDuplicates: true });
+  if (profileError) return null;
+  if (!existingLink) {
+    const { error: linkError } = await db.from('account_identity_links').insert({
+      provider: 'supabase',
+      provider_subject: externalUserId,
+      account_id: userId,
+    });
+    if (linkError && linkError.code !== '23505') return null;
+  }
+  // A verified provider identity permanently supersedes any legacy custom
+  // credential that may have survived an incomplete migration.
+  await db.from('native_credentials').delete().eq('account_id', userId);
+  return userId;
+};
 
 app.post('/auth/login', requireJsonRequest, authRateLimit, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
@@ -827,29 +881,33 @@ app.post('/auth/login', requireJsonRequest, authRateLimit, async (req, res) => {
     res.status(400).json({ error: 'Email and password are required' });
     return;
   }
-
-  const db = getServiceClient();
-  const { data: credential, error } = await db
-    .from('native_credentials')
-    .select('account_id, password_hash')
-    .eq('email', email)
-    .maybeSingle();
-  if (error) {
-    res.status(500).json({ error: 'Failed to load credentials' });
+  if (!passwordMeetsPolicy(password, MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH)) {
+    // Keep the response indistinguishable from a missing account or bad password.
+    res.status(401).json({ error: 'Invalid email, password, or verification state' });
     return;
   }
-  if (!credential) {
-    res.status(401).json({ error: 'Invalid email or password' });
-    return;
+  try {
+    if (!await providerRequiresEmailConfirmation()) {
+      res.status(503).json({ error: 'Verified email authentication is temporarily unavailable' });
+      return;
+    }
+    const provider = createProviderAuthClient();
+    const { data, error } = await provider.auth.signInWithPassword({ email, password });
+    if (error || !data.user?.email_confirmed_at) {
+      res.status(401).json({ error: 'Invalid email, password, or verification state' });
+      return;
+    }
+    const userId = await resolveProviderAccount(data.user);
+    if (!userId) {
+      res.status(503).json({ error: 'Could not establish a verified account' });
+      return;
+    }
+    if (await rejectBlockedAccountLogin(userId, res)) return;
+    const csrfToken = await createCustomerSession(req, res, userId);
+    res.json({ csrfToken });
+  } catch {
+    res.status(503).json({ error: 'Verified email authentication is temporarily unavailable' });
   }
-  if (!verifyPassword(password, credential.password_hash)) {
-    res.status(401).json({ error: 'Invalid email or password' });
-    return;
-  }
-  if (await rejectBlockedAccountLogin(credential.account_id, res)) return;
-
-  const csrfToken = await createCustomerSession(req, res, credential.account_id, 'native');
-  res.json({ csrfToken });
 });
 
 app.post('/auth/exchange', authRateLimit, async (req, res) => {
@@ -864,40 +922,19 @@ app.post('/auth/exchange', authRateLimit, async (req, res) => {
     res.status(401).json({ error: 'Provider session is invalid' });
     return;
   }
-  const db = getServiceClient();
-  const externalUserId = data.user.id;
-  const email = normalizeEmail(data.user.email);
-  let userId = externalUserId;
-  const { data: existingLink } = await db.from('account_identity_links')
-    .select('account_id')
-    .eq('provider', 'supabase')
-    .eq('provider_subject', externalUserId)
-    .maybeSingle();
-  if (existingLink?.account_id) {
-    userId = existingLink.account_id;
-  } else {
-    const { data: matchingAccount } = await db.from('user_accounts').select('id').eq('email', email).maybeSingle();
-    if (matchingAccount) userId = matchingAccount.id;
-    if (userId !== externalUserId) {
-      const { error: linkError } = await db.from('account_identity_links').insert({
-        provider: 'supabase',
-        provider_subject: externalUserId,
-        account_id: userId,
-      });
-      if (linkError && linkError.code !== '23505') {
-        res.status(500).json({ error: 'Could not link provider identity' });
-        return;
-      }
-    }
-  }
-  const { error: accountError } = await db.from('user_accounts').upsert({ id: userId, email }, { onConflict: 'id' });
-  if (accountError) {
-    res.status(500).json({ error: 'Could not create customer account' });
+  if (!providerMayUseBearerExchange(data.user.app_metadata?.provider)) {
+    // Confirmation-link sessions prove mailbox access but not the configured
+    // 12-character password. Require the normal password login endpoint.
+    res.status(401).json({ error: 'Sign in with your verified email and password' });
     return;
   }
-  await db.from('user_profiles').upsert({ account_id: userId }, { onConflict: 'account_id', ignoreDuplicates: true });
+  const userId = await resolveProviderAccount(data.user);
+  if (!userId) {
+    res.status(503).json({ error: 'Could not establish a verified account' });
+    return;
+  }
   if (await rejectBlockedAccountLogin(userId, res)) return;
-  const csrfToken = await createCustomerSession(req, res, userId, 'supabase');
+  const csrfToken = await createCustomerSession(req, res, userId);
   res.json({ csrfToken });
 });
 
@@ -925,7 +962,7 @@ app.post('/auth/change-password', async (req, res) => {
     res.status(400).json({ error: 'Current password is required' });
     return;
   }
-  if (newPassword.length < MIN_PASSWORD_LENGTH || newPassword.length > MAX_PASSWORD_LENGTH) {
+  if (!passwordMeetsPolicy(newPassword, MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH)) {
     res
       .status(400)
       .json({ error: `Password must be ${MIN_PASSWORD_LENGTH}-${MAX_PASSWORD_LENGTH} characters` });
@@ -933,41 +970,44 @@ app.post('/auth/change-password', async (req, res) => {
   }
 
   const db = getServiceClient();
-  const { data: credential, error } = await db
-    .from('native_credentials')
-    .select('password_hash')
+  const { data: identity, error: identityError } = await db.from('account_identity_links')
+    .select('provider_subject')
+    .eq('provider', 'supabase')
     .eq('account_id', session.userId)
     .maybeSingle();
-  if (error) {
-    res.status(500).json({ error: 'Failed to load credentials' });
+  if (identityError) {
+    res.status(500).json({ error: 'Failed to load the verified identity' });
     return;
   }
-  if (!credential) {
-    res.status(400).json({ error: 'This account has no password set' });
+  if (!identity) {
+    res.status(400).json({ error: 'This account must complete email verification first' });
     return;
   }
-  if (!verifyPassword(currentPassword, credential.password_hash)) {
+  const provider = createProviderAuthClient();
+  const { data: signedIn, error: signInError } = await provider.auth.signInWithPassword({
+    email: session.email,
+    password: currentPassword,
+  });
+  if (signInError || signedIn.user?.id !== identity.provider_subject || !signedIn.user.email_confirmed_at) {
     res.status(401).json({ error: 'Current password is incorrect' });
     return;
   }
 
-  if (session.customerSessionId) {
-    const { error: revokeError } = await revokeAllOwnedSessions(
-      db,
-      'customer',
-      session.userId,
-      new Date().toISOString(),
-    );
-    if (revokeError) {
-      res.status(503).json({ error: 'Could not revoke active sessions' });
-      return;
-    }
+  const { error: revokeError } = await revokeAllOwnedSessions(
+    db,
+    'customer',
+    session.userId,
+    new Date().toISOString(),
+  );
+  if (revokeError) {
+    res.status(503).json({ error: 'Could not revoke active sessions' });
+    return;
   }
 
-  const { error: updateError } = await db
-    .from('native_credentials')
-    .update({ password_hash: hashPassword(newPassword) })
-    .eq('account_id', session.userId);
+  const { error: updateError } = await provider.auth.updateUser({
+    password: newPassword,
+    current_password: currentPassword,
+  });
   if (updateError) {
     clearCustomerCookie(res);
     res.status(500).json({ error: 'Failed to update password' });
@@ -1740,12 +1780,11 @@ app.post('/account/deletion-request', async (req, res) => {
     return;
   }
   const db = getServiceClient();
-  const { data: credential } = await db.from('native_credentials').select('password_hash').eq('account_id', session.userId).maybeSingle();
-  const confirmed = credential
-    ? typeof req.body?.currentPassword === 'string' && verifyPassword(req.body.currentPassword, credential.password_hash)
-    : normalizeEmail(req.body?.confirmEmail) === normalizeEmail(session.email);
+  const recentlyReauthenticated = isRecentProviderSession(session.source, session.createdAt);
+  const confirmed = recentlyReauthenticated &&
+    normalizeEmail(req.body?.confirmEmail) === normalizeEmail(session.email);
   if (!confirmed) {
-    res.status(401).json({ error: 'Account confirmation failed' });
+    res.status(401).json({ error: 'Sign in again, then confirm your account email to schedule deletion' });
     return;
   }
   const scheduledFor = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();

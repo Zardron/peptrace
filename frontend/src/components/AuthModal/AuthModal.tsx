@@ -17,7 +17,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
 export default function AuthModal({ open, onClose }: AuthModalProps) {
   const { login } = useAuth()
-  const [step, setStep] = useState<'email' | 'password'>('email')
+  const [step, setStep] = useState<'email' | 'password' | 'verification'>('email')
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -89,13 +89,18 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
       const data = await res.json().catch(() => null)
       if (!res.ok) {
         if (res.status === 401) {
-          setError('Incorrect password. Please try again.')
+          setError('Incorrect credentials or the email address has not been verified.')
         } else if (res.status === 409) {
           setError('An account with this email already exists. Sign in instead.')
           setMode('login')
         } else {
           setError(data?.error ?? 'Something went wrong. Please try again.')
         }
+        return
+      }
+      if (mode === 'register' && res.status === 202 && data?.verificationRequired) {
+        setPassword('')
+        setStep('verification')
         return
       }
       const result = await login(data.csrfToken)
@@ -179,6 +184,28 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
               {mode === 'login' ? 'New to PepTrace? Create an account' : 'Already have an account? Sign in'}
             </button>
           </form>
+        ) : step === 'verification' ? (
+          <div className="auth-email-form">
+            <p className="auth-hint">
+              Check your inbox. If this address can be registered, PepTrace sent a verification link.
+              You must verify the address before signing in.
+            </p>
+            <button
+              type="button"
+              className="auth-submit-button"
+              onClick={() => {
+                setMode('login')
+                setStep('password')
+                setError('')
+              }}
+            >
+              <span>Continue to sign in</span>
+              <FontAwesomeIcon icon={faCaretRight} />
+            </button>
+            <button type="button" className="auth-back-button" onClick={() => setStep('email')}>
+              Use a different email
+            </button>
+          </div>
         ) : (
           <form className="auth-email-form" onSubmit={handlePasswordSubmit}>
             <label htmlFor="auth-password">
@@ -207,7 +234,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
               </button>
             </div>
             {mode === 'register' ? (
-              <p className="auth-hint">No account exists for this email yet — pick a password to create one.</p>
+              <p className="auth-hint">Use at least 12 characters. We will send an email to verify that you own this address.</p>
             ) : null}
             {error ? <p className="auth-error">{error}</p> : null}
             <button type="submit" className="auth-submit-button" disabled={submitting}>

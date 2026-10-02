@@ -917,7 +917,6 @@ function ShippingSettings() {
 }
 
 function PrivacySettings() {
-  const { user } = useAuth()
   type Consent = { accepted: boolean; policy_version: string; recorded_at: string; withdrawn_at: string | null }
   type ExportRequest = { id: string; status: string; requested_at: string; expires_at: string | null }
   type DeletionRequest = { id: string; status: string; requested_at: string; scheduled_for: string | null }
@@ -996,7 +995,7 @@ function PrivacySettings() {
     try {
       await apiFetch('/account/deletion-request', {
         method: 'POST',
-        body: JSON.stringify({ currentPassword: confirmation, confirmEmail: confirmation, reason }),
+        body: JSON.stringify({ confirmEmail: confirmation, reason }),
       })
       setConfirmation('')
       setReason('')
@@ -1077,8 +1076,8 @@ function PrivacySettings() {
         ) : (
           <>
             <p>Deletion is scheduled after a 7-day grace period and cannot be reversed after processing completes.</p>
-            <Field label={`Confirm with your current password${user?.email ? ' or account email' : ''}`}>
-              <input type="password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="current-password" />
+            <Field label="Confirm your account email after signing in again">
+              <input type="email" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="email" />
             </Field>
             <Field label="Reason (optional)">
               <textarea value={reason} onChange={(event) => setReason(event.target.value)} />
