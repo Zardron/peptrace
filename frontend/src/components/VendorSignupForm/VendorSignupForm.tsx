@@ -11,12 +11,12 @@ interface VendorSignupFormProps {
 
 export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
   const [email, setEmail] = useState('')
-  const [distributesPeptides, setDistributesPeptides] = useState<boolean | null>(null)
-  const [currentSituation, setCurrentSituation] = useState<string>('')
+  const [distributesPeptides, setDistributesPeptides] = useState<boolean | null>(true)
+  const [currentSituation, setCurrentSituation] = useState<string>('new')
   const [vendorName, setVendorName] = useState('')
-  const [batchIdentifiers, setBatchIdentifiers] = useState<string>('')
-  const [premiumOptIn, setPremiumOptIn] = useState(false)
-  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [batchIdentifiers, setBatchIdentifiers] = useState<string>('some')
+  const [premiumOptIn, setPremiumOptIn] = useState(true)
+  const [termsAccepted, setTermsAccepted] = useState(true)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,8 +32,11 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
 
         <div className="vendor-title-block">
           <h2 className="vendor-title">Vendor Registration</h2>
-          <p className="vendor-subtitle">
+          <p className="vendor-subtitle desktop-only">
             Register your business with Peptrace and build customer trust.
+          </p>
+          <p className="vendor-subtitle mobile-only">
+            Register with Peptrace to build client trust.
           </p>
         </div>
 
@@ -53,8 +56,12 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
           </div>
 
           <div className="vendor-field">
-            <span className="vendor-label">
+            <span className="vendor-label desktop-only">
               Do you distribute peptides commercially?{' '}
+              <span className="vendor-required">*</span>
+            </span>
+            <span className="vendor-label mobile-only">
+              Do you distribute commercially?{' '}
               <span className="vendor-required">*</span>
             </span>
             <div className="vendor-chip-group">
@@ -82,8 +89,8 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
             <div className="vendor-pill-group vendor-pill-group--situation">
               {[
                 { value: 'new', label: 'New vendor, not selling yet' },
-                { value: 'selling-unlisted', label: 'Selling, but not listed by Peptrace' },
-                { value: 'selling-listed', label: 'Selling, already listed by Peptrace' },
+                { value: 'selling-unlisted', desktopLabel: 'Selling, but not listed by Peptrace', mobileLabel: 'Selling, but not listed' },
+                { value: 'selling-listed', desktopLabel: 'Selling, already listed by Peptrace', mobileLabel: 'Selling, already listed' },
               ].map((option) => (
                 <label
                   key={option.value}
@@ -96,7 +103,8 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
                     checked={currentSituation === option.value}
                     onChange={(e) => setCurrentSituation(e.target.value)}
                   />
-                  <span>{option.label}</span>
+                  <span className="desktop-only">{option.label || option.desktopLabel}</span>
+                  <span className="mobile-only">{option.mobileLabel || option.label}</span>
                 </label>
               ))}
             </div>
@@ -114,19 +122,25 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
               value={vendorName}
               onChange={(e) => setVendorName(e.target.value)}
             />
-            <p className="vendor-helper">
+            <p className="vendor-helper desktop-only">
               How your business will be identified on the Finnrick web site
+            </p>
+            <p className="vendor-helper mobile-only">
+              Identified on the Finnrick website
             </p>
           </div>
 
           <fieldset className="vendor-field">
-            <legend className="vendor-label">
+            <legend className="vendor-label desktop-only">
               Are your products distributed with batch identifiers?
+            </legend>
+            <legend className="vendor-label mobile-only">
+              Batch identifiers?
             </legend>
             <div className="vendor-pill-group vendor-pill-group--batch">
               {[
-                { value: 'all', label: 'Yes, all products' },
-                { value: 'some', label: 'Yes, some products' },
+                { value: 'all', desktopLabel: 'Yes, all products', mobileLabel: 'Yes, all' },
+                { value: 'some', desktopLabel: 'Yes, some products', mobileLabel: 'Some' },
                 { value: 'no', label: 'No' },
               ].map((option) => (
                 <label
@@ -140,7 +154,8 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
                     checked={batchIdentifiers === option.value}
                     onChange={(e) => setBatchIdentifiers(e.target.value)}
                   />
-                  <span>{option.label}</span>
+                  <span className="desktop-only">{option.label || option.desktopLabel}</span>
+                  <span className="mobile-only">{option.mobileLabel || option.label}</span>
                 </label>
               ))}
             </div>
@@ -203,8 +218,13 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
                   </svg>
                 )}
               </span>
-              <span className="vendor-checkbox-label">
+              <span className="vendor-checkbox-label desktop-only">
                 I confirm I am authorized to represent this vendor and agree to the{' '}
+                <a href="#" className="vendor-link">Partner Service Terms</a>{' '}
+                <span className="vendor-required">*</span>
+              </span>
+              <span className="vendor-checkbox-label mobile-only">
+                Agree to the{' '}
                 <a href="#" className="vendor-link">Partner Service Terms</a>{' '}
                 <span className="vendor-required">*</span>
               </span>
@@ -212,7 +232,8 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
           </div>
 
           <button type="submit" className="vendor-cta">
-            Continue to Payment — $279/mo
+            <span className="desktop-only">Continue to Payment — $279/mo</span>
+            <span className="mobile-only">Continue — $279/mo</span>
           </button>
 
           <div className="vendor-security">

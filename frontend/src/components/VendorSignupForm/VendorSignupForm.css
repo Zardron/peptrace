@@ -461,3 +461,17 @@
     align-self: flex-start;
   }
 }
+
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 566px) {
+  .mobile-only {
+    display: unset;
+  }
+
+  .desktop-only {
+    display: none;
+  }
+}

@@ -78,12 +78,7 @@ export default function HeaderBar({ onSignUpClick, activeRoute }: HeaderBarProps
         </div>
 
         <div className="header-actions non-mobile">
-          {!user && (
-            <>
-              <span className="header-divider" />
-              <a href="/vendors" className="pill-button outline">vendors</a>
-            </>
-          )}
+          {!user && <span className="header-divider" />}
           {user ? (
             <div className="account-menu-wrap">
               <button

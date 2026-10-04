@@ -10,8 +10,8 @@
 }
 
 .footer-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  justify-content: space-between;
   gap: 40px;
 }
 
@@ -68,7 +68,6 @@
   border: none;
   border-top: 1px solid var(--border);
   margin: 26px 0 16px;
-  max-width: 600px;
 }
 
 .footer-copyright {
@@ -76,6 +75,7 @@
   font-weight: 400;
   letter-spacing: 1.54px;
   color: var(--text-gray);
+  text-align: center;
 }
 
 @media (max-width: 566px) {
@@ -84,7 +84,11 @@
   }
 
   .footer-grid {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     gap: 32px;
+  }
+
+  .footer-copyright {
+    text-align: left;
   }
 }
