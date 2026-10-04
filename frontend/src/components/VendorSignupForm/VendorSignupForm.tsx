@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import './VendorSignupForm.css'
 import chevronLeftIcon from '../../assets/icons/vendorsignup/chevron-left.svg'
-import sparklesIcon from '../../assets/icons/vendorsignup/sparkles.svg'
-import chevronDownIcon from '../../assets/icons/vendorsignup/chevron-down.svg'
 import lockIcon from '../../assets/icons/vendorsignup/lock.svg'
 
 interface VendorSignupFormProps {
@@ -163,13 +161,11 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
 
           <div className="vendor-premium-panel">
             <div className="vendor-premium-row">
-              <img src={sparklesIcon} alt="" className="vendor-premium-icon" />
               <span className="vendor-premium-text">
                 Upgrade to Premium for 10% off on Launch with Peptrace
               </span>
               <div className="vendor-premium-price">
                 <span className="vendor-price-badge">$279/month</span>
-                <img src={chevronDownIcon} alt="" className="vendor-chevron-icon" />
               </div>
             </div>
           </div>
