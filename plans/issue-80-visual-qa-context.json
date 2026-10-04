@@ -4,8 +4,8 @@
   "branch": "visual-qa/issue-80-cec0841",
   "fixBranch": "visual-qa/issue-80-cec0841",
   "previewUrl": "https://preview.peptrace.stg.esteemed.engineering",
-  "sha": "e3687cc10f7896ec9858cf371648d72705a94569",
-  "generatedAt": "2026-10-04T08:15:00.294Z",
+  "sha": "df3a462786a2d2f5d99bcc82523bc67c9357d173",
+  "generatedAt": "2026-10-04T08:18:22.512Z",
   "comparisons": [
     {
       "name": "vendor-signup-390",
@@ -26,5 +26,5 @@
       "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/2365-1330/2406366930330289081.jpg"
     }
   ],
-  "report": "- **vendor-signup-390 (390px):** The implemented preview matches the Figma design. No spacing, alignment, typography, or color discrepancies were detected.\n- **vendor-signup-744 (744px):** The design and preview images for this breakpoint failed to download, so no visual comparison was possible.\n- **vendor-signup-1440 (1440px):** The implemented preview matches the Figma design. No spacing, alignment, typography, or color discrepancies were detected."
+  "report": "### vendor-signup-390 (390px)\n- **Top banner arrow missing**: The green promotional banner in the design ends with a right-pointing arrow/chevron (▶); the preview omits this icon.\n- **Form subtitle copy incorrect**: The design subtitle under \"Vendor Registration\" reads \"Register with Peptrace to build client trust.\"; the preview incorrectly renders the desktop copy \"Register your business with Peptrace and build customer trust.\" at mobile width.\n- **Terms checkbox asterisk spacing**: The design renders the required asterisk with a preceding space (\"Partner Service Terms *\"); the preview attaches it directly to the word (\"Partner Service Terms*\").\n- **Footer link vertical spacing**: The vertical gaps between stacked footer navigation links in the preview are noticeably tighter than in the design; the design expects more generous `margin-bottom` or `line-height` between items.\n- **Footer section vertical spacing**: The margin between consecutive footer sections on mobile (e.g., from the last \"Explore\" link to the \"Testing\" heading) is smaller in the preview than in the design.\n\n### vendor-signup-1440 (1440px)\n- **Missing icon in Premium upgrade panel**: The design displays a small sparkle/star icon to the left of the \"Upgrade to Premium for 10% off on Launch with Peptrace\" text inside the premium panel; the preview lacks this icon, causing the text to sit farther left.\n- **Footer visual match**: The three-column footer layout, link typography, column headers, and copyright placement visually match the design; no discrepancies detected.\n\n*(Note: iPad-VendorSignUp (744px) image pair was not provided; comparison skipped.)*"
 }
