@@ -1,0 +1,30 @@
+{
+  "issueNumber": "80",
+  "prNumber": "81",
+  "branch": "feat/80_vendorSignUpPage",
+  "fixBranch": "visual-qa/issue-80-cec0841",
+  "previewUrl": "https://preview.peptrace.stg.esteemed.engineering",
+  "sha": "cec08419e1c022de96121f7183e2d6b08c0eeb1c",
+  "generatedAt": "2026-10-04T08:00:28.161Z",
+  "comparisons": [
+    {
+      "name": "vendor-signup-390",
+      "width": 390,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/feat-80_vendorSignUpPage/vendor-signup-390.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/2365-1016/2406366930330289081.jpg"
+    },
+    {
+      "name": "vendor-signup-744",
+      "width": 744,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/feat-80_vendorSignUpPage/vendor-signup-744.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaaPaa5gWg/2365-882/2406366930330289081.jpg"
+    },
+    {
+      "name": "vendor-signup-1440",
+      "width": 1440,
+      "previewScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/previews/peptrace-peptrace/feat-80_vendorSignUpPage/vendor-signup-1440.png",
+      "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/2365-1330/2406366930330289081.jpg"
+    }
+  ],
+  "report": "### vendor-signup-390 (390px)\n- **Typography / Copy — responsive strings missing**: The preview renders desktop-length copy at the mobile breakpoint. Differences from the mobile Figma:\n  - Subtitle reads *\"Register your business with Peptrace and build customer trust.\"*; design specifies *\"Register with Peptrace to build client trust.\"*\n  - Distribution label reads *\"DO YOU DISTRIBUTE PEPTIDES COMMERCIALLY?\"*; design specifies *\"DO YOU DISTRIBUTE COMMERCIALLY?\"*\n  - Second and third current-situation pills include the suffix *\"by Peptrace\"*; design shows *\"Selling, but not listed\"* and *\"Selling, already listed\"*.\n  - Vendor-name helper text reads *\"How your business will be identified on the Finnrick web site\"*; design specifies *\"Identified on the Finnrick website\"*.\n  - Batch-identifiers label reads *\"ARE YOUR PRODUCTS DISTRIBUTED WITH BATCH IDENTIFIERS?\"*; design specifies *\"BATCH IDENTIFIERS?\"*.\n  - Batch-identifiers pills read *\"Yes, all products\"* and *\"Yes, some products\"*; design shows *\"Yes, all\"* and *\"Some\"*.\n  - Second checkbox label reads *\"I confirm I am authorized to represent this vendor and agree to the Partner Service Terms *\"*; design shows *\"Agree to the Partner Service Terms *\"*.\n  - CTA reads *\"Continue to Payment — $279/mo\"*; design specifies *\"Continue — $279/mo\"*.\n- **Form state**: Both Premium checkboxes render unchecked in the preview; the design shows them checked.\n- **Footer content**: Explore column is missing *Blog*, *Partner Testing Labs*, *Corrections*, and *Company*, and incorrectly includes *Leaderboards*. Legal column is missing *Verify COA*, *Testing Status*, and *Partner Service Terms*.\n\n### vendor-signup-1440 (1440px)\n- **Header**: Preview renders an extra *\"vendors\"* outline pill button between the nav links and the *\"sign up\"* pill. The design shows only `about`, `news`, `membership`, a vertical divider, and the `sign up` pill.\n- **Form state / Color**: \n  - The *\"Yes\"* toggle under distribution is unselected (white/outline) instead of green-filled.\n  - The *\"CURRENT SITUATION\"* pills are all unselected; design shows *\"New vendor, not selling yet\"* as green-filled.\n  - Both Premium checkboxes render unchecked; design shows them checked.\n- **Footer content**: Explore column is missing *Blog*, *Partner Testing Labs*, *Corrections*, and *Company*, and incorrectly includes *Leaderboards*. Legal column is missing *Verify COA*, *Testing Status*, and *Partner Service Terms*. Testing column appears to be missing *\"Test another product\"*.\n- **Footer layout / Alignment**: The three footer columns are clustered toward the left with narrow gutters; design spreads them evenly across the full container width. Copyright text is left-aligned in the preview; design shows it centered.\n\n### iPad / 744px\n- Design and preview assets failed to download; no comparison performed."
+}
