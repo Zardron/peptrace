@@ -16,6 +16,7 @@ import FullLeaderboard from './components/FullLeaderboard/FullLeaderboard'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
 import LegalPage from './components/LegalPage/LegalPage'
 import AllPeptides from './components/AllPeptides/AllPeptides'
+import VendorSignupForm from './components/VendorSignupForm/VendorSignupForm'
 import { useAuth } from './context/AuthContext'
 import { navigate } from './lib/navigation'
 
@@ -31,7 +32,7 @@ const accountRoutes = new Map<string, AccountView>([
   ['/support', 'support'],
 ])
 
-const routedPaths = new Set(['/membership', '/vendors', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', '/products', ...accountRoutes.keys()])
+const routedPaths = new Set(['/membership', '/vendors', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', '/products', '/vendor-signup', ...accountRoutes.keys()])
 
 const PRODUCT_LEADERBOARD_PREFIX = '/product/'
 const PRODUCT_LEADERBOARD_SUFFIX = '/leaderboard'
@@ -152,6 +153,7 @@ function App() {
   const isLegalPage = pagePath === '/terms' || pagePath === '/privacy' || pagePath === '/refund' || pagePath === '/data-deletion'
   const isMethodologyPage = pagePath === '/methodology'
   const isProductsPage = pagePath === '/products'
+  const isVendorSignUpPage = pagePath === '/vendor-signup'
   const isVendorsPage = pagePath === '/vendors'
   const isVendorDetailsPage = pagePath.startsWith('/vendors/') && pagePath !== '/vendors'
   const productLeaderboardSlug = getProductLeaderboardSlug(pagePath)
@@ -251,6 +253,14 @@ function App() {
           <HeaderBar onSignUpClick={openAuthModal} activeRoute="/products" />
           <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
             <AllPeptides />
+          </main>
+          <SiteFooter />
+        </>
+      ) : isVendorSignUpPage ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/vendor-signup" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <VendorSignupForm />
           </main>
           <SiteFooter />
         </>
