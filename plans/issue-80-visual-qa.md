@@ -1,21 +1,17 @@
-1. **HeaderBar / top banner component** — Add missing arrow icon  
-   - File: `frontend/src/components/HeaderBar/HeaderBar.tsx` (or dedicated announcement banner component).  
-   - Change: Append a right-pointing chevron/arrow icon (e.g., an inline SVG or `▶`) to the banner text "Get your free peptide safety test". Ensure it renders at the `390px` breakpoint and is hidden or replaced appropriately on larger breakpoints if required by the design system.
+1. **Fix checkbox label string in `VendorSignupForm`**
+   - **File:** `frontend/src/components/VendorSignupForm/VendorSignupForm.tsx` (or the locale/copy file it consumes)
+   - **Evidence:** Mobile (390px) preview shows `Agree to thePartner Service Terms` (missing space).
+   - **Correction:** Update the string constant / JSX text node for the agreement checkbox so it reads `Agree to the Partner Service Terms` (target) instead of `Agree to thePartner Service Terms` (current).
 
-2. **VendorSignupForm responsive subtitle** — Correct mobile subtitle string  
-   - File: `frontend/src/components/VendorSignupForm/VendorSignupForm.tsx`.  
-   - Change: Make the subtitle text responsive. At mobile (`max-width: 566px`), render `"Register with Peptrace to build client trust."`. At `567px` and above, render `"Register your business with Peptrace and build customer trust."`. Currently the desktop string is bleeding into the mobile view.
+2. **Make commercial-distribution label responsive**
+   - **File:** `frontend/src/components/VendorSignupForm/VendorSignupForm.tsx` and/or `VendorSignupForm.css`
+   - **Evidence:** Mobile design label is `DO YOU DISTRIBUTE COMMERCIALLY?` while the preview renders the desktop-length `DO YOU DISTRIBUTE PEPTIDES COMMERCIALLY?` at 390px.
+   - **Correction:** Introduce a breakpoint-sensitive label. At mobile widths (`max-width: 566px`), render the shorter label text. At `min-width: 567px`, keep the current longer label. If the component uses a single shared string, add a media-query scoped text override or a conditional render based on viewport / container width.
 
-3. **VendorSignupForm Premium panel** — Add missing sparkle icon  
-   - File: `frontend/src/components/VendorSignupForm/VendorSignupForm.tsx`.  
-   - Change: Insert the small sparkle/star icon (reuse the existing SVG/icon component from the design system) immediately before the text node "Upgrade to Premium for 10% off on Launch with Peptrace" inside the premium upgrade panel. Apply `margin-right: 8px` (or equivalent spacing token) to separate the icon from the text, matching the `1440px` design alignment.
+3. **Increase footer link vertical spacing on mobile**
+   - **File:** `frontend/src/components/SiteFooter/SiteFooter.css` (or the component's style module)
+   - **Evidence:** Mobile design shows looser vertical rhythm between footer links; the preview links are too tight.
+   - **Correction:** Within the mobile media query (`max-width: 566px`), increase `margin-bottom` on footer anchor links from the current value (appears to be ~`4px`) to **~`8px–12px`** or increase `line-height` to **~`1.75`**, matching the design's looser stack. Verify that desktop (`min-width: 1092px`) spacing remains unchanged so the 1440px layout stays intact.
 
-4. **VendorSignupForm checkbox label** — Fix asterisk spacing  
-   - File: `frontend/src/components/VendorSignupForm/VendorSignupForm.tsx`.  
-   - Change: In the label for "Agree to the Partner Service Terms", ensure a space character exists before the `<span>` or element that renders the required asterisk so the output reads `"Terms *"` instead of `"Terms*"`. If the asterisk is its own node, add `margin-left: 4px` to the asterisk element.
-
-5. **SiteFooter mobile spacing** — Increase vertical rhythm at `390px`  
-   - File: `frontend/src/components/SiteFooter/SiteFooter.css` (or the CSS module used by `SiteFooter.tsx`).  
-   - Changes at the mobile breakpoint (`max-width: 566px`):
-     - Footer anchor links: increase `margin-bottom` from the current ~`8px` to `16px` (or increase `line-height` to `2`) to match the design's looser vertical stacking.
-     - Footer section headings (`Explore`, `Testing`, `Legal`): add `margin-top: 24px` (or `2rem`) to each heading that follows a previous section's link list, ensuring clear separation between stacked footer columns on mobile. The first heading (`Explore`) should remain flush with the footer's top padding.
+4. **iPad breakpoint verification**
+   - Because the 744px screenshots were unavailable, manually verify the three corrections above at the `min-width: 579px` and `min-width: 944px` media queries in `VendorSignupForm.css` to ensure no regressions on tablet layout.
