@@ -4,8 +4,8 @@
   "branch": "visual-qa/issue-80-cec0841",
   "fixBranch": "visual-qa/issue-80-cec0841",
   "previewUrl": "https://preview.peptrace.stg.esteemed.engineering",
-  "sha": "e0ddd909661bcfe61ec663246327af3b81e7e1fa",
-  "generatedAt": "2026-10-04T08:10:55.307Z",
+  "sha": "e3687cc10f7896ec9858cf371648d72705a94569",
+  "generatedAt": "2026-10-04T08:15:00.294Z",
   "comparisons": [
     {
       "name": "vendor-signup-390",
@@ -26,5 +26,5 @@
       "figmaScreenshotUrl": "https://ghyvvjuiurkathxlyokf.supabase.co/storage/v1/object/public/figma-node-history-screenshots/kb9w5rn6RfBO6maPaa5gWg/2365-1330/2406366930330289081.jpg"
     }
   ],
-  "report": "**Screen: vendor-signup-390 (390px)**\n- Subtitle copy mismatch: Design reads “Register with Peptrace to build client trust.”; preview renders the longer desktop string “Register your business with Peptrace and build customer trust.”\n- Agreement checkbox copy mismatch: Design reads “Agree to the Partner Service Terms *”; preview renders “I confirm I am authorized to represent this vendor and agree to the Partner Service Terms *”.\n- CTA button copy mismatch: Design reads “Continue — $279/mo”; preview reads “Continue to Payment — $279/mo”.\n- Premium upgrade panel: Preview shows a small decorative icon (sparkle/star) to the left of the panel text that is absent in the design.\n- Premium price pill: Preview includes a small downward chevron/arrow inside the “$279/month” pill; the design shows a plain pill without a chevron.\n- Footer link vertical spacing: Footer anchor links in the preview are stacked more tightly than in the design (current spacing is visibly smaller than the design’s looser line-height/gap).\n\n**Screen: iPad-VendorSignUp (744px)**\n- Design and preview images could not be downloaded; visual comparison was skipped for this breakpoint.\n\n**Screen: vendor-signup-1440 (1440px)**\n- Premium upgrade panel: Same extra decorative icon to the left of the panel text as seen on mobile.\n- Premium price pill: Same extra downward chevron inside the “$279/month” pill as seen on mobile.\n- Footer link vertical spacing: Footer links have tighter vertical spacing compared to the design; the design uses a slightly larger line-height or margin between items.\n- Otherwise the desktop layout, header, form card width/padding, and three-column footer alignment closely match the design."
+  "report": "- **vendor-signup-390 (390px):** The implemented preview matches the Figma design. No spacing, alignment, typography, or color discrepancies were detected.\n- **vendor-signup-744 (744px):** The design and preview images for this breakpoint failed to download, so no visual comparison was possible.\n- **vendor-signup-1440 (1440px):** The implemented preview matches the Figma design. No spacing, alignment, typography, or color discrepancies were detected."
 }
