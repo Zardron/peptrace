@@ -11,10 +11,12 @@ import MethodologyPage from './components/MethodologyPage/MethodologyPage'
 import SiteFooter from './components/SiteFooter/SiteFooter'
 import VendorsList from './components/VendorsList/VendorsList'
 import VendorDetails from './components/VendorDetails/VendorDetails'
+import VendorSignupForm from './components/VendorSignupForm/VendorSignupForm'
 import ShipmentDetails from './components/ShipmentDetails/ShipmentDetails'
 import FullLeaderboard from './components/FullLeaderboard/FullLeaderboard'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
 import LegalPage from './components/LegalPage/LegalPage'
+import AnnouncementBar from './components/AnnouncementBar/AnnouncementBar'
 import AllPeptides from './components/AllPeptides/AllPeptides'
 import { useAuth } from './context/AuthContext'
 import { navigate } from './lib/navigation'
@@ -31,7 +33,7 @@ const accountRoutes = new Map<string, AccountView>([
   ['/support', 'support'],
 ])
 
-const routedPaths = new Set(['/membership', '/vendors', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', '/products', ...accountRoutes.keys()])
+const routedPaths = new Set(['/membership', '/vendors', '/vendor-signup', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', '/products', ...accountRoutes.keys()])
 
 const PRODUCT_LEADERBOARD_PREFIX = '/product/'
 const PRODUCT_LEADERBOARD_SUFFIX = '/leaderboard'
@@ -171,10 +173,11 @@ function App() {
 
   return (
     <div className="app">
+      <AnnouncementBar />
       {isMembershipPage ? (
         <>
           <HeaderBar onSignUpClick={openAuthModal} activeRoute="/membership" />
-          <MembershipPage />
+          <MembershipPage onSignUpClick={openAuthModal} />
         </>
       ) : accountView && user ? (
         <>
@@ -220,6 +223,14 @@ function App() {
           <HeaderBar onSignUpClick={openAuthModal} activeRoute="/vendors" />
           <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
             <VendorsList />
+          </main>
+          <SiteFooter />
+        </>
+      ) : pagePath === '/vendor-signup' ? (
+        <>
+          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/vendors" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <VendorSignupForm onBack={() => navigate('/vendors')} />
           </main>
           <SiteFooter />
         </>

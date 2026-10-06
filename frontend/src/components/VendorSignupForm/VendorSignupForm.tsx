@@ -4,6 +4,7 @@ import chevronLeftIcon from '../../assets/icons/vendorsignup/chevron-left.svg'
 import sparklesIcon from '../../assets/icons/vendorsignup/sparkles.svg'
 import chevronDownIcon from '../../assets/icons/vendorsignup/chevron-down.svg'
 import lockIcon from '../../assets/icons/vendorsignup/lock.svg'
+import { apiFetch } from '../../lib/api'
 
 interface VendorSignupFormProps {
   onBack?: () => void
@@ -14,12 +15,68 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
   const [distributesPeptides, setDistributesPeptides] = useState<boolean | null>(null)
   const [currentSituation, setCurrentSituation] = useState<string>('')
   const [vendorName, setVendorName] = useState('')
+  const [websiteUrl, setWebsiteUrl] = useState('')
   const [batchIdentifiers, setBatchIdentifiers] = useState<string>('')
   const [premiumOptIn, setPremiumOptIn] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const [submitted, setSubmitted] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError('')
+    if (distributesPeptides === null) {
+      setError('Tell us whether you distribute peptides commercially.')
+      return
+    }
+    if (!currentSituation) {
+      setError('Choose your current situation.')
+      return
+    }
+    if (!termsAccepted) {
+      setError('Confirm that you are authorized to represent this vendor.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await apiFetch('/vendor-applications', {
+        method: 'POST',
+        body: JSON.stringify({
+          email,
+          vendorName,
+          websiteUrl,
+          distributesCommercially: distributesPeptides,
+          situation: currentSituation,
+          batchIdentifiers: batchIdentifiers || null,
+          premiumInterest: premiumOptIn,
+          termsAccepted,
+        }),
+      })
+      setSubmitted(true)
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Could not submit your registration.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (submitted) {
+    return (
+      <section className="vendor-signup-form">
+        <div className="vendor-signup-card">
+          <div className="vendor-title-block">
+            <h2 className="vendor-title">Registration received</h2>
+            <p className="vendor-subtitle">
+              Thanks — we&apos;ll review {vendorName.trim() || 'your registration'} and contact you at {email.trim()}.
+            </p>
+          </div>
+          <button type="button" className="vendor-cta" onClick={onBack}>
+            Back to vendors
+          </button>
+        </div>
+      </section>
+    )
   }
 
   return (
@@ -27,7 +84,7 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
       <div className="vendor-signup-card">
         <button type="button" className="vendor-back-button" onClick={onBack}>
           <img src={chevronLeftIcon} alt="" className="vendor-back-icon" />
-          <span>Vendor Support</span>
+          <span>Vendors</span>
         </button>
 
         <div className="vendor-title-block">
@@ -46,7 +103,10 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
               id="vendor-email"
               type="email"
               className="vendor-input"
-              placeholder="devontrae@gmail.com"
+              placeholder="sales@yourbusiness.com"
+              autoComplete="email"
+              maxLength={254}
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -111,12 +171,30 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
               type="text"
               className="vendor-input"
               placeholder="Your business name"
+              maxLength={120}
+              required
               value={vendorName}
               onChange={(e) => setVendorName(e.target.value)}
             />
             <p className="vendor-helper">
-              How your business will be identified on the Finnrick web site
+              How your business will be identified on the Peptrace website
             </p>
+          </div>
+
+          <div className="vendor-field">
+            <label className="vendor-label" htmlFor="vendor-website">
+              Website
+            </label>
+            <input
+              id="vendor-website"
+              type="text"
+              inputMode="url"
+              className="vendor-input"
+              placeholder="yourbusiness.com"
+              maxLength={500}
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+            />
           </div>
 
           <fieldset className="vendor-field">
@@ -150,7 +228,7 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
             <div className="vendor-premium-row">
               <img src={sparklesIcon} alt="" className="vendor-premium-icon" />
               <span className="vendor-premium-text">
-                Upgrade to Premium for 10% off on Launch with Peptrace
+                Premium vendor plans are launching soon, with 10% off for early registrations
               </span>
               <div className="vendor-premium-price">
                 <span className="vendor-price-badge">$279/month</span>
@@ -179,7 +257,7 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
                 )}
               </span>
               <span className="vendor-checkbox-label">
-                Yes, start my Premium subscription
+                I&apos;m interested in Premium — contact me when it launches
               </span>
             </label>
           </div>
@@ -205,19 +283,21 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
               </span>
               <span className="vendor-checkbox-label">
                 I confirm I am authorized to represent this vendor and agree to the{' '}
-                <a href="#" className="vendor-link">Partner Service Terms</a>{' '}
+                <a href="/terms" className="vendor-link" target="_blank" rel="noopener noreferrer">Terms of Use</a>{' '}
                 <span className="vendor-required">*</span>
               </span>
             </label>
           </div>
 
-          <button type="submit" className="vendor-cta">
-            Continue to Payment — $279/mo
+          {error ? <p className="vendor-error" role="alert">{error}</p> : null}
+
+          <button type="submit" className="vendor-cta" disabled={submitting}>
+            {submitting ? 'Submitting…' : 'Submit registration'}
           </button>
 
           <div className="vendor-security">
             <img src={lockIcon} alt="" className="vendor-lock-icon" />
-            <span>Payments handled securely with Stripe.</span>
+            <span>No payment is taken now. We&apos;ll review your registration and contact you by email.</span>
           </div>
         </form>
       </div>

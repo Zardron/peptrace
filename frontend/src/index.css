@@ -69,3 +69,9 @@ select,
 textarea {
   font-family: inherit;
 }
+
+.rich-text-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

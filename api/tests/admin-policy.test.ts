@@ -5,15 +5,16 @@ import { roleHasPermission, type AdminPermission, type AdminRole } from '../src/
 const expected: Record<AdminRole, AdminPermission[]> = {
   super_admin: [
     'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
-    'billing:read', 'privacy:read', 'support:read', 'support:manage', 'audit:read', 'system:read',
+    'billing:read', 'privacy:read', 'privacy:manage', 'support:read', 'support:manage',
+    'catalog:read', 'catalog:manage', 'content:manage', 'admins:manage', 'audit:read', 'system:read',
   ],
   support_admin: [
     'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
-    'privacy:read', 'support:read', 'support:manage',
+    'privacy:read', 'privacy:manage', 'support:read', 'support:manage', 'catalog:read',
   ],
   billing_admin: ['dashboard:read', 'billing:read'],
-  content_admin: ['dashboard:read'],
-  analyst: ['dashboard:read', 'system:read'],
+  content_admin: ['dashboard:read', 'catalog:read', 'catalog:manage', 'content:manage'],
+  analyst: ['dashboard:read', 'catalog:read', 'system:read'],
 };
 
 const permissions = expected.super_admin;
@@ -37,4 +38,7 @@ test('read-only and specialist roles cannot mutate unrelated resources', () => {
   assert.equal(roleHasPermission('billing_admin', 'support:manage'), false);
   assert.equal(roleHasPermission('support_admin', 'billing:read'), false);
   assert.equal(roleHasPermission('content_admin', 'shipments:manage'), false);
+  assert.equal(roleHasPermission('support_admin', 'catalog:manage'), false);
+  assert.equal(roleHasPermission('analyst', 'catalog:manage'), false);
+  assert.equal(roleHasPermission('content_admin', 'admins:manage'), false);
 });

@@ -39,7 +39,7 @@ export default function LeaderboardCard({
           <span>{vendorCount}</span>
           <span>{lastUpdated}</span>
         </div>
-        <a href="/test" className="card-cta">
+        <a href="/testing" className="card-cta">
           <span>{ctaText}</span>
           <svg width="12" height="11" viewBox="0 0 12 11" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="0.5" y="4.5" width="10.5" height="2" rx="1" fill="#106e56" />

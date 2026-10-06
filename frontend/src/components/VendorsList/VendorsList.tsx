@@ -113,6 +113,7 @@ export default function VendorsList() {
           <p className="vendors-subtitle">
             {rows.length} of {vendors.length} vendors · total score by Purity focus
           </p>
+          <a href="/vendor-signup" className="vendors-register-link">Are you a vendor? Register your business →</a>
         </div>
 
         <div className="vendors-toolbar">

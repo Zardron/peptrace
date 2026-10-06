@@ -71,8 +71,8 @@ export default function HeaderBar({ onSignUpClick, activeRoute }: HeaderBarProps
 
         <div className="header-navigation desktop-only">
           <nav className="header-nav">
-            <a href="/about" className={`nav-link ${activeRoute === '/about' ? 'active' : ''}`}>about</a>
-            <a href="/news" className={`nav-link ${activeRoute === '/news' ? 'active' : ''}`}>news</a>
+            <a href="/methodology" className={`nav-link ${activeRoute === '/methodology' ? 'active' : ''}`}>methodology</a>
+            <a href="/products" className={`nav-link ${activeRoute === '/products' ? 'active' : ''}`}>products</a>
             <a href="/membership" className={`nav-link ${activeRoute === '/membership' ? 'active' : ''}`}>membership</a>
           </nav>
         </div>
@@ -134,9 +134,9 @@ export default function HeaderBar({ onSignUpClick, activeRoute }: HeaderBarProps
       </div>
 
       <nav className={`header-nav-row ${mobileOpen ? 'open' : ''}`}>
-        <a href="/rankings" className={`nav-pill ${activeRoute === '/rankings' ? 'active' : ''}`}>rankings</a>
-        <a href="/about" className={`nav-link ${activeRoute === '/about' ? 'active' : ''}`}>about</a>
-        <a href="/news" className={`nav-link ${activeRoute === '/news' ? 'active' : ''}`}>news</a>
+        <a href="/vendors" className={`nav-pill ${activeRoute === '/vendors' ? 'active' : ''}`}>vendors</a>
+        <a href="/methodology" className={`nav-link ${activeRoute === '/methodology' ? 'active' : ''}`}>methodology</a>
+        <a href="/products" className={`nav-link ${activeRoute === '/products' ? 'active' : ''}`}>products</a>
         <a href="/membership" className={`nav-link ${activeRoute === '/membership' ? 'active' : ''}`}>membership</a>
       </nav>
     </header>

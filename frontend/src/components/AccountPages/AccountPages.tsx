@@ -218,7 +218,7 @@ function DashboardPage() {
           <section className="account-card" id="shipments">
             <div className="account-card-title-row">
               <h2>My Shipments</h2>
-              <a href="/shipments">track shipments</a>
+              <a href="/testing">submit a sample</a>
             </div>
             <AccountTable
               columns={['Tracking ID', 'Peptide Name(s)', 'Date Submitted', 'Status']}

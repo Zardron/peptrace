@@ -27,8 +27,22 @@ interface ShipmentData {
   paymentMethod: string | null
   amountDue: number | null
   dueDate: string | null
+  testResults?: TestResult[]
   createdAt: string
   updatedAt: string
+}
+
+interface TestResult {
+  id: string
+  batchCode: string | null
+  purity: number | null
+  outcome: string | null
+  testedAt: string | null
+  labName: string | null
+  dosageDeviation: string | null
+  testedMg: number | null
+  labelMg: number | null
+  reportUrl: string | null
 }
 
 interface ShipmentDetailsProps {
@@ -195,6 +209,46 @@ export default function ShipmentDetails({ shipmentId }: ShipmentDetailsProps) {
                   </div>
                 ))}
               </div>
+            </section>
+
+            {/* Test results */}
+            <section className="shipment-card">
+              <h2 className="shipment-section-title">Test results</h2>
+              {data.testResults && data.testResults.length > 0 ? (
+                <div className="shipment-results">
+                  {data.testResults.map((result) => (
+                    <div key={result.id} className="shipment-result">
+                      <div className="shipment-result-header">
+                        <span className="shipment-result-title">
+                          {result.batchCode ? `Batch ${result.batchCode}` : 'Sample result'}
+                          {result.testedAt ? ` · ${formatShipmentDate(result.testedAt)}` : ''}
+                        </span>
+                        <span className={`shipment-result-badge ${result.outcome === 'pass' ? 'pass' : 'fail'}`}>
+                          {result.outcome === 'pass' ? 'Pass' : 'Fail'}
+                        </span>
+                      </div>
+                      <div className="shipment-info-rows">
+                        {[
+                          { label: 'Purity', value: result.purity == null ? null : `${result.purity}%` },
+                          { label: 'Lab', value: result.labName },
+                          { label: 'Tested / label', value: result.testedMg != null && result.labelMg != null ? `${result.testedMg} mg / ${result.labelMg} mg` : null },
+                          { label: 'Dosage deviation', value: result.dosageDeviation },
+                        ].filter((row): row is { label: string; value: string } => row.value != null).map((row) => (
+                          <div key={row.label} className="shipment-info-row">
+                            <span className="shipment-info-label">{row.label}</span>
+                            <span className="shipment-info-value">{row.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {result.reportUrl ? (
+                        <a href={result.reportUrl} className="shipment-invoice-link" target="_blank" rel="noreferrer">
+                          View lab report →
+                        </a>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="shipment-info-value">Results will appear here once the lab has tested your samples.</p>}
             </section>
 
             {/* Timeline */}

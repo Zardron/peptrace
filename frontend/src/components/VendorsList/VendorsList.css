@@ -26,6 +26,19 @@
   letter-spacing: 0;
 }
 
+.vendors-register-link {
+  align-self: flex-start;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #106e56;
+  text-decoration: none;
+}
+
+.vendors-register-link:hover {
+  text-decoration: underline;
+}
+
 .vendors-subtitle {
   font-size: 13px;
   font-weight: 400;
