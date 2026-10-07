@@ -5,11 +5,11 @@ import { roleHasPermission, type AdminPermission, type AdminRole } from '../src/
 const expected: Record<AdminRole, AdminPermission[]> = {
   super_admin: [
     'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
-    'billing:read', 'privacy:read', 'support:read', 'support:manage', 'audit:read', 'system:read',
+    'vendors:manage', 'billing:read', 'privacy:read', 'support:read', 'support:manage', 'audit:read', 'system:read',
   ],
   support_admin: [
     'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
-    'privacy:read', 'support:read', 'support:manage',
+    'vendors:manage', 'privacy:read', 'support:read', 'support:manage',
   ],
   billing_admin: ['dashboard:read', 'billing:read'],
   content_admin: ['dashboard:read'],
@@ -33,6 +33,7 @@ test('every Admin role has exactly its server-side permission matrix', () => {
 test('read-only and specialist roles cannot mutate unrelated resources', () => {
   assert.equal(roleHasPermission('analyst', 'users:manage'), false);
   assert.equal(roleHasPermission('analyst', 'support:manage'), false);
+  assert.equal(roleHasPermission('analyst', 'vendors:manage'), false);
   assert.equal(roleHasPermission('billing_admin', 'users:manage'), false);
   assert.equal(roleHasPermission('billing_admin', 'support:manage'), false);
   assert.equal(roleHasPermission('support_admin', 'billing:read'), false);

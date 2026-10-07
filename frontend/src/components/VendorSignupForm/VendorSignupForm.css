@@ -325,6 +325,56 @@
   color: #6b7280;
 }
 
+.vendor-form-message {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 6px;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.vendor-form-message.error {
+  border: 1px solid #e7b5b5;
+  background: #fff5f5;
+  color: #8c2424;
+}
+
+.vendor-form-message.success {
+  border: 1px solid #a3e2cd;
+  background: #f4fdf8;
+  color: #145c49;
+}
+
+.vendor-cta:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.vendor-signup-gate {
+  width: min(100% - 32px, 480px);
+  margin: 48px auto;
+  text-align: center;
+}
+
+.vendor-signup-gate h2 {
+  margin: 0 0 8px;
+  color: #111827;
+  font-family: var(--sans);
+  font-size: 24px;
+}
+
+.vendor-signup-gate p {
+  margin: 0 0 20px;
+  color: var(--text-gray, #737373);
+  font-family: var(--sans);
+  font-size: 15px;
+}
+
+.vendor-signup-gate .vendor-cta {
+  max-width: 320px;
+}
+
 .vendor-lock-icon {
   width: 13px;
   height: 14px;

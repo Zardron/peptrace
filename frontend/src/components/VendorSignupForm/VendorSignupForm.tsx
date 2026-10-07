@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
+import { apiFetch } from '../../lib/api'
 import './VendorSignupForm.css'
 import chevronLeftIcon from '../../assets/icons/vendorsignup/chevron-left.svg'
 import sparklesIcon from '../../assets/icons/vendorsignup/sparkles.svg'
@@ -10,16 +12,55 @@ interface VendorSignupFormProps {
 }
 
 export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
-  const [email, setEmail] = useState('')
+  const { user } = useAuth()
   const [distributesPeptides, setDistributesPeptides] = useState<boolean | null>(null)
   const [currentSituation, setCurrentSituation] = useState<string>('')
   const [vendorName, setVendorName] = useState('')
   const [batchIdentifiers, setBatchIdentifiers] = useState<string>('')
   const [premiumOptIn, setPremiumOptIn] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submissionError, setSubmissionError] = useState('')
+  const [applicationSubmitted, setApplicationSubmitted] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    setSubmissionError('')
+    setApplicationSubmitted(false)
+    if (!user) {
+      setSubmissionError('Log in before submitting a vendor application.')
+      return
+    }
+    if (distributesPeptides === null || !currentSituation || !vendorName.trim() || !termsAccepted) {
+      setSubmissionError('Complete the required fields and accept the Partner Service Terms.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      await apiFetch('/account/vendor-signup-applications', {
+        method: 'POST',
+        body: JSON.stringify({
+          distributesPeptides,
+          currentSituation,
+          vendorName,
+          batchIdentifiers: batchIdentifiers || null,
+          premiumOptIn,
+          termsAccepted,
+        }),
+      })
+      setApplicationSubmitted(true)
+      setDistributesPeptides(null)
+      setCurrentSituation('')
+      setVendorName('')
+      setBatchIdentifiers('')
+      setPremiumOptIn(false)
+      setTermsAccepted(false)
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : 'Could not submit your application.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -38,6 +79,13 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="vendor-form">
+          {submissionError && <p className="vendor-form-message error" role="alert">{submissionError}</p>}
+          {applicationSubmitted && (
+            <p className="vendor-form-message success" role="status">
+              Application submitted. We will review it and update its status in your account.
+            </p>
+          )}
+
           <div className="vendor-field">
             <label className="vendor-label" htmlFor="vendor-email">
               Email Address <span className="vendor-required">*</span>
@@ -46,9 +94,8 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
               id="vendor-email"
               type="email"
               className="vendor-input"
-              placeholder="devontrae@gmail.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={user?.email ?? ''}
+              readOnly
             />
           </div>
 
@@ -211,13 +258,13 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
             </label>
           </div>
 
-          <button type="submit" className="vendor-cta">
-            Continue to Payment — $279/mo
+          <button type="submit" className="vendor-cta" disabled={submitting}>
+            {submitting ? 'Submitting application...' : 'Submit application'}
           </button>
 
           <div className="vendor-security">
             <img src={lockIcon} alt="" className="vendor-lock-icon" />
-            <span>Payments handled securely with Stripe.</span>
+            <span>Your application is submitted securely. No payment is collected now.</span>
           </div>
         </form>
       </div>

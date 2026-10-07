@@ -658,6 +658,93 @@ export const createAdminRouter = (): Router => {
     res.json(await compatiblePanelData());
   });
 
+  router.get('/custom-pages', async (req: AdminRequest, res) => {
+    const pages = roleHasPermission(req.admin!.role, 'vendors:manage')
+      ? [{
+          id: 'vendor-approvals',
+          title: 'Vendor approvals',
+          description: 'Review and approve vendor profile applications.',
+          group: 'Operations',
+          icon: 'clipboard-check',
+          renderer: 'table',
+          dataEndpoint: '/vendor-signup-applications',
+          itemsKey: 'applications',
+          emptyText: 'No pending vendor applications.',
+          columns: [
+            { key: 'vendorName', label: 'Vendor' },
+            { key: 'applicantEmail', label: 'Applicant' },
+            { key: 'currentSituation', label: 'Situation' },
+            { key: 'batchIdentifiers', label: 'Batch IDs' },
+            { key: 'premiumOptIn', label: 'Premium' },
+            { key: 'submittedAt', label: 'Submitted', format: 'date' },
+          ],
+          rowAction: {
+            label: 'Approve',
+            endpoint: '/vendor-signup-applications/{id}/approve',
+            method: 'POST',
+            removeRowOnSuccess: true,
+          },
+        }]
+      : [];
+    res.json({ pages });
+  });
+
+  router.get('/vendor-signup-applications', requirePermission('vendors:manage'), async (_req, res) => {
+    const { data, error } = await getServiceClient()
+      .from('vendor_signup_application')
+      .select('id, user_id, email, distributes_peptides, current_situation, vendor_name, batch_identifiers, premium_opt_in, status, created_at')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(100);
+    if (error) {
+      res.status(500).json({ error: 'Could not load vendor applications' });
+      return;
+    }
+    res.json({ applications: (data ?? []).map((application) => ({
+      id: application.id,
+      applicantEmail: application.email,
+      distributesPeptides: application.distributes_peptides,
+      currentSituation: application.current_situation,
+      vendorName: application.vendor_name,
+      batchIdentifiers: application.batch_identifiers,
+      premiumOptIn: application.premium_opt_in,
+      submittedAt: application.created_at,
+    })) });
+  });
+
+  router.post('/vendor-signup-applications/:id/approve', requirePermission('vendors:manage'), async (req: AdminRequest, res) => {
+    const applicationId = req.params.id;
+    if (!isUuid(applicationId)) {
+      res.status(400).json({ error: 'Invalid application id' });
+      return;
+    }
+    if (!await requireAuditRecord(req, res, {
+      actor: req.admin!,
+      action: 'vendor.signup.approval.authorized',
+      targetType: 'vendor_signup_application',
+      targetId: applicationId,
+    })) return;
+
+    const { data: vendorId, error } = await getServiceClient().rpc('approve_vendor_signup_application', {
+      p_application_id: applicationId,
+      p_admin_id: req.admin!.id,
+    });
+    if (error) {
+      if (error.code === 'P0002') {
+        res.status(404).json({ error: 'Vendor application not found' });
+      } else if (error.code === 'P0001') {
+        res.status(409).json({ error: 'Vendor application is no longer pending' });
+      } else if (error.code === '23505') {
+        res.status(409).json({ error: 'A vendor with this name already exists' });
+      } else {
+        console.error(JSON.stringify({ event: 'vendor_signup_application_approve_failed', code: error.code }));
+        res.status(500).json({ error: 'Could not approve vendor application' });
+      }
+      return;
+    }
+    res.status(201).json({ vendorId, status: 'approved' });
+  });
+
   router.get('/dashboard', requirePermission('dashboard:read'), async (req, res) => {
     const rangeDays = [7, 30, 90].includes(Number(req.query.rangeDays)) ? Number(req.query.rangeDays) : 30;
     res.json(await getDashboard(rangeDays));

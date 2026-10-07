@@ -32,6 +32,7 @@ import {
   providerMayUseBearerExchange,
 } from './provider-auth.js';
 import { consumeRateLimit } from './rate-limit.js';
+import { parseVendorSignupApplication } from './vendor-signup.js';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -68,7 +69,7 @@ app.use((req, res, next) => {
   next();
 });
 app.use((req, res, next) => {
-  if (/^\/(admin|auth|account|uploads|support|shipment|shipments)(\/|$)/.test(req.path)) {
+  if (/^\/(admin|client-api|auth|account|uploads|support|shipment|shipments)(\/|$)/.test(req.path)) {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Pragma', 'no-cache');
   }
@@ -76,7 +77,9 @@ app.use((req, res, next) => {
 });
 // 8 MB to fit base64-encoded avatar uploads (5 MB decoded cap below).
 app.use(express.json({ limit: '8mb' }));
-app.use('/admin', createAdminRouter());
+const adminRouter = createAdminRouter();
+app.use('/admin', adminRouter);
+app.use('/client-api', adminRouter);
 
 interface Session {
   userId: string;
@@ -1107,6 +1110,65 @@ app.get('/auth/me', async (req, res) => {
     profile: profile ? { ...profile, avatar_url: signedAvatar?.data?.signedUrl ?? null } : null,
     csrfToken: session.rawCustomerSessionToken ? customerCsrfToken(session.rawCustomerSessionToken) : null,
   });
+});
+
+app.post('/account/vendor-signup-applications', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  if (!req.is('application/json')) {
+    res.status(415).json({ error: 'Content-Type must be application/json' });
+    return;
+  }
+
+  const parsed = parseVendorSignupApplication(req.body);
+  if ('error' in parsed) {
+    res.status(400).json({ error: parsed.error });
+    return;
+  }
+
+  const { data, error } = await getServiceClient()
+    .from('vendor_signup_application')
+    .insert({
+      user_id: session.userId,
+      email: session.email,
+      distributes_peptides: parsed.data.distributesPeptides,
+      current_situation: parsed.data.currentSituation,
+      vendor_name: parsed.data.vendorName,
+      batch_identifiers: parsed.data.batchIdentifiers,
+      premium_opt_in: parsed.data.premiumOptIn,
+      terms_accepted: true,
+    })
+    .select('id, status, created_at')
+    .single();
+
+  if (error || !data) {
+    console.error(JSON.stringify({ event: 'vendor_signup_application_create_failed', code: error?.code }));
+    res.status(500).json({ error: 'Could not submit vendor application' });
+    return;
+  }
+  res.status(201).json({ application: data });
+});
+
+app.get('/account/vendor-profiles', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const { data, error } = await getServiceClient()
+    .from('vendors')
+    .select('id, name, slug, website_url, avatar_url, about')
+    .eq('manager_user_id', session.userId)
+    .order('name', { ascending: true });
+  if (error) {
+    res.status(500).json({ error: 'Could not load vendor profiles' });
+    return;
+  }
+  res.json({ vendors: data ?? [] });
 });
 
 const PROFILE_FIELDS = ['full_name', 'organization', 'role', 'phone', 'bio'] as const;
@@ -2542,6 +2604,7 @@ app.use((error: unknown, req: express.Request, res: express.Response, _next: exp
     method: req.method,
     path: req.path,
     errorType: error instanceof Error ? error.name : 'UnknownError',
+    ...(originRejected ? { rejectedOrigin: req.headers.origin ?? null } : {}),
   }));
   res.status(originRejected ? 403 : 500).json({
     error: originRejected ? 'Request origin is not allowed' : 'Internal server error',

@@ -162,10 +162,10 @@ function App() {
   const isAccountRoute = Boolean(accountView)
 
   useEffect(() => {
-    if (isAccountRoute && !isLoading && !user) {
+    if ((isAccountRoute || pagePath === '/vendor-signup') && !isLoading && !user) {
       setAuthOpen(true)
     }
-  }, [isAccountRoute, isLoading, user])
+  }, [isAccountRoute, isLoading, pagePath, user])
 
   if (isLoading) {
     return <div className="app" />
@@ -258,9 +258,19 @@ function App() {
         </>
       ) : isVendorSignUpPage ? (
         <>
-          <HeaderBar onSignUpClick={openAuthModal} activeRoute="/vendor-signup" />
+          <HeaderBar onSignUpClick={!user ? openAuthModal : undefined} activeRoute="/vendor-signup" />
           <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
-            <VendorSignupForm />
+            {user ? (
+              <VendorSignupForm />
+            ) : (
+              <section className="vendor-signup-gate">
+                <h2>Log in to apply</h2>
+                <p>Vendor applications are available to signed-in Peptrace accounts.</p>
+                <button type="button" className="vendor-cta" onClick={openAuthModal}>
+                  Log in or create an account
+                </button>
+              </section>
+            )}
           </main>
           <SiteFooter />
         </>

@@ -13,6 +13,7 @@ export type AdminPermission =
   | 'users:manage'
   | 'shipments:read'
   | 'shipments:manage'
+  | 'vendors:manage'
   | 'billing:read'
   | 'privacy:read'
   | 'support:read'
@@ -22,11 +23,11 @@ export type AdminPermission =
 
 export const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
   super_admin: new Set([
-    'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
+    'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage', 'vendors:manage',
     'billing:read', 'privacy:read', 'support:read', 'support:manage', 'audit:read', 'system:read',
   ]),
   support_admin: new Set([
-    'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
+    'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage', 'vendors:manage',
     'privacy:read', 'support:read', 'support:manage',
   ]),
   billing_admin: new Set(['dashboard:read', 'billing:read']),
