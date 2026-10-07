@@ -108,6 +108,7 @@ jobs:
           esac
           {
             for file in \
+              api/migrations/004_vendor_details.sql \
               api/migrations/011_admin_control_center.sql \
               api/migrations/012_unify_user_identities.sql \
               api/migrations/013_make_user_uploads_private.sql \
