@@ -458,6 +458,57 @@
   text-decoration: underline;
 }
 
+/* Test results */
+.shipment-results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.shipment-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eef0f2;
+}
+
+.shipment-result:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.shipment-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.shipment-result-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.shipment-result-badge {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.shipment-result-badge.pass {
+  background: #e8f5ef;
+  color: #106e56;
+}
+
+.shipment-result-badge.fail {
+  background: #fdecec;
+  color: #c0392b;
+}
+
 /* Payment */
 .shipment-payment-badge {
   display: inline-flex;

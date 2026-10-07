@@ -1,4 +1,6 @@
 import './MethodologyPage.css'
+import RichText from '../../content/RichText'
+import { useSiteContent } from '../../content/useSiteContent'
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <span className="mp-section-label">{children}</span>
@@ -37,15 +39,17 @@ function Divider() {
 }
 
 export default function MethodologyPage() {
+  const content = useSiteContent('methodology')
+
   return (
     <div className="methodology-page">
       {/* Hero */}
       <section className="mp-hero">
         <div className="mp-container">
-          <p className="mp-hero-subtitle">TEST DATA LAST UPDATED 14 SEPT 2025, 19,448 TESTS</p>
+          <p className="mp-hero-subtitle">{content.updatedLabel}</p>
           <h1 className="mp-hero-title">Methodology</h1>
           <p className="mp-body">
-            Peptrace rankings summarize published test evidence for a vendor and peptide. A higher rating means recent, classifiable samples have more consistently met the selected Peptrace standard for identity, purity, fill accuracy, and, in standard modes, batch labeling quality.
+            <RichText text={content.intro} />
           </p>
         </div>
       </section>
@@ -102,7 +106,7 @@ export default function MethodologyPage() {
           <SectionLabel>STANDARDS</SectionLabel>
           <SectionTitle>What Counts as a Passing Sample</SectionTitle>
           <p className="mp-body">
-            A sample must have enough information to evaluate identity, purity, quantity accuracy, and labeling. If a sample is missing one of those essentials, it is not counted in the rating for that standard.
+            <RichText text={content.standardsIntro} />
           </p>
 
           <div className="mp-table-wrap">
@@ -117,54 +121,27 @@ export default function MethodologyPage() {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Purity focus</td>
-                  <td>at least 99.5%</td>
-                  <td>within plus/minus 20% of claim</td>
-                  <td>no label requirements</td>
-                  <td>not evaluated</td>
-                </tr>
-                <tr>
-                  <td>Peptrace Standard</td>
-                  <td>at least 99.5%</td>
-                  <td>within plus/minus 20% of claim</td>
-                  <td>label score at least 0.5</td>
-                  <td>not evaluated</td>
-                </tr>
-                <tr>
-                  <td>Purity focus strict<br />(Members)</td>
-                  <td>at least 99.8%</td>
-                  <td>within plus/minus 15% of claim</td>
-                  <td>no label requirements</td>
-                  <td>not evaluated</td>
-                </tr>
-                <tr>
-                  <td>Peptrace Super strict<br />(Members)</td>
-                  <td>at least 99.8%</td>
-                  <td>within plus/minus 15% of claim</td>
-                  <td>label score at least 1.0</td>
-                  <td>not evaluated</td>
-                </tr>
-                <tr>
-                  <td>Accuracy focus<br />(Members)</td>
-                  <td>at least 98%</td>
-                  <td>within plus/minus 20% of claim</td>
-                  <td>label score at least 0.5</td>
-                  <td>fail above 40 EU/sample, when tested</td>
-                </tr>
+                {content.standards.map((standard, index) => (
+                  <tr key={`${index}-${standard.name}`}>
+                    <td>
+                      {standard.name}
+                      {standard.membersOnly ? <><br />(Members)</> : null}
+                    </td>
+                    <td>{standard.purity}</td>
+                    <td>{standard.quantity}</td>
+                    <td>{standard.labeling}</td>
+                    <td>{standard.sometimes}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
 
-          <p className="mp-body">
-            Underfill and overfill both fail when they exceed the allowed range. A failed identity result fails the sample. Purity focus modes use the compound result and fill accuracy only; batch labeling does not affect those modes.
-          </p>
-          <p className="mp-body">
-            The accuracy standard is the only standard that grades endotoxins: a sample whose lab report shows endotoxin contamination above 40 EU per sample fails. Unlike the essentials above, endotoxin testing is not required - most lab panels do not include it, so a sample without an endotoxin result is still counted in the rating; only a measured result above the threshold counts against it. Endotoxin results never affect the other standards.
-          </p>
-          <p className="mp-body">
-            The members-only standards are included with every paid Peptrace membership, alongside original COA downloads.
-          </p>
+          {content.standardsNotes.map((note, index) => (
+            <p className="mp-body" key={index}>
+              <RichText text={note} />
+            </p>
+          ))}
         </div>
       </section>
 

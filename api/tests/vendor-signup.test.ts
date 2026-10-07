@@ -4,6 +4,7 @@ import test from 'node:test';
 import { parseVendorSignupApplication } from '../src/vendor-signup.js';
 
 const validApplication = {
+  email: 'vendor@example.com',
   distributesPeptides: true,
   currentSituation: 'selling-unlisted',
   vendorName: 'Northstar Research',
@@ -16,6 +17,7 @@ test('vendor applications accept valid form data and normalize the vendor name',
   const result = parseVendorSignupApplication({ ...validApplication, vendorName: '  Northstar Research  ' });
   assert.deepEqual(result, {
     data: {
+      email: 'vendor@example.com',
       distributesPeptides: true,
       currentSituation: 'selling-unlisted',
       vendorName: 'Northstar Research',
@@ -43,4 +45,12 @@ test('vendor signup migration keeps manager links one-to-many and approval atomi
   assert.match(sql, /create or replace function public\.approve_vendor_signup_application/i);
   assert.match(sql, /for update/i);
   assert.match(sql, /revoke all on function public\.approve_vendor_signup_application/i);
+});
+
+test('vendor test cleanup targets only quarantined fixture rows and removes their marker', () => {
+  const sql = fs.readFileSync(new URL('../migrations/027_remove_vendor_test_fixtures.sql', import.meta.url), 'utf8');
+  assert.match(sql, /delete from public\.vendor_tests/i);
+  assert.match(sql, /is_demo = true/i);
+  assert.match(sql, /batch_code like 'Batch-2025%' or batch_code like 'Batch-ZJ-%'/i);
+  assert.match(sql, /drop column if exists is_demo/i);
 });

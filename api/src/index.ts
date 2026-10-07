@@ -12,6 +12,9 @@ import {
   sessionSecret,
 } from './supabase.js';
 import { createAdminRouter, ensureAdminBootstrap, getAccountOperationalStatus, hashUserSubject } from './admin.js';
+import { onCatalogChanged } from './catalog-cache.js';
+import { registerPublicContentRoutes } from './site-content.js';
+import { registerPublicVendorApplicationRoutes } from './vendor-applications.js';
 import {
   isValidEmail,
   MIN_PASSWORD_LENGTH,
@@ -180,6 +183,9 @@ app.use((req, res, next) => {
   next();
 });
 
+registerPublicContentRoutes(app);
+registerPublicVendorApplicationRoutes(app);
+
 app.get('/vendors', async (_req, res) => {
   const { data, error } = await supabase
     .from('vendors')
@@ -257,7 +263,6 @@ app.get('/vendors/:id', async (req, res) => {
       'tested_at, result, peptide_name, lab_name, purity, dosage_deviation, tested_mg, label_mg, batch_code, sender, coa_url',
     )
     .eq('vendor_id', vendor.id)
-    .eq('is_demo', false)
     .order('tested_at', { ascending: false });
   if (testsError) {
     res.status(500).json({ error: 'Failed to load vendor test history' });
@@ -343,8 +348,7 @@ app.get('/vendors/:id', async (req, res) => {
 
   const { data: rankedTestRows } = await db
     .from('vendor_tests')
-    .select('vendor_id, result')
-    .eq('is_demo', false);
+    .select('vendor_id, result');
   const rankTotals = new Map<string, { pass: number; total: number }>();
   for (const row of rankedTestRows ?? []) {
     const value = rankTotals.get(row.vendor_id) ?? { pass: 0, total: 0 };
@@ -424,13 +428,15 @@ interface LeaderboardsCard {
 }
 
 let leaderboardsCache: { expiresAt: number; promise: Promise<LeaderboardsCard[]> } | null = null;
+onCatalogChanged(() => {
+  leaderboardsCache = null;
+});
 
 const loadLeaderboardsCards = async (): Promise<LeaderboardsCard[]> => {
   const db = getServiceClient();
   const [{ data: tests, error: testsError }, { data: vendors, error: vendorsError }] = await Promise.all([
     db.from('vendor_tests')
-      .select('vendor_id, peptide_name, result, purity, tested_at')
-      .eq('is_demo', false),
+      .select('vendor_id, peptide_name, result, purity, tested_at'),
     db.from('vendors')
       .select('id, name, cost_per_mg')
       .eq('is_demo', false),
@@ -527,8 +533,7 @@ app.get('/products/:slug/leaderboard', async (req, res) => {
   const db = getServiceClient();
   const [{ data: tests, error: testsError }, { data: vendorRows, error: vendorError }] = await Promise.all([
     db.from('vendor_tests')
-      .select('vendor_id, peptide_name, result, purity, tested_at')
-      .eq('is_demo', false),
+      .select('vendor_id, peptide_name, result, purity, tested_at'),
     db.from('vendors')
       .select('id, name, slug, cost_per_mg')
       .eq('is_demo', false),
@@ -608,7 +613,6 @@ app.get('/products/:slug/tests', async (req, res) => {
     .select(
       'tested_at, result, peptide_name, lab_name, purity, dosage_deviation, tested_mg, label_mg, batch_code, sender, coa_url, vendor_id',
     )
-    .eq('is_demo', false)
     .order('tested_at', { ascending: false });
 
   if (testsError) {
@@ -2555,7 +2559,42 @@ app.get('/shipment/:id', async (req, res) => {
     }
   };
 
+  const { data: resultRows } = await userDb
+    .from('test_results')
+    .select('id, batch_code, purity, outcome, tested_at, lab_name, dosage_deviation, tested_mg, label_mg, coa_url')
+    .eq('shipment_id', data.id)
+    .order('tested_at', { ascending: false });
+  const reportPaths = (resultRows ?? [])
+    .map((row) => row.coa_url)
+    .filter((path): path is string => (
+      typeof path === 'string' && path.startsWith(`${session.userId}/`) && !path.includes('://') && !path.includes('..')
+    ));
+  const signedReports = new Map<string, string>();
+  if (reportPaths.length > 0) {
+    const { data: signed } = await getServiceClient().storage
+      .from(FORM_UPLOADS_BUCKET)
+      .createSignedUrls(reportPaths, 15 * 60);
+    for (const item of signed ?? []) {
+      if (item.path && item.signedUrl && !item.error) signedReports.set(item.path, item.signedUrl);
+    }
+  }
+  const testResults = (resultRows ?? []).map((row) => ({
+    id: row.id,
+    batchCode: row.batch_code ?? null,
+    purity: row.purity == null ? null : Number(row.purity),
+    outcome: row.outcome ?? null,
+    testedAt: row.tested_at ?? null,
+    labName: row.lab_name ?? null,
+    dosageDeviation: row.dosage_deviation ?? null,
+    testedMg: row.tested_mg == null ? null : Number(row.tested_mg),
+    labelMg: row.label_mg == null ? null : Number(row.label_mg),
+    reportUrl: typeof row.coa_url === 'string'
+      ? signedReports.get(row.coa_url) ?? (/^https?:\/\//.test(row.coa_url) ? row.coa_url : null)
+      : null,
+  }));
+
   res.json({
+    testResults,
     id: data.id,
     trackingNumber: data.tracking_id,
     status: data.status,

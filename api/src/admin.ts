@@ -10,6 +10,13 @@ import {
   type AdminRole,
 } from './admin-policy.js';
 import { consumeRateLimit } from './rate-limit.js';
+import { registerCatalogRoutes } from './admin-catalog.js';
+import type { AdminRouteDeps } from './admin-input.js';
+import { registerShipmentRoutes } from './admin-shipments.js';
+import { registerContentAdminRoutes } from './site-content.js';
+import { registerPrivacyRoutes } from './admin-privacy.js';
+import { registerAdminUserRoutes } from './admin-admins.js';
+import { registerVendorApplicationAdminRoutes } from './vendor-applications.js';
 
 const ADMIN_COOKIE = 'peptrace_admin_session';
 const ADMIN_SESSION_SECONDS = 12 * 60 * 60;
@@ -428,7 +435,7 @@ const compatiblePanelData = async () => {
     await Promise.all([
       db.from('vendors').select('id, name, slug, score, cost_per_mg').eq('is_demo', false).order('name'),
       db.from('peptides').select('id, name').order('name'),
-      db.from('vendor_tests').select('id, vendor_id, peptide_name, lab_name, tested_at, result, purity, tested_mg, label_mg').eq('is_demo', false).order('tested_at', { ascending: false }),
+      db.from('vendor_tests').select('id, vendor_id, peptide_name, lab_name, tested_at, result, purity, tested_mg, label_mg').order('tested_at', { ascending: false }),
     ]);
   if (vendorsError || peptidesError || testsError) throw new Error('catalog_read_failed');
 
@@ -649,6 +656,19 @@ export const createAdminRouter = (): Router => {
     }
     next();
   });
+
+  const routeDeps: AdminRouteDeps = {
+    actor: (req) => (req as AdminRequest).admin!,
+    audit,
+    requireAuditRecord,
+    requirePermission,
+  };
+  registerCatalogRoutes(router, routeDeps);
+  registerShipmentRoutes(router, routeDeps);
+  registerContentAdminRoutes(router, routeDeps);
+  registerPrivacyRoutes(router, routeDeps);
+  registerAdminUserRoutes(router, routeDeps);
+  registerVendorApplicationAdminRoutes(router, routeDeps);
 
   router.get('/admin-panel/context', requirePermission('dashboard:read'), async (req: AdminRequest, res) => {
     res.json(await compatibleContext(req.admin!));
@@ -1026,54 +1046,6 @@ export const createAdminRouter = (): Router => {
     const { data, count, error } = await query.order('updated_at', { ascending: false }).range(from, to);
     if (error) {
       res.status(500).json({ error: 'Could not load subscriptions' });
-      return;
-    }
-    res.json({ items: data ?? [], page, pageSize, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / pageSize) });
-  });
-
-  router.get('/privacy/consents', requirePermission('privacy:read'), async (req, res) => {
-    const { page, pageSize, from, to } = pagination(req);
-    if (!await requireAuditRecord(req as AdminRequest, res, {
-      actor: (req as AdminRequest).admin!, action: 'privacy.consents.viewed', targetType: 'consent_directory',
-      reason: 'Administrative privacy access', metadata: { page, pageSize },
-    })) return;
-    const { data, count, error } = await getServiceClient().from('user_consents')
-      .select('id, user_id, consent_type, policy_version, accepted, recorded_at, withdrawn_at, source', { count: 'exact' })
-      .order('recorded_at', { ascending: false }).range(from, to);
-    if (error) {
-      res.status(500).json({ error: 'Could not load consent history' });
-      return;
-    }
-    res.json({ items: data ?? [], page, pageSize, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / pageSize) });
-  });
-
-  router.get('/privacy/exports', requirePermission('privacy:read'), async (req, res) => {
-    const { page, pageSize, from, to } = pagination(req);
-    if (!await requireAuditRecord(req as AdminRequest, res, {
-      actor: (req as AdminRequest).admin!, action: 'privacy.exports.viewed', targetType: 'data_export_directory',
-      reason: 'Administrative privacy access', metadata: { page, pageSize },
-    })) return;
-    const { data, count, error } = await getServiceClient().from('data_export_requests')
-      .select('id, user_id, status, expires_at, error_code, requested_at, completed_at, updated_at', { count: 'exact' })
-      .order('requested_at', { ascending: false }).range(from, to);
-    if (error) {
-      res.status(500).json({ error: 'Could not load export requests' });
-      return;
-    }
-    res.json({ items: data ?? [], page, pageSize, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / pageSize) });
-  });
-
-  router.get('/privacy/deletions', requirePermission('privacy:read'), async (req, res) => {
-    const { page, pageSize, from, to } = pagination(req);
-    if (!await requireAuditRecord(req as AdminRequest, res, {
-      actor: (req as AdminRequest).admin!, action: 'privacy.deletions.viewed', targetType: 'deletion_directory',
-      reason: 'Administrative privacy access', metadata: { page, pageSize },
-    })) return;
-    const { data, count, error } = await getServiceClient().from('account_deletion_requests')
-      .select('id, user_id, status, reason, requested_at, scheduled_for, completed_at, canceled_at, failure_code, updated_at', { count: 'exact' })
-      .order('requested_at', { ascending: false }).range(from, to);
-    if (error) {
-      res.status(500).json({ error: 'Could not load deletion requests' });
       return;
     }
     res.json({ items: data ?? [], page, pageSize, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / pageSize) });

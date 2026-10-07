@@ -314,6 +314,22 @@
   line-height: 1;
 }
 
+.vendor-cta:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.vendor-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdeceb;
+  color: #a3362a;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .vendor-security {
   display: inline-flex;
   align-items: center;

@@ -2,6 +2,7 @@ export const VENDOR_SITUATIONS = ['new', 'selling-unlisted', 'selling-listed'] a
 export const BATCH_IDENTIFIER_OPTIONS = ['all', 'some', 'no'] as const;
 
 export type VendorSignupApplicationInput = {
+  email: string;
   distributesPeptides: boolean;
   currentSituation: (typeof VENDOR_SITUATIONS)[number];
   vendorName: string;
@@ -42,6 +43,7 @@ export const parseVendorSignupApplication = (body: unknown): VendorSignupParseRe
 
   return {
     data: {
+      email: typeof input.email === 'string' ? input.email.trim() : '',
       distributesPeptides: input.distributesPeptides,
       currentSituation: input.currentSituation as (typeof VENDOR_SITUATIONS)[number],
       vendorName,

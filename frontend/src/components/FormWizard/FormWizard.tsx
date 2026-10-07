@@ -1058,7 +1058,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
                     checked={newsletterOptIn}
                     onChange={() => setNewsletterOptIn((v) => !v)}
                   />
-                  Sign me up for the PeptiTrace newsletter
+                  Sign me up for the Peptrace newsletter
                 </label>
               </div>
 

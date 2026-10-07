@@ -1,15 +1,18 @@
 import { useState } from 'react'
 import './FreePeptideTesting.css'
 import FormWizard from '../FormWizard/FormWizard'
+import RichText from '../../content/RichText'
+import { useSiteContent } from '../../content/useSiteContent'
 
 export default function FreePeptideTesting() {
   const [completed, setCompleted] = useState(false)
+  const content = useSiteContent('testing-page')
 
   return (
     <div className="free-peptide-testing">
       <section className="fpt-hero">
         <div className="fpt-hero-inner">
-          <h1 className="fpt-hero-title">Free Peptide Testing</h1>
+          <h1 className="fpt-hero-title">{content.title}</h1>
           <div className="fpt-info-block">
             <div className="fpt-info-icon">
               <svg width="33" height="33" viewBox="0 0 33 33" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -18,9 +21,9 @@ export default function FreePeptideTesting() {
               </svg>
             </div>
             <div className="fpt-info-text">
-              <p className="fpt-info-title">Free testing is only available for individuals</p>
+              <p className="fpt-info-title">{content.noticeTitle}</p>
               <p className="fpt-info-body">
-                If you are a vendor or if you sell or distribute peptides to others professionally, please use our Vendor Services. This allows us to keep providing testing at no cost.
+                <RichText text={content.noticeBody} />
               </p>
             </div>
           </div>
@@ -31,10 +34,9 @@ export default function FreePeptideTesting() {
         <div className="fpt-wizard-inner">
           {completed ? (
             <div className="fpt-complete">
-              <h2 className="fpt-complete-title">Shipment registered</h2>
+              <h2 className="fpt-complete-title">{content.completeTitle}</h2>
               <p className="fpt-complete-body">
-                Thanks — your sample has been registered. You&apos;ll receive shipping
-                instructions and updates as your test progresses.
+                <RichText text={content.completeBody} />
               </p>
               <button
                 type="button"
