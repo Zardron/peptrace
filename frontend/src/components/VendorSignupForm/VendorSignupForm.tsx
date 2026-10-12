@@ -1,30 +1,72 @@
 import { useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
+import { apiFetch } from '../../lib/api'
+import AuthModal from '../AuthModal/AuthModal'
 import './VendorSignupForm.css'
 import chevronLeftIcon from '../../assets/icons/vendorsignup/chevron-left.svg'
 import sparklesIcon from '../../assets/icons/vendorsignup/sparkles.svg'
 import chevronDownIcon from '../../assets/icons/vendorsignup/chevron-down.svg'
 import lockIcon from '../../assets/icons/vendorsignup/lock.svg'
-import { apiFetch } from '../../lib/api'
 
 interface VendorSignupFormProps {
   onBack?: () => void
 }
 
 export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
-  const [email, setEmail] = useState('')
+  const { user } = useAuth()
   const [distributesPeptides, setDistributesPeptides] = useState<boolean | null>(null)
   const [currentSituation, setCurrentSituation] = useState<string>('')
   const [vendorName, setVendorName] = useState('')
+  const [email, setEmail] = useState('')
   const [websiteUrl, setWebsiteUrl] = useState('')
   const [batchIdentifiers, setBatchIdentifiers] = useState<string>('')
   const [premiumOptIn, setPremiumOptIn] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [submissionError, setSubmissionError] = useState('')
+  const [applicationSubmitted, setApplicationSubmitted] = useState(false)
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    setSubmissionError('')
+    setApplicationSubmitted(false)
+    if (!user) {
+      setSubmissionError('Log in before submitting a vendor application.')
+      return
+    }
+    if (distributesPeptides === null || !currentSituation || !vendorName.trim() || !termsAccepted) {
+      setSubmissionError('Complete the required fields and accept the Partner Service Terms.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      await apiFetch('/account/vendor-signup-applications', {
+        method: 'POST',
+        body: JSON.stringify({
+          distributesPeptides,
+          currentSituation,
+          vendorName,
+          batchIdentifiers: batchIdentifiers || null,
+          premiumOptIn,
+          termsAccepted,
+        }),
+      })
+      setApplicationSubmitted(true)
+      setDistributesPeptides(null)
+      setCurrentSituation('')
+      setVendorName('')
+      setBatchIdentifiers('')
+      setPremiumOptIn(false)
+      setTermsAccepted(false)
+    } catch (error) {
+      setSubmissionError(error instanceof Error ? error.message : 'Could not submit your application.')
+    } finally {
+      setSubmitting(false)
+    }
     setError('')
     if (distributesPeptides === null) {
       setError('Tell us whether you distribute peptides commercially.')
@@ -61,6 +103,25 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
     }
   }
 
+  if (!user) {
+    return (
+      <section className="vendor-signup-form">
+        <div className="vendor-signup-card">
+          <div className="vendor-title-block">
+            <h2 className="vendor-title">Log in to continue</h2>
+            <p className="vendor-subtitle">
+              Log in or sign up to submit a vendor registration.
+            </p>
+          </div>
+          <button type="button" className="vendor-cta" onClick={() => setAuthModalOpen(true)}>
+            Log in or sign up
+          </button>
+        </div>
+        <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+      </section>
+    )
+  }
+
   if (submitted) {
     return (
       <section className="vendor-signup-form">
@@ -95,6 +156,13 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="vendor-form">
+          {submissionError && <p className="vendor-form-message error" role="alert">{submissionError}</p>}
+          {applicationSubmitted && (
+            <p className="vendor-form-message success" role="status">
+              Application submitted. We will review it and update its status in your account.
+            </p>
+          )}
+
           <div className="vendor-field">
             <label className="vendor-label" htmlFor="vendor-email">
               Email Address <span className="vendor-required">*</span>
@@ -297,7 +365,7 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
 
           <div className="vendor-security">
             <img src={lockIcon} alt="" className="vendor-lock-icon" />
-            <span>No payment is taken now. We&apos;ll review your registration and contact you by email.</span>
+            <span>Your application is submitted securely. No payment is collected now.</span>
           </div>
         </form>
       </div>

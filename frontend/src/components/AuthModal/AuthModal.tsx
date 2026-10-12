@@ -64,9 +64,12 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
   const handleGoogleSignIn = async () => {
     setSubmitting(true)
     setError('')
+    const redirectPath = window.history.state?.modalFrom === '/vendor-signup'
+      ? '/vendor-signup'
+      : '/account'
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/account` },
+      options: { redirectTo: `${window.location.origin}${redirectPath}` },
     })
     if (oauthError) {
       setError('Google sign-in is unavailable. Please use email instead.')
@@ -89,7 +92,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
       const data = await res.json().catch(() => null)
       if (!res.ok) {
         if (res.status === 401) {
-          setError('Incorrect credentials or the email address has not been verified.')
+          setError('Incorrect email or password.')
         } else if (res.status === 409) {
           setError('An account with this email already exists. Sign in instead.')
           setMode('login')
@@ -108,9 +111,10 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
         setError('Could not finish signing you in. Please try again.')
         return
       }
+      const returnToVendorSignup = window.history.state?.modalFrom === '/vendor-signup'
       onClose()
       if (mode === 'register' || result.isNewAccount) {
-        navigate('/account')
+        navigate(returnToVendorSignup ? '/vendor-signup' : '/account')
       }
     } catch {
       setError('Something went wrong. Please try again.')

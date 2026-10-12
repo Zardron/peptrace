@@ -13,8 +13,10 @@ export type AdminPermission =
   | 'users:manage'
   | 'shipments:read'
   | 'shipments:manage'
+  | 'vendors:manage'
   | 'billing:read'
-  | 'privacy:read'
+  | 'billing:manage'
+  | 'email:manage'  | 'privacy:read'
   | 'privacy:manage'
   | 'support:read'
   | 'support:manage'
@@ -27,16 +29,16 @@ export type AdminPermission =
 
 export const ROLE_PERMISSIONS: Record<AdminRole, ReadonlySet<AdminPermission>> = {
   super_admin: new Set([
-    'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
-    'billing:read', 'privacy:read', 'privacy:manage', 'support:read', 'support:manage',
-    'catalog:read', 'catalog:manage', 'content:manage', 'admins:manage', 'audit:read', 'system:read',
+    'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage', 'vendors:manage',
+    'billing:read', 'billing:manage', 'privacy:read', 'privacy:manage', 'support:read', 'support:manage',
+    'catalog:read', 'catalog:manage', 'content:manage', 'email:manage', 'admins:manage', 'audit:read', 'system:read',
   ]),
   support_admin: new Set([
-    'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
+    'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage', 'vendors:manage',
     'privacy:read', 'privacy:manage', 'support:read', 'support:manage', 'catalog:read',
   ]),
-  billing_admin: new Set(['dashboard:read', 'billing:read']),
-  content_admin: new Set(['dashboard:read', 'catalog:read', 'catalog:manage', 'content:manage']),
+  billing_admin: new Set(['dashboard:read', 'billing:read', 'billing:manage']),
+  content_admin: new Set(['dashboard:read', 'catalog:read', 'catalog:manage', 'content:manage', 'email:manage']),
   analyst: new Set(['dashboard:read', 'catalog:read', 'system:read']),
 };
 

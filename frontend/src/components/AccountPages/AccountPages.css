@@ -211,7 +211,7 @@
 
 .shipments-table .account-table-row:not(.account-table-head),
 .results-table .account-table-row:not(.account-table-head),
-.supply-table .account-table-row:not(.account-table-head) {
+.products-table .account-table-row:not(.account-table-head) {
   padding-block: 14px;
 }
 
@@ -223,8 +223,8 @@
   grid-template-columns: 1fr 120px 100px 100px 100px;
 }
 
-.supply-table .account-table-row {
-  grid-template-columns: 220px 120px 160px 100px 120px;
+.products-table .account-table-row {
+  grid-template-columns: minmax(0, 1fr) 100px 100px 120px;
 }
 
 .billing-table .account-table-row {
@@ -266,7 +266,7 @@
 
 .shipments-table .account-table-row:not(.account-table-head) span:first-child,
 .results-table .account-table-row:not(.account-table-head) span:first-child,
-.supply-table .account-table-row:not(.account-table-head) span:first-child {
+.products-table .account-table-row:not(.account-table-head) span:first-child {
   color: #2c2c2c;
   font-weight: 700;
 }
@@ -614,6 +614,9 @@
     width: fit-content;
     margin-top: 10px;
 }
+.settings-actions .account-pill.primary {
+  margin-top: 0px;
+}
 
 .account-pill.secondary {
   border: 2px solid var(--primary);
@@ -950,7 +953,6 @@
   .account-view-profile .settings-field input,
   .account-view-profile .settings-field select {
     height: 38px;
-    min-height: 38px;
   }
 
   .account-view-profile .settings-content > .settings-field:nth-child(4),
@@ -1166,12 +1168,8 @@
     display: none;
   }
 
-  .supply-table .account-table-row {
-    grid-template-columns: 1fr 100px 140px 100px;
-  }
-
-  .supply-table .account-table-row span:nth-child(5) {
-    display: none;
+  .products-table .account-table-row {
+    grid-template-columns: minmax(0, 1fr) 90px 80px 110px;
   }
 
   .shipments-table .account-table-head span:nth-child(3) {
@@ -1180,24 +1178,6 @@
 
   .shipments-table .account-table-head span:nth-child(3)::before {
     content: 'Date Sent';
-    font-size: 12px;
-  }
-
-  .supply-table .account-table-head span:nth-child(1) {
-    font-size: 0;
-  }
-
-  .supply-table .account-table-head span:nth-child(1)::before {
-    content: 'Peptide';
-    font-size: 12px;
-  }
-
-  .supply-table .account-table-head span:nth-child(2) {
-    font-size: 0;
-  }
-
-  .supply-table .account-table-head span:nth-child(2)::before {
-    content: 'Qty';
     font-size: 12px;
   }
 
@@ -1301,8 +1281,8 @@
     grid-template-columns: 1fr 100px 80px 80px;
   }
 
-  .supply-table .account-table-row {
-    grid-template-columns: 1fr 80px 120px 80px;
+  .products-table .account-table-row {
+    grid-template-columns: minmax(0, 1fr) 70px 70px 90px;
   }
 
   .account-table-row {
@@ -1637,4 +1617,66 @@
   .address-field-grid.three {
     grid-template-columns: 1fr;
   }
+}
+
+.product-edit-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.products-empty {
+  margin: 0;
+  color: #7e7e7e;
+  font-size: 13px;
+}
+
+.product-modal-card {
+  max-width: 680px;
+}
+
+.product-field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.product-field-wide {
+  grid-column: 1 / -1;
+}
+
+.address-field textarea {
+  padding: 10px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  font: inherit;
+  resize: vertical;
+}
+
+.product-stock-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+@media (max-width: 1023px) {
+  .product-field-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.product-suggestion-add {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.product-suggestion-add button {
+  color: var(--primary);
+  font-weight: 600;
 }

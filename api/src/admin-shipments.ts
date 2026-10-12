@@ -83,7 +83,6 @@ export const registerShipmentRoutes = (router: Router, deps: AdminRouteDeps): vo
       batch_code: values.batch_code ?? null,
       sender: values.sender ?? null,
       coa_url: typeof values.coa_url === 'string' && /^https?:\/\//.test(values.coa_url) ? values.coa_url : null,
-      is_demo: false,
     };
     const { data, error } = await getServiceClient().from('vendor_tests').insert(row).select('id').single();
     if (error || !data) throw error ?? new Error('catalog_publish_failed');

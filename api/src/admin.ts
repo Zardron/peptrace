@@ -11,6 +11,10 @@ import {
 } from './admin-policy.js';
 import { consumeRateLimit } from './rate-limit.js';
 import { registerCatalogRoutes } from './admin-catalog.js';
+import { registerBillingSettingsRoutes } from './admin-billing.js';
+import { registerEmailAdminRoutes } from './admin-email.js';
+import { loadEmailSettingsRow } from './email.js';
+import { loadBillingSettingsRow } from './billing.js';
 import type { AdminRouteDeps } from './admin-input.js';
 import { registerShipmentRoutes } from './admin-shipments.js';
 import { registerContentAdminRoutes } from './site-content.js';
@@ -19,8 +23,8 @@ import { registerAdminUserRoutes } from './admin-admins.js';
 import { registerVendorApplicationAdminRoutes } from './vendor-applications.js';
 
 const ADMIN_COOKIE = 'peptrace_admin_session';
-const ADMIN_SESSION_SECONDS = 12 * 60 * 60;
-const ADMIN_SESSION_SECONDS_REMEMBERED = 7 * 24 * 60 * 60;
+const ADMIN_SESSION_SECONDS = 30 * 24 * 60 * 60;
+const ADMIN_SESSION_SECONDS_REMEMBERED = 30 * 24 * 60 * 60;
 const MAX_FAILED_LOGINS = 5;
 const LOCK_SECONDS = 15 * 60;
 
@@ -434,8 +438,8 @@ const compatiblePanelData = async () => {
   const [{ data: vendors, error: vendorsError }, { data: peptides, error: peptidesError }, { data: tests, error: testsError }] =
     await Promise.all([
       db.from('vendors').select('id, name, slug, score, cost_per_mg').eq('is_demo', false).order('name'),
-      db.from('peptides').select('id, name').order('name'),
-      db.from('vendor_tests').select('id, vendor_id, peptide_name, lab_name, tested_at, result, purity, tested_mg, label_mg').eq('is_demo', false).order('tested_at', { ascending: false }),
+      db.from('peptides').select('id, name').eq('status', 'listed').order('name'),
+      db.from('vendor_tests').select('id, vendor_id, peptide_name, lab_name, tested_at, result, purity, tested_mg, label_mg').order('tested_at', { ascending: false }),
     ]);
   if (vendorsError || peptidesError || testsError) throw new Error('catalog_read_failed');
 
@@ -664,6 +668,8 @@ export const createAdminRouter = (): Router => {
     requirePermission,
   };
   registerCatalogRoutes(router, routeDeps);
+  registerBillingSettingsRoutes(router, routeDeps);
+  registerEmailAdminRoutes(router, routeDeps);
   registerShipmentRoutes(router, routeDeps);
   registerContentAdminRoutes(router, routeDeps);
   registerPrivacyRoutes(router, routeDeps);
@@ -676,6 +682,93 @@ export const createAdminRouter = (): Router => {
 
   router.get('/admin-panel/data', requirePermission('dashboard:read'), async (_req, res) => {
     res.json(await compatiblePanelData());
+  });
+
+  router.get('/custom-pages', async (req: AdminRequest, res) => {
+    const pages = roleHasPermission(req.admin!.role, 'vendors:manage')
+      ? [{
+          id: 'vendor-approvals',
+          title: 'Vendor approvals',
+          description: 'Review and approve vendor profile applications.',
+          group: 'Operations',
+          icon: 'clipboard-check',
+          renderer: 'table',
+          dataEndpoint: '/vendor-signup-applications',
+          itemsKey: 'applications',
+          emptyText: 'No pending vendor applications.',
+          columns: [
+            { key: 'vendorName', label: 'Vendor' },
+            { key: 'applicantEmail', label: 'Applicant' },
+            { key: 'currentSituation', label: 'Situation' },
+            { key: 'batchIdentifiers', label: 'Batch IDs' },
+            { key: 'premiumOptIn', label: 'Premium' },
+            { key: 'submittedAt', label: 'Submitted', format: 'date' },
+          ],
+          rowAction: {
+            label: 'Approve',
+            endpoint: '/vendor-signup-applications/{id}/approve',
+            method: 'POST',
+            removeRowOnSuccess: true,
+          },
+        }]
+      : [];
+    res.json({ pages });
+  });
+
+  router.get('/vendor-signup-applications', requirePermission('vendors:manage'), async (_req, res) => {
+    const { data, error } = await getServiceClient()
+      .from('vendor_signup_application')
+      .select('id, user_id, email, distributes_peptides, current_situation, vendor_name, batch_identifiers, premium_opt_in, status, created_at')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true })
+      .limit(100);
+    if (error) {
+      res.status(500).json({ error: 'Could not load vendor applications' });
+      return;
+    }
+    res.json({ applications: (data ?? []).map((application) => ({
+      id: application.id,
+      applicantEmail: application.email,
+      distributesPeptides: application.distributes_peptides,
+      currentSituation: application.current_situation,
+      vendorName: application.vendor_name,
+      batchIdentifiers: application.batch_identifiers,
+      premiumOptIn: application.premium_opt_in,
+      submittedAt: application.created_at,
+    })) });
+  });
+
+  router.post('/vendor-signup-applications/:id/approve', requirePermission('vendors:manage'), async (req: AdminRequest, res) => {
+    const applicationId = req.params.id;
+    if (!isUuid(applicationId)) {
+      res.status(400).json({ error: 'Invalid application id' });
+      return;
+    }
+    if (!await requireAuditRecord(req, res, {
+      actor: req.admin!,
+      action: 'vendor.signup.approval.authorized',
+      targetType: 'vendor_signup_application',
+      targetId: applicationId,
+    })) return;
+
+    const { data: vendorId, error } = await getServiceClient().rpc('approve_vendor_signup_application', {
+      p_application_id: applicationId,
+      p_admin_id: req.admin!.id,
+    });
+    if (error) {
+      if (error.code === 'P0002') {
+        res.status(404).json({ error: 'Vendor application not found' });
+      } else if (error.code === 'P0001') {
+        res.status(409).json({ error: 'Vendor application is no longer pending' });
+      } else if (error.code === '23505') {
+        res.status(409).json({ error: 'A vendor with this name already exists' });
+      } else {
+        console.error(JSON.stringify({ event: 'vendor_signup_application_approve_failed', code: error.code }));
+        res.status(500).json({ error: 'Could not approve vendor application' });
+      }
+      return;
+    }
+    res.status(201).json({ vendorId, status: 'approved' });
   });
 
   router.get('/dashboard', requirePermission('dashboard:read'), async (req, res) => {
@@ -961,7 +1054,13 @@ export const createAdminRouter = (): Router => {
       res.status(500).json({ error: 'Could not load subscriptions' });
       return;
     }
-    res.json({ items: data ?? [], page, pageSize, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / pageSize) });
+    const userIds = [...new Set((data ?? []).map((row) => row.user_id).filter((id): id is string => Boolean(id)))];
+    const { data: accounts } = userIds.length
+      ? await getServiceClient().from('user_accounts').select('id, email').in('id', userIds)
+      : { data: [] as Array<{ id: string; email: string }> };
+    const emailById = new Map((accounts ?? []).map((account) => [account.id, account.email]));
+    const items = (data ?? []).map((row) => ({ ...row, user_email: row.user_id ? emailById.get(row.user_id) ?? null : null }));
+    res.json({ items, page, pageSize, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / pageSize) });
   });
 
   router.get('/support/requests', requirePermission('support:read'), async (req, res) => {
@@ -1153,6 +1252,8 @@ export const createAdminRouter = (): Router => {
       db.storage.getBucket('profile_photos'),
       providerRequiresEmailConfirmation().then(() => true).catch(() => false),
     ]);
+    const billingRow = await loadBillingSettingsRow().catch(() => null);
+    const emailRow = await loadEmailSettingsRow().catch(() => null);
     res.json({
       checkedAt: new Date().toISOString(),
       services: {
@@ -1160,10 +1261,10 @@ export const createAdminRouter = (): Router => {
         database: { status: databaseError ? 'degraded' : 'operational' },
         authentication: { status: authenticationCheck ? 'operational' : 'degraded' },
         storage: { status: storageCheck.error ? 'degraded' : 'operational' },
-        billing: { status: process.env.BILLING_PROVIDER ? 'configured' : 'not_configured', failures: webhookFailures ?? 0 },
+        billing: { status: process.env.BILLING_PROVIDER || billingRow?.secret_key_encrypted ? 'configured' : 'not_configured', failures: webhookFailures ?? 0 },
         email: {
           status: authenticationCheck
-            ? (process.env.EMAIL_PROVIDER ? 'configured' : 'authentication_only')
+            ? (process.env.EMAIL_PROVIDER || (emailRow?.api_key_encrypted && emailRow.from_email) ? 'configured' : 'authentication_only')
             : 'degraded',
           failures: notificationFailures ?? 0,
         },

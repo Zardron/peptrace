@@ -5,15 +5,15 @@ import { roleHasPermission, type AdminPermission, type AdminRole } from '../src/
 const expected: Record<AdminRole, AdminPermission[]> = {
   super_admin: [
     'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
-    'billing:read', 'privacy:read', 'privacy:manage', 'support:read', 'support:manage',
-    'catalog:read', 'catalog:manage', 'content:manage', 'admins:manage', 'audit:read', 'system:read',
+    'vendors:manage', 'billing:read', 'billing:manage', 'privacy:read', 'privacy:manage', 'support:read', 'support:manage',
+    'catalog:read', 'catalog:manage', 'content:manage', 'email:manage', 'admins:manage', 'audit:read', 'system:read',
   ],
   support_admin: [
     'dashboard:read', 'users:read', 'users:manage', 'shipments:read', 'shipments:manage',
-    'privacy:read', 'privacy:manage', 'support:read', 'support:manage', 'catalog:read',
+    'vendors:manage', 'privacy:read', 'privacy:manage', 'support:read', 'support:manage', 'catalog:read',
   ],
-  billing_admin: ['dashboard:read', 'billing:read'],
-  content_admin: ['dashboard:read', 'catalog:read', 'catalog:manage', 'content:manage'],
+  billing_admin: ['dashboard:read', 'billing:read', 'billing:manage'],
+  content_admin: ['dashboard:read', 'catalog:read', 'catalog:manage', 'content:manage', 'email:manage'],
   analyst: ['dashboard:read', 'catalog:read', 'system:read'],
 };
 
@@ -34,6 +34,7 @@ test('every Admin role has exactly its server-side permission matrix', () => {
 test('read-only and specialist roles cannot mutate unrelated resources', () => {
   assert.equal(roleHasPermission('analyst', 'users:manage'), false);
   assert.equal(roleHasPermission('analyst', 'support:manage'), false);
+  assert.equal(roleHasPermission('analyst', 'vendors:manage'), false);
   assert.equal(roleHasPermission('billing_admin', 'users:manage'), false);
   assert.equal(roleHasPermission('billing_admin', 'support:manage'), false);
   assert.equal(roleHasPermission('support_admin', 'billing:read'), false);

@@ -12,6 +12,7 @@ import SiteFooter from './components/SiteFooter/SiteFooter'
 import VendorsList from './components/VendorsList/VendorsList'
 import VendorDetails from './components/VendorDetails/VendorDetails'
 import VendorSignupForm from './components/VendorSignupForm/VendorSignupForm'
+import VendorProducts from './components/VendorProducts/VendorProducts'
 import ShipmentDetails from './components/ShipmentDetails/ShipmentDetails'
 import FullLeaderboard from './components/FullLeaderboard/FullLeaderboard'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
@@ -33,7 +34,7 @@ const accountRoutes = new Map<string, AccountView>([
   ['/support', 'support'],
 ])
 
-const routedPaths = new Set(['/membership', '/vendors', '/vendor-signup', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', '/products', ...accountRoutes.keys()])
+const routedPaths = new Set(['/membership', '/vendors', '/vendor-signup', '/vendor-products', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', '/products', '/vendor-signup', ...accountRoutes.keys()])
 
 const PRODUCT_LEADERBOARD_PREFIX = '/product/'
 const PRODUCT_LEADERBOARD_SUFFIX = '/leaderboard'
@@ -154,6 +155,8 @@ function App() {
   const isLegalPage = pagePath === '/terms' || pagePath === '/privacy' || pagePath === '/refund' || pagePath === '/data-deletion'
   const isMethodologyPage = pagePath === '/methodology'
   const isProductsPage = pagePath === '/products'
+  const isVendorSignUpPage = pagePath === '/vendor-signup'
+  const isVendorProductsPage = pagePath === '/vendor-products'
   const isVendorsPage = pagePath === '/vendors'
   const isVendorDetailsPage = pagePath.startsWith('/vendors/') && pagePath !== '/vendors'
   const productLeaderboardSlug = getProductLeaderboardSlug(pagePath)
@@ -162,10 +165,10 @@ function App() {
   const isAccountRoute = Boolean(accountView)
 
   useEffect(() => {
-    if (isAccountRoute && !isLoading && !user) {
+    if ((isAccountRoute || pagePath === '/vendor-signup') && !isLoading && !user) {
       setAuthOpen(true)
     }
-  }, [isAccountRoute, isLoading, user])
+  }, [isAccountRoute, isLoading, pagePath, user])
 
   if (isLoading) {
     return <div className="app" />
@@ -262,6 +265,22 @@ function App() {
           <HeaderBar onSignUpClick={openAuthModal} activeRoute="/products" />
           <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
             <AllPeptides />
+          </main>
+          <SiteFooter />
+        </>
+      ) : isVendorProductsPage ? (
+        <>
+          <HeaderBar onSignUpClick={!user ? openAuthModal : undefined} activeRoute="/vendor-products" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <VendorProducts />
+          </main>
+          <SiteFooter />
+        </>
+      ) : isVendorSignUpPage ? (
+        <>
+          <HeaderBar onSignUpClick={!user ? openAuthModal : undefined} activeRoute="/vendor-signup" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <VendorSignupForm />
           </main>
           <SiteFooter />
         </>
