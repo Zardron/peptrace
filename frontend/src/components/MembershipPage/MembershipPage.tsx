@@ -1,4 +1,8 @@
 import './MembershipPage.css'
+import { useCallback, useState } from 'react'
+import UpgradeModal, { type UpgradePlan } from './UpgradeModal'
+import { useAuth } from '../../context/AuthContext'
+import { TONE_RANK, useMembership, type MembershipTone } from '../../lib/membership'
 import checkGreen from '../../assets/membership/check-green.svg'
 import checkMuted from '../../assets/membership/check-muted.svg'
 import highlightCoa from '../../assets/membership/highlight-coa.png'
@@ -18,8 +22,33 @@ const buttonVariants: Record<Plan['tone'], string> = {
 
 type Plan = SiteContent['membership']['plans'][number]
 
-function PricingCard({ plan, onSignUpClick }: { plan: Plan; onSignUpClick?: () => void }) {
+function PricingCard({
+  plan,
+  isLoggedIn,
+  currentTone,
+  onSignUpClick,
+  onSubscribe,
+}: {
+  plan: Plan
+  isLoggedIn: boolean
+  currentTone: MembershipTone
+  onSignUpClick?: () => void
+  onSubscribe: (plan: Plan) => void
+}) {
   const checkIcon = plan.tone === 'muted' ? checkMuted : checkGreen
+  const isCurrent = isLoggedIn && plan.tone === currentTone
+  const isLower = isLoggedIn && TONE_RANK[plan.tone] < TONE_RANK[currentTone]
+  const isFree = plan.tone === 'muted'
+
+  let label = 'Subscribe'
+  if (isCurrent) label = 'Current Plan'
+  else if (isLower) label = 'Included in your plan'
+  else if (isFree) label = 'Create a free account'
+
+  const handleClick = () => {
+    if (!isLoggedIn) onSignUpClick?.()
+    else if (!isFree) onSubscribe(plan)
+  }
 
   return (
     <article className="membership-pricing-card">
@@ -49,10 +78,10 @@ function PricingCard({ plan, onSignUpClick }: { plan: Plan; onSignUpClick?: () =
       <button
         type="button"
         className={`membership-card-button ${buttonVariants[plan.tone]}`}
-        disabled={plan.tone !== 'muted'}
-        onClick={plan.tone === 'muted' ? onSignUpClick : undefined}
+        disabled={isCurrent || isLower}
+        onClick={handleClick}
       >
-        {plan.tone === 'muted' ? 'Create a free account' : 'Billing integration coming soon'}
+        {label}
       </button>
     </article>
   )
@@ -65,6 +94,15 @@ interface MembershipPageProps {
 export default function MembershipPage({ onSignUpClick }: MembershipPageProps) {
   const content = useSiteContent('membership')
   const footer = useSiteContent('footer')
+  const { user } = useAuth()
+  const { tone, refresh } = useMembership()
+  const [upgradePlan, setUpgradePlan] = useState<UpgradePlan | null>(null)
+  const closeUpgrade = useCallback(() => setUpgradePlan(null), [])
+
+  const startUpgrade = (plan: Plan) => {
+    if (plan.tone === 'muted') return
+    setUpgradePlan({ id: plan.tone === 'gold' ? 'gold' : 'member', title: plan.title, price: plan.price, period: plan.period })
+  }
 
   return (
     <div className="membership-page">
@@ -82,7 +120,14 @@ export default function MembershipPage({ onSignUpClick }: MembershipPageProps) {
         <section className="membership-pricing" aria-label="Membership pricing">
           <div className="membership-pricing-grid">
             {content.plans.map((plan, index) => (
-              <PricingCard plan={plan} onSignUpClick={onSignUpClick} key={`${index}-${plan.title}`} />
+              <PricingCard
+                plan={plan}
+                isLoggedIn={Boolean(user)}
+                currentTone={tone}
+                onSignUpClick={onSignUpClick}
+                onSubscribe={startUpgrade}
+                key={`${index}-${plan.title}`}
+              />
             ))}
           </div>
 
@@ -154,6 +199,7 @@ export default function MembershipPage({ onSignUpClick }: MembershipPageProps) {
         <span className="membership-footer-rule" />
         <p>{footer.copyright}</p>
       </footer>
+      <UpgradeModal plan={upgradePlan} onClose={closeUpgrade} onUpgraded={() => void refresh()} />
     </div>
   )
 }

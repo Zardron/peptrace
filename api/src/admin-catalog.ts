@@ -16,6 +16,7 @@ import {
 import { notifyCatalogChanged } from './catalog-cache.js';
 import { detectUploadType, extensionForUploadType, isUuid, type SafeUploadType } from './security.js';
 import { getServiceClient } from './supabase.js';
+import { VENDOR_PRODUCT_COLUMNS, resolveProductPeptide, toVendorProduct, vendorProductValues } from './vendor-products.js';
 
 const CATALOG_ASSETS_BUCKET = 'catalog-assets';
 const MAX_CATALOG_ASSET_BYTES = 5 * 1024 * 1024;
@@ -301,7 +302,7 @@ export const registerCatalogRoutes = (router: Router, deps: AdminRouteDeps): voi
   router.get('/catalog/peptides', canRead, async (_req, res) => {
     const db = getServiceClient();
     const [{ data: peptides, error }, { data: tests, error: testsError }] = await Promise.all([
-      db.from('peptides').select('id, name, description, testing_price').order('name'),
+      db.from('peptides').select('id, name, description, testing_price, status').order('name'),
       db.from('vendor_tests').select('peptide_name'),
     ]);
     if (error || testsError) {
@@ -320,6 +321,7 @@ export const registerCatalogRoutes = (router: Router, deps: AdminRouteDeps): voi
         slug: slugify(String(peptide.name)),
         description: peptide.description,
         testingPrice: peptide.testing_price == null ? 0 : Number(peptide.testing_price),
+        status: peptide.status ?? 'listed',
         testCount: testCounts.get(String(peptide.name).toLowerCase()) ?? 0,
       })),
     });
@@ -333,7 +335,7 @@ export const registerCatalogRoutes = (router: Router, deps: AdminRouteDeps): voi
         metadata: { name: values.name },
       })) return;
       const { data, error } = await getServiceClient().from('peptides').insert(values)
-        .select('id, name, description, testing_price').single();
+        .select('id, name, description, testing_price, status').single();
       if (error || !data) throw error ?? new Error('peptide_insert_failed');
       notifyCatalogChanged();
       await audit(req, { actor: actor(req), action: 'catalog.peptide.created', targetType: 'peptide', targetId: data.id });
@@ -365,7 +367,7 @@ export const registerCatalogRoutes = (router: Router, deps: AdminRouteDeps): voi
         targetId: existing.id, metadata: { fields: Object.keys(values) },
       })) return;
       const { data, error } = await db.from('peptides').update(values)
-        .eq('id', existing.id).select('id, name, description, testing_price').single();
+        .eq('id', existing.id).select('id, name, description, testing_price, status').single();
       if (error || !data) throw error ?? new Error('peptide_update_failed');
 
       // Lab results reference peptides by name, so carry a rename through to them.
@@ -387,6 +389,61 @@ export const registerCatalogRoutes = (router: Router, deps: AdminRouteDeps): voi
       res.json({ ...data, testingPrice: Number(data.testing_price ?? 0) });
     } catch (error) {
       sendError(res, error, 'Could not update the peptide');
+    }
+  });
+
+  router.post('/catalog/peptides/:id/approve', canManage, async (req, res) => {
+    if (!isUuid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid peptide identifier' });
+      return;
+    }
+    try {
+      if (!await requireAuditRecord(req, res, {
+        actor: actor(req), action: 'catalog.peptide.approve.authorized', targetType: 'peptide', targetId: String(req.params.id),
+      })) return;
+      const { data, error } = await getServiceClient().from('peptides')
+        .update({ status: 'listed' })
+        .eq('id', req.params.id).eq('status', 'pending_approval')
+        .select('id, name, description, testing_price, status').maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        res.status(404).json({ error: 'No pending peptide found' });
+        return;
+      }
+      notifyCatalogChanged();
+      await audit(req, { actor: actor(req), action: 'catalog.peptide.approved', targetType: 'peptide', targetId: data.id });
+      res.json({ ...data, testingPrice: Number(data.testing_price ?? 0) });
+    } catch (error) {
+      sendError(res, error, 'Could not approve the peptide');
+    }
+  });
+
+  router.post('/catalog/peptides/:id/deny', canManage, async (req, res) => {
+    if (!isUuid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid peptide identifier' });
+      return;
+    }
+    const reason = reasonFrom(req);
+    if (!reason) {
+      res.status(400).json({ error: 'A reason is required' });
+      return;
+    }
+    try {
+      if (!await requireAuditRecord(req, res, {
+        actor: actor(req), action: 'catalog.peptide.deny.authorized', targetType: 'peptide',
+        targetId: String(req.params.id), reason,
+      })) return;
+      const { data, error } = await getServiceClient().from('peptides').delete()
+        .eq('id', req.params.id).eq('status', 'pending_approval').select('id').maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        res.status(404).json({ error: 'No pending peptide found' });
+        return;
+      }
+      await audit(req, { actor: actor(req), action: 'catalog.peptide.denied', targetType: 'peptide', targetId: data.id, reason });
+      res.status(204).end();
+    } catch (error) {
+      sendError(res, error, 'Could not deny the peptide');
     }
   });
 
@@ -451,6 +508,98 @@ export const registerCatalogRoutes = (router: Router, deps: AdminRouteDeps): voi
       total: count ?? 0,
       totalPages: Math.ceil((count ?? 0) / pageSize),
     });
+  });
+
+  router.get('/catalog/vendor-products', canRead, async (req, res) => {
+    const page = Math.max(1, Number.parseInt(String(req.query.page ?? '1'), 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number.parseInt(String(req.query.pageSize ?? '25'), 10) || 25));
+    const vendorId = typeof req.query.vendorId === 'string' && isUuid(req.query.vendorId) ? req.query.vendorId : null;
+
+    const db = getServiceClient();
+    let query = db.from('vendor_products').select(VENDOR_PRODUCT_COLUMNS, { count: 'exact' });
+    if (vendorId) query = query.eq('vendor_id', vendorId);
+    const { data, count, error } = await query
+      .order('created_at', { ascending: false })
+      .range((page - 1) * pageSize, page * pageSize - 1);
+    if (error) {
+      res.status(500).json({ error: 'Could not load vendor products' });
+      return;
+    }
+    const vendorIds = [...new Set((data ?? []).map((row) => row.vendor_id))];
+    const { data: vendors } = vendorIds.length
+      ? await db.from('vendors').select('id, name').in('id', vendorIds)
+      : { data: [] as Array<{ id: string; name: string }> };
+    const nameById = new Map((vendors ?? []).map((vendor) => [vendor.id, vendor.name]));
+    res.json({
+      items: (data ?? []).map((row) => ({ ...toVendorProduct(row), vendorName: nameById.get(row.vendor_id) ?? null })),
+      page,
+      pageSize,
+      total: count ?? 0,
+      totalPages: Math.ceil((count ?? 0) / pageSize),
+    });
+  });
+
+  router.patch('/catalog/vendor-products/:id', canManage, async (req, res) => {
+    if (!isUuid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid product identifier' });
+      return;
+    }
+    try {
+      const values = vendorProductValues(bodyOf(req), true);
+      const body = bodyOf(req);
+      if (has(body, 'peptideName') || has(body, 'peptideId')) {
+        Object.assign(values, await resolveProductPeptide(getServiceClient(), body, 'listed'));
+      }
+      if (Object.keys(values).length === 0) {
+        res.status(400).json({ error: 'No product changes were provided' });
+        return;
+      }
+      if (!await requireAuditRecord(req, res, {
+        actor: actor(req), action: 'catalog.vendor_product.update.authorized', targetType: 'vendor_product',
+        targetId: String(req.params.id), metadata: { fields: Object.keys(values) },
+      })) return;
+      const { data, error } = await getServiceClient().from('vendor_products')
+        .update({ ...values, updated_at: new Date().toISOString() })
+        .eq('id', req.params.id).select(VENDOR_PRODUCT_COLUMNS).maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+      }
+      await audit(req, { actor: actor(req), action: 'catalog.vendor_product.updated', targetType: 'vendor_product', targetId: data.id });
+      res.json(toVendorProduct(data));
+    } catch (error) {
+      sendError(res, error, 'Could not update the product');
+    }
+  });
+
+  router.delete('/catalog/vendor-products/:id', canManage, async (req, res) => {
+    if (!isUuid(req.params.id)) {
+      res.status(400).json({ error: 'Invalid product identifier' });
+      return;
+    }
+    const reason = reasonFrom(req);
+    if (!reason) {
+      res.status(400).json({ error: 'A reason is required' });
+      return;
+    }
+    try {
+      if (!await requireAuditRecord(req, res, {
+        actor: actor(req), action: 'catalog.vendor_product.delete.authorized', targetType: 'vendor_product',
+        targetId: String(req.params.id), reason,
+      })) return;
+      const { data, error } = await getServiceClient().from('vendor_products')
+        .delete().eq('id', req.params.id).select('id').maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+      }
+      await audit(req, { actor: actor(req), action: 'catalog.vendor_product.deleted', targetType: 'vendor_product', targetId: data.id, reason });
+      res.status(204).end();
+    } catch (error) {
+      sendError(res, error, 'Could not delete the product');
+    }
   });
 
   router.post('/catalog/tests', canManage, async (req, res) => {

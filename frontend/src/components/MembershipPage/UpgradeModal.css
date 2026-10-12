@@ -1,0 +1,101 @@
+.upgrade-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.upgrade-card {
+  width: 100%;
+  max-width: 460px;
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 24px;
+  border-radius: 16px;
+  background: #fff;
+  color: #141414;
+}
+
+.upgrade-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.upgrade-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.upgrade-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f7f9f8;
+}
+
+.upgrade-summary strong {
+  font-size: 1.25rem;
+}
+
+.upgrade-summary small {
+  margin-left: 4px;
+  color: #7e7e7e;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.upgrade-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.upgrade-pay-button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.upgrade-pay-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.upgrade-error {
+  margin: 0;
+  color: #b3261e;
+  font-size: 0.875rem;
+}
+
+.upgrade-loading,
+.upgrade-fineprint {
+  margin: 0;
+  color: #7e7e7e;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.upgrade-success {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.upgrade-success p {
+  margin: 0;
+}

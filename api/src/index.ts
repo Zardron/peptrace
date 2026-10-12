@@ -8,7 +8,6 @@ import {
   supabase,
   createProviderAuthClient,
   getServiceClient,
-  providerRequiresEmailConfirmation,
   sessionSecret,
 } from './supabase.js';
 import { createAdminRouter, ensureAdminBootstrap, getAccountOperationalStatus, hashUserSubject } from './admin.js';
@@ -16,7 +15,10 @@ import { onCatalogChanged } from './catalog-cache.js';
 import { registerPublicContentRoutes } from './site-content.js';
 import { registerPublicVendorApplicationRoutes } from './vendor-applications.js';
 import {
+  DUMMY_PASSWORD_HASH,
+  hashPassword,
   isValidEmail,
+  verifyPassword,
   MIN_PASSWORD_LENGTH,
   MAX_PASSWORD_LENGTH,
 } from './auth.js';
@@ -29,13 +31,16 @@ import {
   type SafeUploadType,
 } from './security.js';
 import {
-  classifyProviderRegistrationError,
   isRecentProviderSession,
   passwordMeetsPolicy,
   providerMayUseBearerExchange,
 } from './provider-auth.js';
 import { consumeRateLimit } from './rate-limit.js';
 import { parseVendorSignupApplication } from './vendor-signup.js';
+import { sendError, ValidationError } from './admin-input.js';
+import { handleStripeWebhook, registerCustomerBillingRoutes } from './billing.js';
+import { sendTemplatedEmail } from './email.js';
+import { VENDOR_PRODUCT_COLUMNS, resolveProductPeptide, toVendorProduct, vendorProductValues } from './vendor-products.js';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -79,6 +84,8 @@ app.use((req, res, next) => {
   next();
 });
 // 8 MB to fit base64-encoded avatar uploads (5 MB decoded cap below).
+// Stripe signs the raw body, so the webhook must be mounted before JSON parsing.
+app.post('/billing/webhooks/stripe', express.raw({ type: 'application/json', limit: '1mb' }), handleStripeWebhook);
 app.use(express.json({ limit: '8mb' }));
 const adminRouter = createAdminRouter();
 app.use('/admin', adminRouter);
@@ -90,7 +97,7 @@ interface Session {
   name: string | null;
   customerSessionId?: string;
   rawCustomerSessionToken?: string;
-  source: 'supabase';
+  source: 'supabase' | 'native';
   createdAt: string;
   // Opaque sessions resolve to the service client. Every user-data query below
   // carries an explicit account filter; the browser never receives this key.
@@ -98,7 +105,7 @@ interface Session {
 }
 
 const CUSTOMER_SESSION_COOKIE = 'peptrace_session';
-const CUSTOMER_SESSION_SECONDS = 7 * 24 * 60 * 60;
+const CUSTOMER_SESSION_SECONDS = 30 * 24 * 60 * 60;
 
 const parseCookieHeader = (header: string | undefined): Record<string, string> => {
   if (!header) return {};
@@ -142,6 +149,7 @@ const createCustomerSession = async (
   req: express.Request,
   res: express.Response,
   userId: string,
+  source: 'supabase' | 'native' = 'supabase',
 ): Promise<string> => {
   const token = crypto.randomBytes(48).toString('base64url');
   const expiresAt = new Date(Date.now() + CUSTOMER_SESSION_SECONDS * 1000).toISOString();
@@ -149,7 +157,7 @@ const createCustomerSession = async (
   const { error } = await getServiceClient().from('customer_sessions').insert({
     user_id: userId,
     token_hash: customerTokenHash(token),
-    source: 'supabase',
+    source,
     expires_at: expiresAt,
     ip_hash: crypto.createHmac('sha256', sessionSecret()!).update(`customer-ip:${address}`).digest('hex'),
     user_agent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'].slice(0, 500) : null,
@@ -203,6 +211,7 @@ app.get('/peptides', async (_req, res) => {
   const { data, error } = await supabase
     .from('peptides')
     .select('id, name, testing_price')
+    .eq('status', 'listed')
     .order('name', { ascending: true });
   if (error) {
     res.status(500).json({ error: 'Failed to load peptides' });
@@ -702,7 +711,7 @@ const authenticate = async (req: express.Request): Promise<Session | null> => {
       .select('id, user_id, source, expires_at, revoked_at, last_seen_at, created_at')
       .eq('token_hash', customerTokenHash(rawCustomerSessionToken))
       .maybeSingle();
-    if (customerSession && customerSession.source === 'supabase' && !customerSession.revoked_at && new Date(customerSession.expires_at).getTime() > Date.now()) {
+    if (customerSession && (customerSession.source === 'supabase' || customerSession.source === 'native') && !customerSession.revoked_at && new Date(customerSession.expires_at).getTime() > Date.now()) {
       const [{ data: account }, status] = await Promise.all([
         db.from('user_accounts').select('email').eq('id', customerSession.user_id).maybeSingle(),
         getAccountOperationalStatus(customerSession.user_id),
@@ -717,7 +726,7 @@ const authenticate = async (req: express.Request): Promise<Session | null> => {
           name: null,
           customerSessionId: customerSession.id,
           rawCustomerSessionToken,
-          source: 'supabase',
+          source: customerSession.source as 'supabase' | 'native',
           createdAt: customerSession.created_at,
           db,
         };
@@ -825,45 +834,29 @@ app.post('/auth/register', requireJsonRequest, authRateLimit, async (req, res) =
   }
 
   try {
-    if (!await providerRequiresEmailConfirmation()) {
-      res.status(503).json({ error: 'Verified email registration is temporarily unavailable' });
-      return;
-    }
-    const origin = typeof req.headers.origin === 'string' && allowedOrigins.has(req.headers.origin)
-      ? req.headers.origin
-      : 'https://peptrace.co';
-    const provider = createProviderAuthClient();
-    const { data, error } = await provider.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: `${origin}/account` },
+    const { data: accountId, error } = await getServiceClient().rpc('register_native_account', {
+      normalized_email: email,
+      credential_hash: hashPassword(password),
     });
-    if (data.session || data.user?.email_confirmed_at) {
-      console.error(JSON.stringify({ event: 'unsafe_provider_registration_configuration' }));
-      res.status(503).json({ error: 'Verified email registration is temporarily unavailable' });
-      return;
-    }
-    const registrationDisposition = classifyProviderRegistrationError(error);
-    if (registrationDisposition === 'rate_limited') {
-      res.status(429).json({ error: 'Too many registration attempts. Try again later.' });
-      return;
-    }
-    if (registrationDisposition === 'unavailable') {
-      console.error(JSON.stringify({ event: 'provider_registration_unavailable', code: error?.code ?? null }));
-      res.status(503).json({ error: 'Verified email registration is temporarily unavailable' });
-      return;
-    }
     if (error) {
-      // Provider signup responses may vary for an existing address. Return the
-      // same accepted response so this endpoint cannot enumerate accounts.
-      console.error(JSON.stringify({ event: 'provider_registration_deferred', code: error.code ?? null }));
+      if (error.code === '23505') {
+        res.status(409).json({ error: 'An account with this email already exists' });
+        return;
+      }
+      console.error(JSON.stringify({ event: 'native_registration_failed', code: error.code ?? null }));
+      res.status(500).json({ error: 'Could not create the account' });
+      return;
     }
-    res.status(202).json({
-      verificationRequired: true,
-      message: 'If the address can be registered, a verification email will arrive shortly.',
-    });
+    const csrfToken = await createCustomerSession(req, res, accountId as string, 'native');
+    void sendTemplatedEmail({
+      templateKey: 'welcome',
+      to: email,
+      userId: accountId as string,
+      variables: { name: email.split('@')[0] ?? '', siteUrl: allowedOrigins.values().next().value ?? 'https://peptrace.co' },
+    }).catch(() => undefined);
+    res.status(201).json({ csrfToken });
   } catch {
-    res.status(503).json({ error: 'Verified email registration is temporarily unavailable' });
+    res.status(500).json({ error: 'Could not create the account' });
   }
 });
 
@@ -897,9 +890,6 @@ const resolveProviderAccount = async (providerUser: SupabaseUser): Promise<strin
     });
     if (linkError && linkError.code !== '23505') return null;
   }
-  // A verified provider identity permanently supersedes any legacy custom
-  // credential that may have survived an incomplete migration.
-  await db.from('native_credentials').delete().eq('account_id', userId);
   return userId;
 };
 
@@ -916,26 +906,21 @@ app.post('/auth/login', requireJsonRequest, authRateLimit, async (req, res) => {
     return;
   }
   try {
-    if (!await providerRequiresEmailConfirmation()) {
-      res.status(503).json({ error: 'Verified email authentication is temporarily unavailable' });
+    const { data: credential } = await getServiceClient().from('native_credentials')
+      .select('account_id, password_hash')
+      .eq('email', email)
+      .maybeSingle();
+    const passwordMatches = verifyPassword(password, credential?.password_hash ?? DUMMY_PASSWORD_HASH);
+    if (!credential || !passwordMatches) {
+      res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
-    const provider = createProviderAuthClient();
-    const { data, error } = await provider.auth.signInWithPassword({ email, password });
-    if (error || !data.user?.email_confirmed_at) {
-      res.status(401).json({ error: 'Invalid email, password, or verification state' });
-      return;
-    }
-    const userId = await resolveProviderAccount(data.user);
-    if (!userId) {
-      res.status(503).json({ error: 'Could not establish a verified account' });
-      return;
-    }
+    const userId = credential.account_id as string;
     if (await rejectBlockedAccountLogin(userId, res)) return;
-    const csrfToken = await createCustomerSession(req, res, userId);
+    const csrfToken = await createCustomerSession(req, res, userId, 'native');
     res.json({ csrfToken });
   } catch {
-    res.status(503).json({ error: 'Verified email authentication is temporarily unavailable' });
+    res.status(503).json({ error: 'Sign in is temporarily unavailable' });
   }
 });
 
@@ -999,6 +984,36 @@ app.post('/auth/change-password', async (req, res) => {
   }
 
   const db = getServiceClient();
+  const { data: nativeCredential } = await db.from('native_credentials')
+    .select('password_hash')
+    .eq('account_id', session.userId)
+    .maybeSingle();
+  if (nativeCredential) {
+    if (!verifyPassword(currentPassword, nativeCredential.password_hash)) {
+      res.status(401).json({ error: 'Current password is incorrect' });
+      return;
+    }
+    const { error: revokeNativeError } = await revokeAllOwnedSessions(
+      db,
+      'customer',
+      session.userId,
+      new Date().toISOString(),
+    );
+    if (revokeNativeError) {
+      res.status(503).json({ error: 'Could not revoke active sessions' });
+      return;
+    }
+    const { error: nativeUpdateError } = await db.from('native_credentials')
+      .update({ password_hash: hashPassword(newPassword), updated_at: new Date().toISOString() })
+      .eq('account_id', session.userId);
+    clearCustomerCookie(res);
+    if (nativeUpdateError) {
+      res.status(500).json({ error: 'Failed to update password' });
+      return;
+    }
+    res.json({ ok: true, reauthenticationRequired: true });
+    return;
+  }
   const { data: identity, error: identityError } = await db.from('account_identity_links')
     .select('provider_subject')
     .eq('provider', 'supabase')
@@ -1173,6 +1188,152 @@ app.get('/account/vendor-profiles', async (req, res) => {
     return;
   }
   res.json({ vendors: data ?? [] });
+});
+
+const MAX_PRODUCTS_PER_VENDOR = 200;
+
+const managedVendors = async (userId: string) => {
+  const { data, error } = await getServiceClient()
+    .from('vendors')
+    .select('id, name, slug')
+    .eq('manager_user_id', userId)
+    .order('name', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+};
+
+app.get('/account/vendor-products', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  try {
+    const vendors = await managedVendors(session.userId);
+    if (vendors.length === 0) {
+      res.json({ vendors: [], products: [] });
+      return;
+    }
+    const { data, error } = await getServiceClient()
+      .from('vendor_products')
+      .select(VENDOR_PRODUCT_COLUMNS)
+      .in('vendor_id', vendors.map((vendor) => vendor.id))
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    const peptideIds = [...new Set((data ?? []).map((row) => row.peptide_id).filter((id): id is string => Boolean(id)))];
+    const { data: peptides } = peptideIds.length
+      ? await getServiceClient().from('peptides').select('id, status').in('id', peptideIds)
+      : { data: [] as Array<{ id: string; status: string }> };
+    const statusById = new Map((peptides ?? []).map((peptide) => [peptide.id, peptide.status]));
+    res.json({
+      vendors,
+      products: (data ?? []).map((row) => ({
+        ...toVendorProduct(row),
+        peptideStatus: row.peptide_id ? statusById.get(row.peptide_id) ?? 'listed' : 'listed',
+      })),
+    });
+  } catch {
+    res.status(500).json({ error: 'Could not load vendor products' });
+  }
+});
+
+app.post('/account/vendor-products', requireJsonRequest, async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  try {
+    const vendors = await managedVendors(session.userId);
+    const requested = req.body?.vendorId;
+    const vendor = typeof requested === 'string'
+      ? vendors.find((candidate) => candidate.id === requested)
+      : vendors.length === 1 ? vendors[0] : undefined;
+    if (!vendor) {
+      res.status(403).json({ error: 'You can only list products for a vendor you manage' });
+      return;
+    }
+    const values = vendorProductValues(req.body ?? {}, false);
+    const db = getServiceClient();
+    const peptide = await resolveProductPeptide(db, req.body ?? {}, 'pending_approval');
+    const { count } = await db.from('vendor_products')
+      .select('id', { count: 'exact', head: true })
+      .eq('vendor_id', vendor.id);
+    if ((count ?? 0) >= MAX_PRODUCTS_PER_VENDOR) {
+      res.status(409).json({ error: `You can list up to ${MAX_PRODUCTS_PER_VENDOR} products` });
+      return;
+    }
+    const { data, error } = await db.from('vendor_products')
+      .insert({ ...values, ...peptide, vendor_id: vendor.id })
+      .select(VENDOR_PRODUCT_COLUMNS)
+      .single();
+    if (error || !data) throw error ?? new Error('vendor_product_insert_failed');
+    res.status(201).json(toVendorProduct(data));
+  } catch (error) {
+    sendError(res, error, 'Could not save the product');
+  }
+});
+
+const loadOwnedProduct = async (userId: string, productId: unknown) => {
+  if (!isUuid(productId)) return null;
+  const vendors = await managedVendors(userId);
+  if (vendors.length === 0) return null;
+  const { data } = await getServiceClient().from('vendor_products')
+    .select('id')
+    .eq('id', productId)
+    .in('vendor_id', vendors.map((vendor) => vendor.id))
+    .maybeSingle();
+  return data?.id as string | undefined ?? null;
+};
+
+app.patch('/account/vendor-products/:id', requireJsonRequest, async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  try {
+    const productId = await loadOwnedProduct(session.userId, req.params.id);
+    if (!productId) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+    const values = vendorProductValues(req.body ?? {}, true);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    if ('peptideName' in body || 'peptideId' in body) {
+      Object.assign(values, await resolveProductPeptide(getServiceClient(), body, 'pending_approval'));
+    }
+    if (Object.keys(values).length === 0) throw new ValidationError('No product changes were provided');
+    const { data, error } = await getServiceClient().from('vendor_products')
+      .update({ ...values, updated_at: new Date().toISOString() })
+      .eq('id', productId)
+      .select(VENDOR_PRODUCT_COLUMNS)
+      .single();
+    if (error || !data) throw error ?? new Error('vendor_product_update_failed');
+    res.json(toVendorProduct(data));
+  } catch (error) {
+    sendError(res, error, 'Could not save the product');
+  }
+});
+
+app.delete('/account/vendor-products/:id', async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  try {
+    const productId = await loadOwnedProduct(session.userId, req.params.id);
+    if (!productId) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+    const { error } = await getServiceClient().from('vendor_products').delete().eq('id', productId);
+    if (error) throw error;
+    res.status(204).end();
+  } catch (error) {
+    sendError(res, error, 'Could not delete the product');
+  }
 });
 
 const PROFILE_FIELDS = ['full_name', 'organization', 'role', 'phone', 'bio'] as const;
@@ -1644,22 +1805,11 @@ app.put('/account/notifications', async (req, res) => {
   res.json({ preferences: data });
 });
 
-app.get('/account/billing', async (req, res) => {
-  const session = await authenticate(req);
-  if (!session) {
-    res.status(401).json({ error: 'Unauthorized' });
-    return;
-  }
-  const { data, error } = await getServiceClient().from('subscriptions')
-    .select('id, provider, plan, status, trial_start, trial_end, current_period_start, current_period_end, cancel_at_period_end, canceled_at, expires_at, currency, amount_cents, created_at, updated_at')
-    .eq('user_id', session.userId)
-    .order('updated_at', { ascending: false })
-    .limit(20);
-  if (error) {
-    res.status(500).json({ error: 'Failed to load billing information' });
-    return;
-  }
-  res.json({ current: data?.[0] ?? null, history: data ?? [], providerConfigured: Boolean(process.env.BILLING_PROVIDER) });
+registerCustomerBillingRoutes(app, {
+  authenticate,
+  requireJson: requireJsonRequest,
+  rateLimit: authRateLimit,
+  hashSubject: hashUserSubject,
 });
 
 app.get('/account/consents', async (req, res) => {
@@ -2291,6 +2441,7 @@ app.post('/shipments', async (req, res) => {
   const { data: selectedPeptides, error: peptideError } = await getServiceClient()
     .from('peptides')
     .select('id, testing_price')
+    .eq('status', 'listed')
     .in('id', peptideIds);
   if (peptideError || (selectedPeptides ?? []).length !== peptideIds.length) {
     res.status(400).json({ error: 'One or more selected products are unavailable' });

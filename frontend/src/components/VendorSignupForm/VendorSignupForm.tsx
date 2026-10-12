@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { apiFetch } from '../../lib/api'
+import AuthModal from '../AuthModal/AuthModal'
 import './VendorSignupForm.css'
 import chevronLeftIcon from '../../assets/icons/vendorsignup/chevron-left.svg'
 import sparklesIcon from '../../assets/icons/vendorsignup/sparkles.svg'
@@ -16,6 +17,7 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
   const [distributesPeptides, setDistributesPeptides] = useState<boolean | null>(null)
   const [currentSituation, setCurrentSituation] = useState<string>('')
   const [vendorName, setVendorName] = useState('')
+  const [email, setEmail] = useState('')
   const [websiteUrl, setWebsiteUrl] = useState('')
   const [batchIdentifiers, setBatchIdentifiers] = useState<string>('')
   const [premiumOptIn, setPremiumOptIn] = useState(false)
@@ -25,6 +27,7 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
   const [applicationSubmitted, setApplicationSubmitted] = useState(false)
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -98,6 +101,25 @@ export default function VendorSignupForm({ onBack }: VendorSignupFormProps) {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  if (!user) {
+    return (
+      <section className="vendor-signup-form">
+        <div className="vendor-signup-card">
+          <div className="vendor-title-block">
+            <h2 className="vendor-title">Log in to continue</h2>
+            <p className="vendor-subtitle">
+              Log in or sign up to submit a vendor registration.
+            </p>
+          </div>
+          <button type="button" className="vendor-cta" onClick={() => setAuthModalOpen(true)}>
+            Log in or sign up
+          </button>
+        </div>
+        <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+      </section>
+    )
   }
 
   if (submitted) {

@@ -11,6 +11,10 @@ import {
 } from './admin-policy.js';
 import { consumeRateLimit } from './rate-limit.js';
 import { registerCatalogRoutes } from './admin-catalog.js';
+import { registerBillingSettingsRoutes } from './admin-billing.js';
+import { registerEmailAdminRoutes } from './admin-email.js';
+import { loadEmailSettingsRow } from './email.js';
+import { loadBillingSettingsRow } from './billing.js';
 import type { AdminRouteDeps } from './admin-input.js';
 import { registerShipmentRoutes } from './admin-shipments.js';
 import { registerContentAdminRoutes } from './site-content.js';
@@ -19,8 +23,8 @@ import { registerAdminUserRoutes } from './admin-admins.js';
 import { registerVendorApplicationAdminRoutes } from './vendor-applications.js';
 
 const ADMIN_COOKIE = 'peptrace_admin_session';
-const ADMIN_SESSION_SECONDS = 12 * 60 * 60;
-const ADMIN_SESSION_SECONDS_REMEMBERED = 7 * 24 * 60 * 60;
+const ADMIN_SESSION_SECONDS = 30 * 24 * 60 * 60;
+const ADMIN_SESSION_SECONDS_REMEMBERED = 30 * 24 * 60 * 60;
 const MAX_FAILED_LOGINS = 5;
 const LOCK_SECONDS = 15 * 60;
 
@@ -434,7 +438,7 @@ const compatiblePanelData = async () => {
   const [{ data: vendors, error: vendorsError }, { data: peptides, error: peptidesError }, { data: tests, error: testsError }] =
     await Promise.all([
       db.from('vendors').select('id, name, slug, score, cost_per_mg').eq('is_demo', false).order('name'),
-      db.from('peptides').select('id, name').order('name'),
+      db.from('peptides').select('id, name').eq('status', 'listed').order('name'),
       db.from('vendor_tests').select('id, vendor_id, peptide_name, lab_name, tested_at, result, purity, tested_mg, label_mg').order('tested_at', { ascending: false }),
     ]);
   if (vendorsError || peptidesError || testsError) throw new Error('catalog_read_failed');
@@ -664,6 +668,8 @@ export const createAdminRouter = (): Router => {
     requirePermission,
   };
   registerCatalogRoutes(router, routeDeps);
+  registerBillingSettingsRoutes(router, routeDeps);
+  registerEmailAdminRoutes(router, routeDeps);
   registerShipmentRoutes(router, routeDeps);
   registerContentAdminRoutes(router, routeDeps);
   registerPrivacyRoutes(router, routeDeps);
@@ -1048,7 +1054,13 @@ export const createAdminRouter = (): Router => {
       res.status(500).json({ error: 'Could not load subscriptions' });
       return;
     }
-    res.json({ items: data ?? [], page, pageSize, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / pageSize) });
+    const userIds = [...new Set((data ?? []).map((row) => row.user_id).filter((id): id is string => Boolean(id)))];
+    const { data: accounts } = userIds.length
+      ? await getServiceClient().from('user_accounts').select('id, email').in('id', userIds)
+      : { data: [] as Array<{ id: string; email: string }> };
+    const emailById = new Map((accounts ?? []).map((account) => [account.id, account.email]));
+    const items = (data ?? []).map((row) => ({ ...row, user_email: row.user_id ? emailById.get(row.user_id) ?? null : null }));
+    res.json({ items, page, pageSize, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / pageSize) });
   });
 
   router.get('/support/requests', requirePermission('support:read'), async (req, res) => {
@@ -1240,6 +1252,8 @@ export const createAdminRouter = (): Router => {
       db.storage.getBucket('profile_photos'),
       providerRequiresEmailConfirmation().then(() => true).catch(() => false),
     ]);
+    const billingRow = await loadBillingSettingsRow().catch(() => null);
+    const emailRow = await loadEmailSettingsRow().catch(() => null);
     res.json({
       checkedAt: new Date().toISOString(),
       services: {
@@ -1247,10 +1261,10 @@ export const createAdminRouter = (): Router => {
         database: { status: databaseError ? 'degraded' : 'operational' },
         authentication: { status: authenticationCheck ? 'operational' : 'degraded' },
         storage: { status: storageCheck.error ? 'degraded' : 'operational' },
-        billing: { status: process.env.BILLING_PROVIDER ? 'configured' : 'not_configured', failures: webhookFailures ?? 0 },
+        billing: { status: process.env.BILLING_PROVIDER || billingRow?.secret_key_encrypted ? 'configured' : 'not_configured', failures: webhookFailures ?? 0 },
         email: {
           status: authenticationCheck
-            ? (process.env.EMAIL_PROVIDER ? 'configured' : 'authentication_only')
+            ? (process.env.EMAIL_PROVIDER || (emailRow?.api_key_encrypted && emailRow.from_email) ? 'configured' : 'authentication_only')
             : 'degraded',
           failures: notificationFailures ?? 0,
         },

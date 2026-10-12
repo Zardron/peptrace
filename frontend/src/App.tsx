@@ -12,6 +12,7 @@ import SiteFooter from './components/SiteFooter/SiteFooter'
 import VendorsList from './components/VendorsList/VendorsList'
 import VendorDetails from './components/VendorDetails/VendorDetails'
 import VendorSignupForm from './components/VendorSignupForm/VendorSignupForm'
+import VendorProducts from './components/VendorProducts/VendorProducts'
 import ShipmentDetails from './components/ShipmentDetails/ShipmentDetails'
 import FullLeaderboard from './components/FullLeaderboard/FullLeaderboard'
 import AccountPages, { type AccountView } from './components/AccountPages/AccountPages'
@@ -33,7 +34,7 @@ const accountRoutes = new Map<string, AccountView>([
   ['/support', 'support'],
 ])
 
-const routedPaths = new Set(['/membership', '/vendors', '/vendor-signup', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', '/products', '/vendor-signup', ...accountRoutes.keys()])
+const routedPaths = new Set(['/membership', '/vendors', '/vendor-signup', '/vendor-products', '/testing', '/terms', '/privacy', '/refund', '/data-deletion', '/methodology', '/products', '/vendor-signup', ...accountRoutes.keys()])
 
 const PRODUCT_LEADERBOARD_PREFIX = '/product/'
 const PRODUCT_LEADERBOARD_SUFFIX = '/leaderboard'
@@ -155,6 +156,7 @@ function App() {
   const isMethodologyPage = pagePath === '/methodology'
   const isProductsPage = pagePath === '/products'
   const isVendorSignUpPage = pagePath === '/vendor-signup'
+  const isVendorProductsPage = pagePath === '/vendor-products'
   const isVendorsPage = pagePath === '/vendors'
   const isVendorDetailsPage = pagePath.startsWith('/vendors/') && pagePath !== '/vendors'
   const productLeaderboardSlug = getProductLeaderboardSlug(pagePath)
@@ -266,21 +268,19 @@ function App() {
           </main>
           <SiteFooter />
         </>
+      ) : isVendorProductsPage ? (
+        <>
+          <HeaderBar onSignUpClick={!user ? openAuthModal : undefined} activeRoute="/vendor-products" />
+          <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
+            <VendorProducts />
+          </main>
+          <SiteFooter />
+        </>
       ) : isVendorSignUpPage ? (
         <>
           <HeaderBar onSignUpClick={!user ? openAuthModal : undefined} activeRoute="/vendor-signup" />
           <main className={`main ${authOpen ? 'auth-page-preview' : ''}`}>
-            {user ? (
-              <VendorSignupForm />
-            ) : (
-              <section className="vendor-signup-gate">
-                <h2>Log in to apply</h2>
-                <p>Vendor applications are available to signed-in Peptrace accounts.</p>
-                <button type="button" className="vendor-cta" onClick={openAuthModal}>
-                  Log in or create an account
-                </button>
-              </section>
-            )}
+            <VendorSignupForm />
           </main>
           <SiteFooter />
         </>

@@ -92,7 +92,7 @@ export default function AuthModal({ open, onClose }: AuthModalProps) {
       const data = await res.json().catch(() => null)
       if (!res.ok) {
         if (res.status === 401) {
-          setError('Incorrect credentials or the email address has not been verified.')
+          setError('Incorrect email or password.')
         } else if (res.status === 409) {
           setError('An account with this email already exists. Sign in instead.')
           setMode('login')

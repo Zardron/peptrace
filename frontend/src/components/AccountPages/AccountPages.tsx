@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { apiFetch } from '../../lib/api'
 import AddressModal, { type ShippingAddress } from './AddressModal'
+import ProductModal, { type ManagedVendor, type VendorProduct } from './ProductModal'
+import { useMembership } from '../../lib/membership'
+import { useSiteContent } from '../../content/useSiteContent'
 import './AccountPages.css'
 import alertTriangle from '../../assets/account/alert-triangle.svg'
 import eyeOff from '../../assets/account/eye-off.svg'
@@ -96,22 +99,6 @@ interface DashboardResult {
   tested_at: string | null
 }
 
-interface DashboardSupply {
-  id: string
-  peptide_name: string
-  quantity_mg: number | null
-  vendor_name: string
-  purity: number | null
-  status: 'verified' | 'pending' | 'failed' | 'reorder'
-}
-
-const SUPPLY_STATUS_DISPLAY: Record<string, { label: string; tone: 'success' | 'warning' | 'danger' }> = {
-  verified: { label: 'Verified', tone: 'success' },
-  pending: { label: 'Pending Test', tone: 'warning' },
-  failed: { label: 'Failed', tone: 'danger' },
-  reorder: { label: 'Reorder', tone: 'warning' },
-}
-
 const SHIPMENT_STATUS_DISPLAY: Record<string, { label: string; tone: 'success' | 'warning' | 'info' }> = {
   submitted: { label: 'Submitted', tone: 'info' },
   in_transit: { label: 'In Transit', tone: 'info' },
@@ -130,7 +117,25 @@ function DashboardPage() {
   const [shipments, setShipments] = useState<DashboardShipment[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentResults, setRecentResults] = useState<DashboardResult[]>([])
-  const [supplies, setSupplies] = useState<DashboardSupply[]>([])
+  const [vendors, setVendors] = useState<ManagedVendor[]>([])
+  const [products, setProducts] = useState<VendorProduct[]>([])
+  const { tone: membershipTone } = useMembership()
+  const membershipPlans = useSiteContent('membership').plans
+  const planLabel = membershipPlans.find((plan) => plan.tone === membershipTone)?.title ?? 'PepTrace Free'
+  const [productModal, setProductModal] = useState<{ product: VendorProduct | null } | null>(null)
+
+  const loadProducts = useCallback(() => {
+    apiFetch('/account/vendor-products')
+      .then((data) => {
+        setVendors(data.vendors ?? [])
+        setProducts(data.products ?? [])
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    loadProducts()
+  }, [loadProducts])
 
   useEffect(() => {
     let cancelled = false
@@ -140,7 +145,6 @@ function DashboardPage() {
           setShipments(data.shipments)
           setStats(data.stats)
           setRecentResults(data.recentResults ?? [])
-          setSupplies(data.supplies ?? [])
         }
       })
       .catch(() => {})
@@ -165,22 +169,21 @@ function DashboardPage() {
     </StatusPill>,
   ])
 
-  const supplyRows = supplies.map((supply) => {
-    const status = SUPPLY_STATUS_DISPLAY[supply.status] ?? SUPPLY_STATUS_DISPLAY.pending
-    return [
-      supply.peptide_name,
-      supply.quantity_mg != null ? `${supply.quantity_mg}mg` : '—',
-      supply.vendor_name || '—',
-      supply.purity != null ? (
-        <strong key="purity" className={supply.purity >= 95 ? 'metric-good' : 'metric-warn'}>
-          {supply.purity.toFixed(1)}%
-        </strong>
-      ) : (
-        '—'
-      ),
-      <StatusPill key="status" tone={status.tone}>{status.label}</StatusPill>,
-    ]
-  })
+  const productRows = products.map((product) => [
+    <button
+      key="name"
+      type="button"
+      className="shipment-link product-edit-link"
+      onClick={() => setProductModal({ product })}
+    >
+      {product.name}
+    </button>,
+    product.amountMg != null ? `${product.amountMg}mg` : '—',
+    product.priceUsd != null ? `$${product.priceUsd.toFixed(2)}` : '—',
+    <StatusPill key="status" tone={product.peptideStatus === 'pending_approval' ? 'warning' : 'success'}>
+      {product.peptideStatus === 'pending_approval' ? 'Pending Approval' : 'Approved'}
+    </StatusPill>,
+  ])
 
   return (
     <main className="account-page-main dashboard-main">
@@ -190,7 +193,7 @@ function DashboardPage() {
           <div>
             <h1>Welcome back, {user?.name ?? 'there'}</h1>
             <div className="dashboard-membership">
-              <span>Free account</span>
+              <span>{planLabel}</span>
               {memberSince ? <small>Member since {memberSince}</small> : null}
             </div>
           </div>
@@ -247,12 +250,27 @@ function DashboardPage() {
             <AccountTable columns={['Peptide Name', 'Batch Code', 'Purity', 'Test Date', 'Outcome']} rows={resultRows} className="results-table" />
           </section>
 
+          {vendors.length > 0 ? (
           <section className="account-card">
             <div className="account-card-title-row">
-              <h2>My Supply</h2>
+              <h2>My Products</h2>
+              <a
+                href="/vendor-products"
+                onClick={(event) => {
+                  event.preventDefault()
+                  setProductModal({ product: null })
+                }}
+              >
+                Add Product
+              </a>
             </div>
-            <AccountTable columns={['Peptide Name', 'Quantity (mg)', 'Vendor', 'Purity', 'Status']} rows={supplyRows} className="supply-table" />
+            {products.length > 0 ? (
+              <AccountTable columns={['Peptide', 'Amount', 'Price', 'Status']} rows={productRows} className="products-table" />
+            ) : (
+              <p className="products-empty">No products listed yet. Add your first product.</p>
+            )}
           </section>
+          ) : null}
         </div>
 
         <aside className="dashboard-sidebar">
@@ -270,6 +288,13 @@ function DashboardPage() {
 
         </aside>
       </div>
+      <ProductModal
+        open={productModal !== null}
+        product={productModal?.product ?? null}
+        vendors={vendors}
+        onClose={() => setProductModal(null)}
+        onSaved={loadProducts}
+      />
     </main>
   )
 }
@@ -284,6 +309,7 @@ function SettingsSidebar({ active }: { active: Exclude<AccountView, 'dashboard'>
             {item.label}
           </a>
         ))}
+        <a href="/vendor-products">Vendor Products</a>
       </nav>
     </aside>
   )
@@ -704,82 +730,160 @@ function NotificationsSettings() {
 function BillingSettings() {
   type Subscription = {
     id: string
-    provider: string
     plan: string
     status: string
     current_period_end: string | null
     cancel_at_period_end: boolean
     currency: string | null
     amount_cents: number | null
-    created_at: string
   }
-  const [current, setCurrent] = useState<Subscription | null>(null)
-  const [history, setHistory] = useState<Subscription[]>([])
-  const [providerConfigured, setProviderConfigured] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  type Invoice = {
+    id: string
+    createdAt: string | null
+    description: string
+    amountCents: number | null
+    currency: string
+    status: string | null
+    receiptUrl: string | null
+  }
+  type PaymentMethod = { brand: string; last4: string; expMonth: number; expYear: number }
 
-  useEffect(() => {
-    apiFetch('/account/billing')
-      .then((data) => {
-        setCurrent(data.current)
-        setHistory(data.history ?? [])
-        setProviderConfigured(data.providerConfigured === true)
-      })
-      .catch(() => setError('Could not load billing information.'))
-      .finally(() => setLoading(false))
+  const plans = useSiteContent('membership').plans
+  const [current, setCurrent] = useState<Subscription | null>(null)
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const data = await apiFetch('/account/billing')
+      setCurrent(data.current)
+      setInvoices(data.invoices ?? [])
+      setPaymentMethod(data.paymentMethod)
+      setError('')
+    } catch {
+      setError('Could not load billing information.')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  const formatMoney = (subscription: Subscription) => {
-    if (subscription.amount_cents == null) return '—'
-    return new Intl.NumberFormat('en', {
-      style: 'currency',
-      currency: subscription.currency ?? 'USD',
-    }).format(subscription.amount_cents / 100)
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const planInfo = plans.find((plan) => plan.tone === (current?.plan === 'gold' ? 'gold' : current ? 'member' : 'muted'))
+  const formatAmount = (cents: number | null, currency: string | null) => {
+    if (cents == null) return '—'
+    return new Intl.NumberFormat('en', { style: 'currency', currency: (currency ?? 'usd').toUpperCase() }).format(cents / 100)
   }
-  const billingRows = history.map((subscription) => [
-    new Date(subscription.created_at).toLocaleDateString(),
-    subscription.plan,
-    formatMoney(subscription),
-    <StatusPill key={subscription.id} tone={subscription.status === 'active' ? 'success' : 'warning'}>{subscription.status}</StatusPill>,
-  ])
+  const formatDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : '—')
+
+  const run = async (path: string, success: string) => {
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await apiFetch(path, { method: 'POST', body: JSON.stringify({}) })
+      setNotice(success)
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const cancel = () => {
+    if (!window.confirm('Cancel your subscription? You keep your benefits until the end of the current billing period.')) return
+    void run('/account/billing/cancel', 'Your subscription will end at the close of the current billing period.')
+  }
+
+  const openPortal = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const data = await apiFetch('/account/billing/portal', { method: 'POST', body: JSON.stringify({}) })
+      window.location.assign(data.url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not open the payment method page.')
+      setBusy(false)
+    }
+  }
+
+  const statusTone = (status: string | null) => (status === 'paid' || status === 'active' ? 'success' : 'warning')
 
   return (
     <>
       <AccountContentHeader title="Membership & Billing" subtitle="Manage your subscription plan and payment details." />
       {loading ? <p>Loading billing information…</p> : null}
-      {error ? <p className="settings-feedback error">{error}</p> : null}
-      {!loading && current ? (
+      {error ? <p className="settings-feedback error" role="alert">{error}</p> : null}
+      {notice ? <p className="settings-feedback success" role="status">{notice}</p> : null}
+      {!loading ? (
         <section className="settings-inner-card subtle-card">
           <div className="plan-header">
             <span>
-              <h2>{current.plan}</h2>
-              <p>{formatMoney(current)}</p>
+              <h2>{planInfo?.title ?? (current ? current.plan : 'PepTrace Free')}</h2>
+              <p>{current ? formatAmount(current.amount_cents, current.currency) + ' / month' : '$0 / forever'}</p>
             </span>
             <p>
-              {current.current_period_end
-                ? `${current.cancel_at_period_end ? 'Ends' : 'Renews'} ${new Date(current.current_period_end).toLocaleDateString()}`
-                : current.status}
+              {current?.current_period_end
+                ? `${current.cancel_at_period_end ? 'Ends' : 'Renews'} ${formatDate(current.current_period_end)}`
+                : current ? current.status : 'Free plan'}
             </p>
           </div>
-          <p>Billing provider: {current.provider}</p>
+          {current && paymentMethod ? (
+            <p>
+              Payment method: {paymentMethod.brand.toUpperCase()} ending in {paymentMethod.last4} (expires{' '}
+              {String(paymentMethod.expMonth).padStart(2, '0')}/{paymentMethod.expYear})
+            </p>
+          ) : null}
+          {current?.status === 'past_due' ? (
+            <p className="settings-feedback error">Your last payment failed. Update your payment method to keep your plan.</p>
+          ) : null}
           <div className="settings-inline-actions">
-            <button type="button" className="account-pill primary" disabled>Change Plan</button>
-            <button type="button" className="danger-link" disabled>Cancel Subscription</button>
+            <a href="/membership" className="account-pill primary">{current ? 'Change Plan' : 'Upgrade Plan'}</a>
+            {current ? (
+              <button type="button" className="account-pill secondary" disabled={busy} onClick={() => void openPortal()}>
+                Update Payment Method
+              </button>
+            ) : null}
+            {current && !current.cancel_at_period_end ? (
+              <button type="button" className="danger-link" disabled={busy} onClick={cancel}>Cancel Subscription</button>
+            ) : null}
+            {current?.cancel_at_period_end ? (
+              <button
+                type="button"
+                className="account-pill secondary"
+                disabled={busy}
+                onClick={() => void run('/account/billing/resume', 'Your subscription will continue to renew.')}
+              >
+                Resume Subscription
+              </button>
+            ) : null}
           </div>
-          <p className="settings-feedback">Plan changes are unavailable until the billing provider integration is enabled.</p>
-        </section>
-      ) : null}
-      {!loading && !current ? (
-        <section className="settings-inner-card subtle-card">
-          <h2>No active membership</h2>
-          <p>{providerConfigured ? 'Choose a plan from the membership page.' : 'Online billing is not configured yet. No payment method is stored by PepTrace.'}</p>
         </section>
       ) : null}
       <section className="settings-inner-card subtle-card">
         <h2>Billing History</h2>
-        {billingRows.length > 0 ? (
-          <AccountTable columns={['Date', 'Description', 'Amount', 'Status']} rows={billingRows} className="billing-table" />
+        {invoices.length > 0 ? (
+          <AccountTable
+            columns={['Date', 'Description', 'Amount', 'Status']}
+            rows={invoices.map((invoice) => [
+              formatDate(invoice.createdAt),
+              invoice.receiptUrl ? (
+                <a key={`${invoice.id}-link`} href={invoice.receiptUrl} target="_blank" rel="noopener noreferrer" className="shipment-link">
+                  {invoice.description}
+                </a>
+              ) : invoice.description,
+              formatAmount(invoice.amountCents, invoice.currency),
+              <StatusPill key={invoice.id} tone={statusTone(invoice.status)}>{invoice.status ?? '—'}</StatusPill>,
+            ])}
+            className="billing-table"
+          />
         ) : <p>No billing records.</p>}
       </section>
     </>

@@ -37,7 +37,7 @@ export const isRecentProviderSession = (
   now = Date.now(),
   maximumAgeMs = 10 * 60 * 1000,
 ): boolean => {
-  if (source !== 'supabase' || typeof createdAt !== 'string') return false;
+  if ((source !== 'supabase' && source !== 'native') || typeof createdAt !== 'string') return false;
   const age = now - new Date(createdAt).getTime();
   return Number.isFinite(age) && age >= 0 && age <= maximumAgeMs;
 };
