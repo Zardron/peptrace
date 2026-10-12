@@ -120,7 +120,6 @@ jobs:
               api/migrations/019_allow_consent_pseudonymization.sql \
               api/migrations/020_security_hardening.sql \
               api/migrations/021_user_upload_inventory.sql \
-              api/migrations/022_verified_provider_auth.sql \
               api/migrations/023_persistent_auth_rate_limits.sql \
               api/migrations/024_production_readiness.sql \
               api/migrations/025_site_content.sql \
