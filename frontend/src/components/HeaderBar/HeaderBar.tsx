@@ -137,7 +137,7 @@ export default function HeaderBar({ onSignUpClick, activeRoute }: HeaderBarProps
         <a href="/vendors" className={`nav-pill ${activeRoute === '/vendors' ? 'active' : ''}`}>vendors</a>
         <a href="/methodology" className={`nav-link ${activeRoute === '/methodology' ? 'active' : ''}`}>methodology</a>
         <a href="/products" className={`nav-link ${activeRoute === '/products' ? 'active' : ''}`}>products</a>
-        <a href="/membership" className={`nav-link ${activeRoute === '/membership' ? 'active' : ''}`}>membership</a>
+        <a href="/membership" className={`nav-link mobile-membership-link ${activeRoute === '/membership' ? 'active' : ''}`}>membership</a>
       </nav>
     </header>
   )

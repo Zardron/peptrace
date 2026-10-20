@@ -38,9 +38,10 @@ import {
 import { consumeRateLimit } from './rate-limit.js';
 import { parseVendorSignupApplication } from './vendor-signup.js';
 import { sendError, ValidationError } from './admin-input.js';
-import { handleStripeWebhook, registerCustomerBillingRoutes } from './billing.js';
+import { handleStripeWebhook, loadBillingSettings, registerCustomerBillingRoutes, stripeFor } from './billing.js';
 import { sendTemplatedEmail } from './email.js';
 import { VENDOR_PRODUCT_COLUMNS, resolveProductPeptide, toVendorProduct, vendorProductValues } from './vendor-products.js';
+import { isValidAddonLab, parseShipmentAddons, shipmentAddonAmountCents, type ShipmentAddon } from './shipment-addons.js';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -195,16 +196,43 @@ registerPublicContentRoutes(app);
 registerPublicVendorApplicationRoutes(app);
 
 app.get('/vendors', async (_req, res) => {
-  const { data, error } = await supabase
-    .from('vendors')
-    .select('id, name, score, cost_per_mg, location, tests_count, products_count, latest_tested_at')
-    .eq('is_demo', false)
-    .order('score', { ascending: false });
-  if (error) {
+  const [{ data: vendors, error: vendorsError }, { data: tests, error: testsError }] = await Promise.all([
+    supabase.from('vendors')
+      .select('id, name, score, cost_per_mg, location, tests_count, products_count, latest_tested_at')
+      .eq('is_demo', false),
+    supabase.from('vendor_tests').select('vendor_id, peptide_name, result, purity, tested_at'),
+  ]);
+  if (vendorsError || testsError) {
     res.status(500).json({ error: 'Failed to load vendors' });
     return;
   }
-  res.json({ vendors: data });
+
+  const thresholds: Record<string, number> = {
+    'purity-focus': 99.5,
+    'peptrace-standard': 99.5,
+    'purity-strict': 99.8,
+    'super-strict': 99.8,
+    'accuracy-focus': 98,
+    all: 0,
+  };
+  const vendorsWithStandards = (vendors ?? []).map((vendor) => {
+    const vendorTests = (tests ?? []).filter((test) => test.vendor_id === vendor.id);
+    const ratingsByStandard = Object.fromEntries(Object.entries(thresholds).map(([standardId, threshold]) => {
+      const qualifyingTests = vendorTests.filter((test) => test.purity != null
+        ? Number(test.purity) >= threshold
+        : threshold === 0);
+      const passed = qualifyingTests.filter((test) => test.result === 'pass').length;
+      return [standardId, {
+        rating: qualifyingTests.length ? Math.round((passed / qualifyingTests.length) * 100) : null,
+        testCount: qualifyingTests.length,
+        productsCount: new Set(qualifyingTests.map((test) => test.peptide_name)).size,
+        latestTestedAt: qualifyingTests.map((test) => test.tested_at).sort().at(-1) ?? null,
+      }];
+    }));
+    return { ...vendor, ratingsByStandard };
+  });
+
+  res.json({ vendors: vendorsWithStandards });
 });
 
 app.get('/peptides', async (_req, res) => {
@@ -357,18 +385,31 @@ app.get('/vendors/:id', async (req, res) => {
 
   const { data: rankedTestRows } = await db
     .from('vendor_tests')
-    .select('vendor_id, result');
-  const rankTotals = new Map<string, { pass: number; total: number }>();
-  for (const row of rankedTestRows ?? []) {
-    const value = rankTotals.get(row.vendor_id) ?? { pass: 0, total: 0 };
-    value.total += 1;
-    if (row.result === 'pass') value.pass += 1;
-    rankTotals.set(row.vendor_id, value);
-  }
-  const rankedVendorIds = [...rankTotals.entries()]
-    .sort((a, b) => (b[1].pass / b[1].total) - (a[1].pass / a[1].total))
-    .map(([vendorId]) => vendorId);
-  const rankIndex = rankedVendorIds.indexOf(vendor.id);
+    .select('vendor_id, result, purity');
+  const standardPurityThresholds: Record<string, number> = {
+    'purity-focus': 99.5,
+    'peptrace-standard': 99.5,
+    'purity-strict': 99.8,
+    'super-strict': 99.8,
+    'accuracy-focus': 98,
+    all: 0,
+  };
+  const rankingsByStandard = Object.fromEntries(Object.entries(standardPurityThresholds).map(([standardId, threshold]) => {
+    const totals = new Map<string, { pass: number; total: number }>();
+    for (const row of rankedTestRows ?? []) {
+      const purity = row.purity == null ? null : Number(row.purity);
+      if (purity === null ? threshold > 0 : purity < threshold) continue;
+      const value = totals.get(row.vendor_id) ?? { pass: 0, total: 0 };
+      value.total += 1;
+      if (row.result === 'pass') value.pass += 1;
+      totals.set(row.vendor_id, value);
+    }
+    const rankedVendorIds = [...totals.entries()]
+      .sort((a, b) => (b[1].pass / b[1].total) - (a[1].pass / a[1].total))
+      .map(([vendorId]) => vendorId);
+    const rankIndex = rankedVendorIds.indexOf(vendor.id);
+    return [standardId, { rank: rankIndex >= 0 ? rankIndex + 1 : null, rankedVendorsCount: rankedVendorIds.length }];
+  }));
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
 
@@ -396,8 +437,9 @@ app.get('/vendors/:id', async (req, res) => {
       peptidesCount: peptides.length,
       latestUpdate: items[0]?.date ?? null,
       rating,
-      rank: rankIndex >= 0 ? rankIndex + 1 : null,
-      rankedVendorsCount: rankedVendorIds.length,
+      rank: rankingsByStandard['purity-focus']?.rank ?? null,
+      rankedVendorsCount: rankingsByStandard['purity-focus']?.rankedVendorsCount ?? 0,
+      rankingsByStandard,
       testsPassed,
       testsTotal,
       analysisText: vendor.analysis_text ?? null,
@@ -2393,6 +2435,60 @@ const intOrNull = (value: unknown): number | null => {
   return num === null ? null : Math.trunc(num);
 };
 
+app.post('/shipments/addons/payment-intent', requireJsonRequest, authRateLimit, async (req, res) => {
+  const session = await authenticate(req);
+  if (!session) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const submissionId = req.body?.submissionId;
+  const samples = req.body?.samples;
+  if (!isUuid(submissionId) || !Array.isArray(samples) || samples.length < 1 || samples.length > 20) {
+    res.status(400).json({ error: 'A valid submission and 1-20 samples are required' });
+    return;
+  }
+  const addonsPerSample = samples.map((sample) => parseShipmentAddons(sample?.addons));
+  if (addonsPerSample.some((addons) => addons === null)) {
+    res.status(400).json({ error: 'One or more testing add-ons are invalid' });
+    return;
+  }
+  if (samples.some((sample, index) => !isValidAddonLab(addonsPerSample[index] ?? [], sample?.lab))) {
+    res.status(400).json({ error: 'Choose an alternative lab for the selected lab add-on' });
+    return;
+  }
+  const amount = shipmentAddonAmountCents((addonsPerSample as ShipmentAddon[][]).flat());
+  if (amount <= 0) {
+    res.status(400).json({ error: 'No paid testing add-ons were selected' });
+    return;
+  }
+
+  try {
+    const settings = await loadBillingSettings();
+    if (!settings) {
+      res.status(503).json({ error: 'Online payment is not configured' });
+      return;
+    }
+    const intent = await stripeFor(settings).paymentIntents.create({
+      amount,
+      currency: 'usd',
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+      description: 'PepTrace shipment add-on testing',
+      metadata: {
+        purpose: 'shipment_addons',
+        userId: session.userId,
+        submissionId,
+      },
+    }, {
+      idempotencyKey: `shipment-addons-${session.userId}-${submissionId}-${amount}`,
+    });
+    if (!intent.client_secret) throw new Error('stripe_client_secret_missing');
+    res.json({ clientSecret: intent.client_secret, paymentIntentId: intent.id, publishableKey: settings.publishableKey });
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'shipment_addon_payment_intent_failed', message: error instanceof Error ? error.message : 'unknown' }));
+    res.status(502).json({ error: 'Could not start add-on payment. Please try again.' });
+  }
+});
+
 app.post('/shipments', async (req, res) => {
   const session = await authenticate(req);
   if (!session) {
@@ -2400,7 +2496,7 @@ app.post('/shipments', async (req, res) => {
     return;
   }
 
-  const { samples, newsletterOptIn, termsAccepted } = req.body ?? {};
+  const { samples, newsletterOptIn, termsAccepted, paymentIntentId } = req.body ?? {};
   const idempotencyKey = req.headers['idempotency-key'];
   if (typeof idempotencyKey !== 'string' || !isUuid(idempotencyKey)) {
     res.status(400).json({ error: 'A valid Idempotency-Key header is required' });
@@ -2414,6 +2510,7 @@ app.post('/shipments', async (req, res) => {
     res.status(400).json({ error: 'At least one sample is required' });
     return;
   }
+  const addonsPerSample: ShipmentAddon[][] = [];
   for (const s of samples as ShipmentSampleInput[]) {
     if (typeof s?.peptideId !== 'string' || s.peptideId === '') {
       res.status(400).json({ error: 'Each sample needs a product' });
@@ -2431,8 +2528,42 @@ app.post('/shipments', async (req, res) => {
       res.status(400).json({ error: 'One or more uploaded files do not belong to this account' });
       return;
     }
-    if (Array.isArray(s.addons) && s.addons.length > 0) {
-      res.status(503).json({ error: 'Paid testing add-ons are not available yet' });
+    const addons = parseShipmentAddons(s.addons);
+    if (addons === null) {
+      res.status(400).json({ error: 'One or more testing add-ons are invalid' });
+      return;
+    }
+    if (!isValidAddonLab(addons, s.lab)) {
+      res.status(400).json({ error: 'Choose an alternative lab for the selected lab add-on' });
+      return;
+    }
+    addonsPerSample.push(addons);
+  }
+
+  const addonAmountCents = shipmentAddonAmountCents(addonsPerSample.flat());
+  if (addonAmountCents > 0) {
+    if (typeof paymentIntentId !== 'string' || !/^pi_[A-Za-z0-9]+$/.test(paymentIntentId)) {
+      res.status(402).json({ error: 'Payment is required for the selected add-ons' });
+      return;
+    }
+    try {
+      const settings = await loadBillingSettings();
+      if (!settings) throw new Error('billing_not_configured');
+      const intent = await stripeFor(settings).paymentIntents.retrieve(paymentIntentId);
+      if (
+        intent.status !== 'succeeded' ||
+        intent.amount !== addonAmountCents ||
+        intent.currency !== 'usd' ||
+        intent.metadata.purpose !== 'shipment_addons' ||
+        intent.metadata.userId !== session.userId ||
+        intent.metadata.submissionId !== idempotencyKey
+      ) {
+        res.status(402).json({ error: 'Payment could not be verified for this shipment' });
+        return;
+      }
+    } catch (error) {
+      console.error(JSON.stringify({ event: 'shipment_addon_payment_verification_failed', message: error instanceof Error ? error.message : 'unknown' }));
+      res.status(402).json({ error: 'Payment could not be verified. Please retry checkout.' });
       return;
     }
   }
@@ -2474,8 +2605,9 @@ app.post('/shipments', async (req, res) => {
   }
 
   const db = getServiceClient();
-  const sampleRows = (samples as ShipmentSampleInput[]).map((s) => {
+  const sampleRows = (samples as ShipmentSampleInput[]).map((s, index) => {
     const vendorName = textOrNull(s.vendor);
+    const addons = addonsPerSample[index] ?? [];
     return {
       peptide_id: s.peptideId as string,
       vendor_id: vendorName ? (vendorIdByName.get(vendorName) ?? null) : null,
@@ -2485,7 +2617,7 @@ app.post('/shipments', async (req, res) => {
       batch_proof_url: textOrNull(s.batchProofFile),
       quantity_mg: numberOrNull(s.quantityMg),
       lab: textOrNull(s.lab),
-      addons: [],
+      addons: addons.map(({ id, title, price }) => ({ id, title, price })),
       vendor_provided_coa: boolOrNull(s.vendorProvidedCOA),
       coa_when: textOrNull(s.coaWhen),
       coa_other_text: textOrNull(s.coaOtherText),
@@ -2498,7 +2630,7 @@ app.post('/shipments', async (req, res) => {
       num_vials: intOrNull(s.numVials),
       price_per_vial: numberOrNull(s.pricePerVial),
       price_currency: textOrNull(s.priceCurrency),
-      sample_price: 0,
+      sample_price: addons.reduce((total, addon) => total + addon.price, 0),
     };
   });
 

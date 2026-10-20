@@ -2,14 +2,16 @@
   max-width: 1120px;
   margin: 0 auto;
   padding: 24px 20px;
-  border-top: 1px solid var(--border);
+  width: 100%;
 }
 
 .leaderboards-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 15px;
 }
 
 .section-title {

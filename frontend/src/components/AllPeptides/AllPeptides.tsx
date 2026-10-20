@@ -258,8 +258,8 @@ export default function AllPeptides() {
 
           {/* Desktop / Tablet */}
           <div className="desktop-table">
-            <TableHeader />
             <div className="all-peptides-table-body">
+              <TableHeader />
               {peptides.map((peptide) => (
                 <PeptideRow key={peptide.name} peptide={peptide} />
               ))}

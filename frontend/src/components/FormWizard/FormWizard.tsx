@@ -1,4 +1,6 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, type FormEvent } from 'react'
+import { loadStripe } from '@stripe/stripe-js'
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'
 import './FormWizard.css'
 import FormProgressSideBar from './FormProgressSideBar'
 import FormNavNextBack from './FormNavNextBack'
@@ -179,9 +181,88 @@ interface TestAddon {
   options?: string[]
 }
 
-// Paid add-ons remain unavailable until the lab catalog and payment provider
-// are connected. An empty catalog prevents selling unconfigured services.
-const testAddons: TestAddon[] = []
+const testAddons: TestAddon[] = [
+  {
+    id: 'different-lab',
+    title: 'Choose a different lab',
+    price: 49.99,
+    body: 'Select an alternative certified lab for your test.',
+    options: ['ABC Labs', 'XYZ Labs', 'Global Lab'],
+  },
+  {
+    id: 'endotoxin',
+    title: 'Endotoxin',
+    price: 49,
+    body: 'Test for endotoxin contamination. No need to send an extra vial.',
+  },
+  {
+    id: 'heavy-metals',
+    title: 'Heavy metals (Pb, Cd, As, Hg)',
+    price: 120,
+    body: 'Test for arsenic, lead, cadmium, and mercury. No need to send an extra vial.',
+  },
+  {
+    id: 'solvents',
+    title: 'Solvents',
+    price: 120,
+    body: 'Test for residual solvents contamination. No need to send an extra vial.',
+  },
+]
+
+interface ShipmentPaymentSession {
+  clientSecret: string
+  paymentIntentId: string
+  publishableKey: string
+}
+
+function ShipmentPaymentForm({
+  amount,
+  submitting,
+  onPayment,
+}: {
+  amount: number
+  submitting: boolean
+  onPayment: (paymentIntentId: string) => Promise<unknown>
+}) {
+  const stripe = useStripe()
+  const elements = useElements()
+  const [processing, setProcessing] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!stripe || !elements || processing || submitting) return
+    setProcessing(true)
+    setError('')
+    const result = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: `${window.location.origin}/testing` },
+      redirect: 'if_required',
+    })
+    if (result.error) {
+      setError(result.error.message ?? 'Payment could not be completed.')
+      setProcessing(false)
+      return
+    }
+    if (result.paymentIntent?.status !== 'succeeded') {
+      setError('Payment is not complete yet. Please try again.')
+      setProcessing(false)
+      return
+    }
+    await onPayment(result.paymentIntent.id)
+    setProcessing(false)
+  }
+
+  return (
+    <form className="fw-payment-form" onSubmit={(event) => void handleSubmit(event)}>
+      <PaymentElement />
+      {error ? <span className="fw-upload-error" role="alert">{error}</span> : null}
+      <button className="fw-btn-next" type="submit" disabled={!stripe || processing || submitting}>
+        <span>{processing || submitting ? 'Processing…' : `Pay $${amount.toFixed(2)} USD and register`}</span>
+      </button>
+    </form>
+  )
+}
 
 export default function FormWizard({ initialStep = 1, onStepChange, onComplete }: FormWizardProps) {
   const { user } = useAuth()
@@ -279,8 +360,11 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
 
   // Payment + submission state
   const [showPayment, setShowPayment] = useState(false)
+  const [paymentSession, setPaymentSession] = useState<ShipmentPaymentSession | null>(null)
+  const [paymentLoading, setPaymentLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const paymentRedirectHandled = useRef(false)
 
   // Persist form progress so a refresh doesn't lose it.
   useEffect(() => {
@@ -310,6 +394,11 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
       setShowAuthGate(true)
       return
     }
+    if (currentStep === 2 && sample.addons.includes('different-lab') && !sample.lab) {
+      setSubmitError('Choose an alternative lab for this add-on.')
+      return
+    }
+    setSubmitError('')
     if (currentStep < 7) {
       goToStep(currentStep + 1)
     } else {
@@ -320,7 +409,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
       setSubmitError('')
       setShowPayment(true)
     }
-  }, [currentStep, user, goToStep, termsAccepted])
+  }, [currentStep, user, goToStep, termsAccepted, sample])
 
   // After a successful login, close the gate and continue to the next step.
   useEffect(() => {
@@ -354,7 +443,50 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
     return (peptide ? peptidePrice(peptide) : 0) + addons
   }
   const totalPrice = samples.reduce((sum, s) => sum + samplePrice(s), 0)
+  const addonTotal = samples.reduce((sum, s) => sum + testAddons
+    .filter((addon) => s.addons.includes(addon.id))
+    .reduce((sampleSum, addon) => sampleSum + addon.price, 0), 0)
   const currentPriceLabel = totalPrice === 0 ? 'FREE' : `$${totalPrice.toFixed(2)}`
+
+  useEffect(() => {
+    if (!showPayment || addonTotal === 0 || totalPrice !== addonTotal) {
+      setPaymentSession(null)
+      setPaymentLoading(false)
+      return undefined
+    }
+    const redirectParams = new URLSearchParams(window.location.search)
+    if (redirectParams.get('redirect_status') === 'succeeded' && redirectParams.has('payment_intent')) {
+      setPaymentSession(null)
+      setPaymentLoading(false)
+      return undefined
+    }
+    let cancelled = false
+    setPaymentSession(null)
+    setPaymentLoading(true)
+    setSubmitError('')
+    apiFetch('/shipments/addons/payment-intent', {
+      method: 'POST',
+      body: JSON.stringify({
+        submissionId,
+        samples: samples.map((entry) => ({ addons: entry.addons, lab: entry.lab })),
+      }),
+    })
+      .then((result) => {
+        if (!cancelled) setPaymentSession(result)
+      })
+      .catch((error) => {
+        if (!cancelled) setSubmitError(error instanceof Error ? error.message : 'Could not start payment.')
+      })
+      .finally(() => {
+        if (!cancelled) setPaymentLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [showPayment, addonTotal, totalPrice, samples, submissionId])
+
+  const stripePromise = useMemo(
+    () => paymentSession ? loadStripe(paymentSession.publishableKey) : null,
+    [paymentSession?.publishableKey],
+  )
 
   const sampleLabel = (s: SampleData, index: number): string =>
     peptides.find((p) => p.id === s.peptideId)?.name ?? `Sample ${index + 1}`
@@ -385,8 +517,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
     }
   }
 
-  // Only free registrations can be submitted until billing is connected.
-  const submitShipment = async () => {
+  const submitShipment = async (paymentIntentId?: string): Promise<boolean> => {
     setSubmitting(true)
     setSubmitError('')
     try {
@@ -396,6 +527,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
         body: JSON.stringify({
           newsletterOptIn,
           termsAccepted: true,
+          ...(paymentIntentId ? { paymentIntentId } : {}),
           samples: samples.map((s) => ({
             peptideId: s.peptideId,
             vendor: s.vendor,
@@ -423,14 +555,38 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
       })
       localStorage.removeItem(STORAGE_KEY)
       onComplete?.()
+      return true
     } catch (err) {
       setSubmitError(
         err instanceof Error ? err.message : 'Could not register the shipment. Please try again.',
       )
+      return false
     } finally {
       setSubmitting(false)
     }
   }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const paymentIntentId = params.get('payment_intent')
+    if (
+      !user ||
+      paymentRedirectHandled.current ||
+      params.get('redirect_status') !== 'succeeded' ||
+      !paymentIntentId
+    ) return
+
+    paymentRedirectHandled.current = true
+    setShowPayment(true)
+    void submitShipment(paymentIntentId).then((registered) => {
+      if (!registered) return
+      const url = new URL(window.location.href)
+      url.searchParams.delete('payment_intent')
+      url.searchParams.delete('payment_intent_client_secret')
+      url.searchParams.delete('redirect_status')
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+    })
+  }, [user, submitShipment])
 
   return (
     <div className="form-wizard">
@@ -479,7 +635,9 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
               <p className="fw-payment-note">
                 {totalPrice === 0
                   ? 'No payment is required for this registration.'
-                  : 'Online payment is not configured. Paid tests cannot be registered yet.'}
+                  : addonTotal > 0 && totalPrice === addonTotal
+                    ? 'Complete the secure payment below to register your shipment.'
+                    : 'Payment for paid peptide testing is not configured.'}
               </p>
               {submitError && <span className="fw-upload-error">{submitError}</span>}
               <div className="fw-payment-screen-actions">
@@ -491,21 +649,22 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
                 >
                   <span>Back</span>
                 </button>
-                <button
-                  type="button"
-                  className="fw-btn-next"
-                  onClick={() => void submitShipment()}
-                  disabled={submitting || totalPrice > 0}
-                >
-                  <span>
-                    {submitting
-                      ? 'Processing…'
-                      : totalPrice === 0
-                        ? 'Complete Registration'
-                        : 'Payment unavailable'}
-                  </span>
-                </button>
+                {totalPrice === 0 ? (
+                  <button type="button" className="fw-btn-next" onClick={() => void submitShipment()} disabled={submitting}>
+                    <span>{submitting ? 'Processing…' : 'Complete Registration'}</span>
+                  </button>
+                ) : null}
               </div>
+              {paymentLoading ? <p className="fw-payment-note">Preparing secure checkout…</p> : null}
+              {paymentSession && stripePromise && totalPrice === addonTotal ? (
+                <Elements stripe={stripePromise} options={{ clientSecret: paymentSession.clientSecret }}>
+                  <ShipmentPaymentForm
+                    amount={addonTotal}
+                    submitting={submitting}
+                    onPayment={submitShipment}
+                  />
+                </Elements>
+              ) : null}
             </div>
           ) : showAuthGate ? (
             <div className="fw-auth-gate">
@@ -585,6 +744,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
               <div className="fw-section-title">
                 <span>Testing Options</span>
               </div>
+              {submitError ? <span className="fw-upload-error" role="alert">{submitError}</span> : null}
 
               <div className="fw-field">
                 <span className="fw-field-label">Free Testing Includes:</span>
@@ -598,7 +758,47 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
 
               <div className="fw-field">
                 <span className="fw-field-label">Add-ons</span>
-                <p className="fw-field-hint">Paid add-on tests are unavailable until the lab catalog and billing provider are connected.</p>
+                {testAddons.map((addon) => (
+                  <div className={`fw-test-card${sample.addons.includes(addon.id) ? ' selected' : ''}`} key={addon.id}>
+                    <button
+                      type="button"
+                      className="fw-test-card-toggle"
+                      aria-pressed={sample.addons.includes(addon.id)}
+                      onClick={() => {
+                        setSubmitError('')
+                        updateSample({
+                          addons: sample.addons.includes(addon.id)
+                            ? sample.addons.filter((id) => id !== addon.id)
+                            : [...sample.addons, addon.id],
+                        })
+                      }}
+                    >
+                      <span className="fw-test-card-header">
+                        {sample.addons.includes(addon.id) ? (
+                          <img src={checkmarkIcon} alt="" className="fw-test-card-check" width={12} height={12} />
+                        ) : null}
+                        <span className="fw-test-card-title">{addon.title}</span>
+                        <span className="fw-test-card-price">${addon.price.toFixed(2)}</span>
+                      </span>
+                    </button>
+                    <p className="fw-test-card-body">{addon.body}</p>
+                    {addon.options && sample.addons.includes(addon.id) ? (
+                      <select
+                        className="fw-test-card-select"
+                        aria-label="Alternative lab"
+                        required
+                        value={sample.lab}
+                        onChange={(event) => {
+                          setSubmitError('')
+                          updateSample({ lab: event.target.value })
+                        }}
+                      >
+                        <option value="">Select lab</option>
+                        {addon.options.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    ) : null}
+                  </div>
+                ))}
               </div>
             </>
           )}
@@ -619,17 +819,25 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
                 />
               </div>
 
-              <button
-                type="button"
-                className="fw-btn-add-sample"
-                onClick={() => {
-                  const customVendor = vendorSearch.trim()
-                  if (customVendor) updateSample({ vendor: customVendor })
-                }}
-                disabled={!vendorSearch.trim()}
-              >
-                {vendorSearch.trim() ? `Use “${vendorSearch.trim()}”` : 'Enter a vendor name'}
-              </button>
+              {vendorSearch.trim() ? (
+                <button
+                  type="button"
+                  className={`fw-btn-add-sample${sample.vendor === vendorSearch.trim() ? ' selected' : ''}`}
+                  aria-pressed={sample.vendor === vendorSearch.trim()}
+                  onClick={() => {
+                    const customVendor = vendorSearch.trim()
+                    updateSample({ vendor: customVendor })
+                    setSubmitError('')
+                  }}
+                >
+                  {sample.vendor === vendorSearch.trim()
+                    ? `Selected: ${vendorSearch.trim()}`
+                    : `Use “${vendorSearch.trim()}”`}
+                </button>
+              ) : null}
+              {sample.vendor ? (
+                <p className="fw-field-hint" role="status">Selected vendor: {sample.vendor}</p>
+              ) : null}
 
               <div className="fw-list">
                 {filteredVendors.map((vendor, i) => (
@@ -973,6 +1181,7 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
                   { label: 'Batch ID', value: sample.batchId || '-' },
                   { label: 'COA', value: sample.coaFile || sample.coaUrl ? 'Provided' : 'Not provided' },
                   { label: 'Proof of Purchase', value: sample.proofFile ? 'Provided' : 'Not provided' },
+                  { label: 'Testing Add-ons', value: testAddons.filter((addon) => sample.addons.includes(addon.id)).map((addon) => addon.title).join(', ') || 'None' },
                   { label: 'Purchase Details', value: sample.orderId ? `Order ${sample.orderId}` : '-' },
                   { label: 'Satisfaction', value: '-' },
                 ].map((row) => (
@@ -993,10 +1202,11 @@ export default function FormWizard({ initialStep = 1, onStepChange, onComplete }
               </button>
 
               <div className="fw-field">
-                <span className="fw-field-label">Check for endotoxin?</span>
+                <span className="fw-field-label">Testing add-ons</span>
                 <span className="fw-field-hint">
-                  Endotoxin testing is an additional $49. If you would like to add this to your
-                  sample, please check the box below.
+                  {sample.addons.length
+                    ? `${testAddons.filter((addon) => sample.addons.includes(addon.id)).map((addon) => `${addon.title} ($${addon.price.toFixed(2)})`).join(', ')} selected for this sample.`
+                    : 'No paid add-ons selected for this sample.'}
                 </span>
               </div>
 

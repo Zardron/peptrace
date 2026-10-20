@@ -117,7 +117,7 @@ export default function Leaderboards() {
       <div className="leaderboards-header">
         <h2 className="section-title">Leaderboards</h2>
         <div className="section-tabs">
-          <button type="button" className="tab active">all peptides</button>
+          <a href="/products" className="tab active">all peptides</a>
           <a href="/vendors" className="tab">all vendors</a>
         </div>
       </div>
@@ -153,7 +153,7 @@ export default function Leaderboards() {
         <p className="leaderboards-status">No leaderboard data yet.</p>
       ) : (
         <div className="boards-grid">
-          {cards.map((card) => (
+          {cards.slice(0, 6).map((card) => (
             <LeaderboardCard
               key={card.peptideId}
               {...toCardProps(card, standard.minPurity, rankBy)}

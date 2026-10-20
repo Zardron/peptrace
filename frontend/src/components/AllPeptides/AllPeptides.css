@@ -112,25 +112,35 @@
 /* Table header */
 .all-peptides-table-header {
   display: grid;
-  grid-template-columns: 320px 1fr 100px 100px 120px;
+  grid-template-columns: 320px minmax(0, 1fr);
   align-items: center;
   padding: 10px 16px;
+  background: #f9fafc;
+  border-bottom: 1px solid #e5e6eb;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.54px;
-  color: var(--text-muted);
+  letter-spacing: 0.88px;
+  color: #6b7280;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .th-rest {
   display: grid;
   grid-template-columns: 1fr 100px 100px 120px;
   align-items: center;
+  text-align: center;
+}
+
+span.th-top-vendors {
+    text-align: left;
+    padding-left: 10px;
 }
 
 /* Table body */
 .all-peptides-table-body {
   background: var(--bg-white);
+  border: 1px solid #e5e6eb;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -200,6 +210,7 @@
   color: var(--text);
   text-align: left;
   letter-spacing: 0.52px;
+  text-align: center;
 }
 
 /* Rating badges — exact Figma-derived colors */
@@ -368,12 +379,13 @@
   }
 
   .all-peptides-table-header {
-    grid-template-columns: 240px 1fr 90px 90px 110px;
+    grid-template-columns: 240px minmax(0, 1fr);
     padding: 10px 12px;
   }
 
   .th-rest {
     grid-template-columns: 1fr 90px 90px 110px;
+    text-align: center;
   }
 
   .peptide-name {

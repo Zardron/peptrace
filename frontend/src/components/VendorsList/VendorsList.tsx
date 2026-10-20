@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import './VendorsList.css'
 import searchIcon from '../../assets/vendors/search.svg'
-import chevronDown from '../../assets/vendors/chevron-down.svg'
+import StandardFilter, { getStandard, type StandardId } from '../StandardFilter/StandardFilter'
 
 interface Vendor {
   id: string
@@ -12,17 +12,16 @@ interface Vendor {
   tests_count: number | null
   products_count: number | null
   latest_tested_at: string | null
+  ratingsByStandard?: Partial<Record<StandardId, {
+    rating: number | null
+    testCount: number
+    productsCount: number
+    latestTestedAt: string | null
+  }>>
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 
-const PURITY_OPTIONS = [
-  { id: 'p995', label: 'Purity focus', badge: 'purity 99.5%+', minScore: 85 },
-  { id: 'p99', label: 'Purity focus', badge: 'purity 99.0%+', minScore: 70 },
-  { id: 'all', label: 'All vendors', badge: null, minScore: 0 },
-] as const
-
-type PurityId = (typeof PURITY_OPTIONS)[number]['id']
 type RankBy = 'rating' | 'cost'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -42,10 +41,8 @@ export default function VendorsList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
-  const [purityId, setPurityId] = useState<PurityId>('p99')
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [standardId, setStandardId] = useState<StandardId>('purity-focus')
   const [rankBy, setRankBy] = useState<RankBy>('rating')
-  const filterRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -69,30 +66,14 @@ export default function VendorsList() {
     }
   }, [])
 
-  useEffect(() => {
-    if (!menuOpen) return undefined
-    const handleMouseDown = (event: MouseEvent) => {
-      if (!filterRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleMouseDown)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [menuOpen])
-
-  const purity = PURITY_OPTIONS.find((option) => option.id === purityId) ?? PURITY_OPTIONS[0]
+  const standard = getStandard(standardId)
   const search = query.trim().toLowerCase()
   const rows = vendors
-    .filter((vendor) => (vendor.score ?? 0) >= purity.minScore)
+    .map((vendor) => ({
+      ...vendor,
+      methodology: vendor.ratingsByStandard?.[standardId] ?? null,
+    }))
+    .filter((vendor) => standardId === 'all' || vendor.methodology?.rating != null)
     .filter(
       (vendor) =>
         !search ||
@@ -101,7 +82,7 @@ export default function VendorsList() {
     )
     .sort((a, b) =>
       rankBy === 'rating'
-        ? (b.score ?? 0) - (a.score ?? 0)
+        ? (b.methodology?.rating ?? b.score ?? 0) - (a.methodology?.rating ?? a.score ?? 0)
         : (a.cost_per_mg ?? Number.MAX_VALUE) - (b.cost_per_mg ?? Number.MAX_VALUE),
     )
 
@@ -111,7 +92,7 @@ export default function VendorsList() {
         <div className="vendors-title-area">
           <h1 className="vendors-title">Vendors</h1>
           <p className="vendors-subtitle">
-            {rows.length} of {vendors.length} vendors · total score by Purity focus
+            {rows.length} of {vendors.length} vendors · {standard.label} rating
           </p>
           <a href="/vendor-signup" className="vendors-register-link">Are you a vendor? Register your business →</a>
         </div>
@@ -135,45 +116,7 @@ export default function VendorsList() {
         </div>
 
         <div className="vendors-filter-bar">
-          <div className="vendors-filter" ref={filterRef}>
-            <button
-              type="button"
-              className="vendors-filter-trigger"
-              aria-haspopup="listbox"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              <span className="vendors-filter-label">{purity.label}</span>
-              {purity.badge ? <span className="vendors-filter-badge">{purity.badge}</span> : null}
-              <img
-                src={chevronDown}
-                alt=""
-                className={`vendors-filter-chevron${menuOpen ? ' open' : ''}`}
-              />
-            </button>
-            {menuOpen ? (
-              <div className="vendors-filter-menu" role="listbox" aria-label="Purity focus">
-                {PURITY_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    role="option"
-                    aria-selected={option.id === purityId}
-                    className={`vendors-filter-option${option.id === purityId ? ' active' : ''}`}
-                    onClick={() => {
-                      setPurityId(option.id)
-                      setMenuOpen(false)
-                    }}
-                  >
-                    <span className="vendors-filter-option-label">{option.label}</span>
-                    {option.badge ? (
-                      <span className="vendors-filter-badge">{option.badge}</span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <StandardFilter value={standardId} onChange={setStandardId} allLabel="All vendors" />
 
           <div className="vendors-rank">
             <span className="vendors-rank-label">Rank by</span>
@@ -223,12 +166,12 @@ export default function VendorsList() {
                     <span className="vendor-name">{row.name}</span>
                   </span>
                   <span className="col-score">
-                    <span className="score-badge">{row.score ?? '—'}%</span>
+                    <span className="score-badge">{row.methodology?.rating ?? (standardId === 'all' ? row.score : null) ?? '—'}%</span>
                   </span>
                   <span className="col-cost">{formatCost(row.cost_per_mg)}</span>
-                  <span className="col-tests">{row.tests_count ?? '—'}</span>
-                  <span className="col-products">{row.products_count ?? '—'}</span>
-                  <span className="col-latest">{formatLatest(row.latest_tested_at)}</span>
+                    <span className="col-tests">{row.methodology?.testCount ?? (standardId === 'all' ? row.tests_count : null) ?? '—'}</span>
+                    <span className="col-products">{row.methodology?.productsCount ?? (standardId === 'all' ? row.products_count : null) ?? '—'}</span>
+                    <span className="col-latest">{formatLatest(row.methodology?.latestTestedAt ?? (standardId === 'all' ? row.latest_tested_at : null) ?? null)}</span>
                   <span className="col-location">{row.location ?? '—'}</span>
                 </a>
               ))

@@ -1,12 +1,10 @@
 .home-top-info {
-  width: 100%;
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: 0 20px 0;
-  display: flex;
-  justify-content: flex-start;
+    width: 100%;
+    max-width: 1120px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: flex-start;
 }
-
 .top-info-banner {
   display: flex;
   align-items: center;
@@ -34,6 +32,12 @@
   width: 17px;
   height: auto;
   display: block;
+}
+
+@media (max-width: 1091px) {
+  .home-top-info {
+    display: none;
+  }
 }
 
 @media (max-width: 566px) {

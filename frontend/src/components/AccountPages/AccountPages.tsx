@@ -309,7 +309,6 @@ function SettingsSidebar({ active }: { active: Exclude<AccountView, 'dashboard'>
             {item.label}
           </a>
         ))}
-        <a href="/vendor-products">Vendor Products</a>
       </nav>
     </aside>
   )

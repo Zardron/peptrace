@@ -294,6 +294,7 @@
 
   .header-nav-row {
     display: flex;
+    justify-content: center;
   }
 
   .header-nav-row .nav-link.active,
@@ -329,6 +330,10 @@
     justify-content: center;
     gap: 6px;
     padding: 20px 16px;
+  }
+
+  .mobile-membership-link {
+    display: none;
   }
 
   .header-nav-row.open {

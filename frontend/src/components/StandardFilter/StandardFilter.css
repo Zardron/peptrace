@@ -60,6 +60,18 @@ button.filter-trigger {
   cursor: pointer;
 }
 
+.filter-trigger-content,
+.filter-menu-option-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-member-locked {
+  opacity: 0.5;
+}
+
 .filter-menu-option:hover {
   background: #f3f4f6;
 }
@@ -81,9 +93,189 @@ button.filter-trigger {
   padding: 5px 12px;
   background: var(--primary);
   color: #fff;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.72px;
   border-radius: 999px;
   white-space: nowrap;
+}
+
+.filter-trigger .filter-badge {
+  padding: 0 12px;
+}
+
+.filter-badge-members {
+  background: #000000;
+  opacity: 1;
+}
+
+.filter-badge-lock {
+  margin-right: 5px;
+  font-size: 9px;
+}
+
+.standard-upsell-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.68);
+}
+
+.standard-upsell-dialog {
+  position: relative;
+  width: min(760px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 36px;
+  border: 1px solid #26342e;
+  border-radius: 16px;
+  background: #0c0f0e;
+  color: #ffffff;
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.38);
+}
+
+.standard-upsell-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  border-radius: 50%;
+  background: transparent;
+  color: #ffffff;
+  font-size: 31px;
+  line-height: 1;
+  cursor: pointer;
+  border: none;
+}
+
+.standard-upsell-eyebrow {
+  color: #65a779;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.standard-upsell-dialog h2 {
+    margin: 10px 0 8px;
+    font-size: 28px;
+    color: #fff;
+    line-height: 1.15;
+    font-weight: bold;
+}
+
+.standard-upsell-description {
+  max-width: 600px;
+  margin: 0 0 24px;
+  color: #bdc5c0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.standard-upsell-plans {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.standard-upsell-plan {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #3a7d44;
+  border-radius: 10px;
+  background: #131a17;
+}
+
+.standard-upsell-plan.gold {
+  border-color: #d4af37;
+}
+
+.standard-upsell-plan h3 {
+  margin: 0 0 10px;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.standard-upsell-price {
+  margin: 0 0 10px;
+  color: #ffffff;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.standard-upsell-price span {
+  margin-left: 4px;
+  color: #bdc5c0;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.standard-upsell-plan-description {
+  min-height: 62px;
+  margin: 0 0 12px;
+  color: #bdc5c0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.standard-upsell-plan ul {
+  display: grid;
+  gap: 8px;
+  flex: 1;
+  padding: 0;
+  margin: 0 0 18px;
+  color: #ffffff;
+  font-size: 12px;
+  list-style: none;
+}
+
+.standard-upsell-plan li::before {
+  content: '✓';
+  margin-right: 8px;
+  color: #65a779;
+}
+
+.standard-upsell-plan.gold li::before {
+  color: #d4af37;
+}
+
+.standard-upsell-plan button {
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid #3a7d44;
+  border-radius: 6px;
+  background: #3a7d44;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.standard-upsell-plan.gold button {
+  border-color: #d4af37;
+  background: #d4af37;
+  color: #0c0f0e;
+}
+
+@media (max-width: 600px) {
+  .standard-upsell-dialog {
+    padding: 30px 18px 18px;
+  }
+
+  .standard-upsell-dialog h2 {
+    padding-right: 28px;
+    font-size: 22px;
+  }
+
+  .standard-upsell-plans {
+    grid-template-columns: 1fr;
+  }
+
+  .standard-upsell-plan-description {
+    min-height: 0;
+  }
 }

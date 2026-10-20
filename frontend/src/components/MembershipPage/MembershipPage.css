@@ -198,7 +198,6 @@
 }
 
 .membership-pricing-card {
-  min-height: 520px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -468,7 +467,7 @@
 
 .membership-stat strong {
   color: #3a7d44;
-  font-size: 48px;
+  font-size: 30px;
   font-weight: 700;
   line-height: 1;
 }

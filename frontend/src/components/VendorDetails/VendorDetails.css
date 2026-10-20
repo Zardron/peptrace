@@ -233,7 +233,6 @@
   background: #ffffff;
   border: 1px solid #e6e6e6;
   border-radius: 10px;
-  overflow: hidden;
 }
 
 .vd-tab-bar {
@@ -381,25 +380,6 @@
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
-}
-
-.vd-filter-select {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  border: 1px solid #e6e6e6;
-  border-radius: 8px;
-  font-size: 13px;
-  color: #111111;
-  background: #ffffff;
-  cursor: pointer;
-}
-
-.vd-filter-chevron {
-  width: 12px;
-  height: 12px;
-  color: #7e7e7e;
 }
 
 .vd-methodology-link {
@@ -664,10 +644,16 @@
   padding: 8px 16px 16px;
 }
 
-.chart-svg {
+.rating-trend-canvas {
   width: 100%;
-  height: auto;
-  display: block;
+  height: 220px;
+  position: relative;
+}
+
+@media (max-width: 480px) {
+  .rating-trend-canvas {
+    height: 190px;
+  }
 }
 
 /* Membership card */
@@ -731,9 +717,8 @@
   justify-content: center;
   gap: 10px;
   width: 100%;
-  max-width: 280px;
-  background: #2d3748;
-  color: #ffffff;
+  background: black;
+  color: #dfb50e;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -745,7 +730,8 @@
 }
 
 .vd-membership-button:hover {
-  background: #1a202c;
+  background: #dfb50e;
+  color: black;
 }
 
 .vd-membership-btn-icon {
@@ -758,17 +744,17 @@
   padding: 0;
   margin: 0;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
-  text-align: left;
   width: 100%;
-  max-width: 280px;
+  align-items: center;
+  justify-content: center;
 }
 
 .vd-membership-features li {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 3px;
   font-size: 13px;
   color: #374151;
 }

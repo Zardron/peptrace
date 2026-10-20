@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import './HomeBottom.css'
 import RichText from '../../content/RichText'
 import { useSiteContent } from '../../content/useSiteContent'
+import arrowSvg from '../../assets/arrow-subscribe.svg'
 
 export default function HomeBottom() {
   const content = useSiteContent('home')
+  const [email, setEmail] = useState('')
 
   return (
     <section className="home-bottom">
@@ -17,6 +20,22 @@ export default function HomeBottom() {
 
         <div className="newsletter-block">
           <h3 className="newsletter-heading">{content.newsletterTitle}</h3>
+          <form className="newsletter-form" onSubmit={(event) => event.preventDefault()}>
+            <input
+              type="email"
+              className="newsletter-input"
+              placeholder="email@example.com"
+              aria-label="Email address"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+            <button type="submit" className="newsletter-button">
+              <span>subscribe</span>
+              <img src={arrowSvg} alt="" />
+            </button>
+          </form>
           {content.newsletterNotes.map((note, index) => (
             <p className="newsletter-privacy" key={index}><RichText text={note} /></p>
           ))}
