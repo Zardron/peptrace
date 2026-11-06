@@ -5,6 +5,7 @@ import AddressModal, { type ShippingAddress } from './AddressModal'
 import ProductModal, { type ManagedVendor, type VendorProduct } from './ProductModal'
 import { useMembership } from '../../lib/membership'
 import { useSiteContent } from '../../content/useSiteContent'
+import Toast, { type ToastMessage } from '../Toast/Toast'
 import './AccountPages.css'
 import alertTriangle from '../../assets/account/alert-triangle.svg'
 import eyeOff from '../../assets/account/eye-off.svg'
@@ -349,12 +350,13 @@ const emptyProfileForm = {
 function ProfileSettings() {
   const { user, refresh } = useAuth()
   const [form, setForm] = useState(emptyProfileForm)
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [profileError, setProfileError] = useState('')
+  const [status, setStatus] = useState<'idle' | 'saving'>('idle')
+  const [toast, setToast] = useState<ToastMessage | null>(null)
   const [photoStatus, setPhotoStatus] = useState<'idle' | 'uploading' | 'error'>('idle')
   const [photoError, setPhotoError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const avatarUrl = user?.profile?.avatar_url ?? null
+  const dismissToast = useCallback(() => setToast(null), [])
 
   const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -420,22 +422,24 @@ function ProfileSettings() {
     (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       setForm((current) => ({ ...current, [field]: event.target.value }))
       setStatus('idle')
-      setProfileError('')
     }
 
   const handleSave = async () => {
     setStatus('saving')
-    setProfileError('')
     try {
       await apiFetch('/account/profile', {
         method: 'PUT',
         body: JSON.stringify({ ...form, expectedUpdatedAt: user?.profile?.updated_at }),
       })
       await refresh()
-      setStatus('saved')
+      setStatus('idle')
+      setToast({ tone: 'success', message: 'Profile saved.' })
     } catch (error) {
-      setStatus('error')
-      setProfileError(error instanceof Error ? error.message : 'Could not save your profile. Please try again.')
+      setStatus('idle')
+      setToast({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Could not save your profile. Please try again.',
+      })
     }
   }
 
@@ -448,11 +452,11 @@ function ProfileSettings() {
       bio: user?.profile?.bio ?? '',
     })
     setStatus('idle')
-    setProfileError('')
   }
 
   return (
     <>
+      <Toast toast={toast} onDismiss={dismissToast} />
       <AccountContentHeader
         title="Profile Information"
         subtitle="Update your research credentials, contact details, and organization profile."
@@ -503,8 +507,6 @@ function ProfileSettings() {
       <Field label="Bio">
         <textarea value={form.bio} onChange={setField('bio')} disabled={status === 'saving'} />
       </Field>
-      {status === 'saved' ? <p className="settings-feedback success">Profile saved.</p> : null}
-      {status === 'error' ? <p className="settings-feedback error">{profileError}</p> : null}
       <div className="settings-actions">
         <button type="button" className="account-pill primary" onClick={handleSave} disabled={status === 'saving'}>
           {status === 'saving' ? 'Saving…' : 'Save Changes'}

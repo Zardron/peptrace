@@ -947,7 +947,8 @@
   }
 
   .account-view-profile .settings-content {
-    height: 698px;
+    min-height: 698px;
+    height: auto;
   }
 
   .account-view-profile .settings-field input,
