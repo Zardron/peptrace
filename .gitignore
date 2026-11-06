@@ -1,5 +1,8 @@
 .DS_Store
 
+# Local secrets (OAuth client JSON, etc.) — never commit
+.secrets/
+
 # Production server artifacts (live in the server-side clone, never committed)
 letsencrypt/
 acme-webroot/
